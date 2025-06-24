@@ -1,12 +1,12 @@
-
 import React, { useState } from 'react';
 import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Shield, Users, Store, BarChart3 } from 'lucide-react';
+import { LogOut, Shield, Users, Store, BarChart3, Search } from 'lucide-react';
 
 const shops = [
   { id: 'kiambu', name: 'Kiambu Shop' },
@@ -16,6 +16,8 @@ const shops = [
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
   const [selectedShop, setSelectedShop] = useState('kiambu');
+  const [salesSortBy, setSalesSortBy] = useState<'product' | 'customer' | 'date'>('date');
+  const [salesSearchTerm, setSalesSearchTerm] = useState('');
 
   const getShopData = (shopId: string, dataType: 'inventory' | 'sales') => {
     const data = localStorage.getItem(`${dataType}_${shopId}`);
@@ -24,6 +26,34 @@ const AdminDashboard = () => {
 
   const inventory = getShopData(selectedShop, 'inventory');
   const sales = getShopData(selectedShop, 'sales');
+
+  const filteredAndSortedSales = [...sales]
+    .filter(sale => {
+      if (!salesSearchTerm) return true;
+      
+      const searchLower = salesSearchTerm.toLowerCase();
+      
+      // Search in customer name
+      if (sale.customerName.toLowerCase().includes(searchLower)) return true;
+      
+      // Search in products
+      const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+      return items.some((item: any) => item.product.toLowerCase().includes(searchLower));
+    })
+    .sort((a, b) => {
+      switch (salesSortBy) {
+        case 'product':
+          const aProduct = a.items?.[0]?.product || a.product || '';
+          const bProduct = b.items?.[0]?.product || b.product || '';
+          return aProduct.localeCompare(bProduct);
+        case 'customer':
+          return a.customerName.localeCompare(b.customerName);
+        case 'date':
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        default:
+          return 0;
+      }
+    });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -194,7 +224,30 @@ const AdminDashboard = () => {
           <TabsContent value="sales">
             <Card>
               <CardHeader>
-                <CardTitle>Sales Records - {shops.find(s => s.id === selectedShop)?.name}</CardTitle>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <CardTitle>Sales Records - {shops.find(s => s.id === selectedShop)?.name}</CardTitle>
+                  <div className="flex items-center space-x-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Input
+                        placeholder="Search customers or products..."
+                        value={salesSearchTerm}
+                        onChange={(e) => setSalesSearchTerm(e.target.value)}
+                        className="pl-10 w-64"
+                      />
+                    </div>
+                    <Select value={salesSortBy} onValueChange={(value: 'product' | 'customer' | 'date') => setSalesSortBy(value)}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="date">Sort by Date</SelectItem>
+                        <SelectItem value="product">Sort by Product</SelectItem>
+                        <SelectItem value="customer">Sort by Customer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -207,7 +260,7 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sales.map((sale: any) => {
+                    {filteredAndSortedSales.map((sale: any) => {
                       // Handle both new multi-item sales and legacy single-item sales
                       const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
                       const totalQuantity = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
