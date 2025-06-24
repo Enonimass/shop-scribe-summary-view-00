@@ -6,16 +6,24 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, ShoppingCart, TrendingUp, ArrowUpDown } from 'lucide-react';
+import { Plus, ShoppingCart, TrendingUp, ArrowUpDown, Minus, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+
+interface SaleItem {
+  product: string;
+  quantity: number;
+  unit: string;
+}
 
 interface Sale {
   id: string;
-  product: string;
-  quantity: number;
+  items: SaleItem[];
   customerName: string;
   date: string;
-  unit: string;
+  // Legacy support for old single-item sales
+  product?: string;
+  quantity?: number;
+  unit?: string;
 }
 
 const availableProducts = [
@@ -31,24 +39,49 @@ const availableProducts = [
 const SalesTab = ({ shopId }: { shopId: string }) => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newSale, setNewSale] = useState({
-    product: '',
-    quantity: '',
-    customerName: '',
-    unit: 'bags'
-  });
+  const [customerName, setCustomerName] = useState('');
+  const [saleItems, setSaleItems] = useState<SaleItem[]>([{ product: '', quantity: 0, unit: 'bags' }]);
   const [sortBy, setSortBy] = useState<'product' | 'customer' | 'date'>('date');
 
   useEffect(() => {
     const savedSales = localStorage.getItem(`sales_${shopId}`);
     if (savedSales) {
-      setSales(JSON.parse(savedSales));
+      const parsedSales = JSON.parse(savedSales);
+      // Convert legacy sales to new format
+      const convertedSales = parsedSales.map((sale: any) => {
+        if (sale.product && !sale.items) {
+          return {
+            ...sale,
+            items: [{ product: sale.product, quantity: sale.quantity, unit: sale.unit }]
+          };
+        }
+        return sale;
+      });
+      setSales(convertedSales);
     } else {
       // Initialize with demo data
       const demoSales = [
-        { id: '1', product: 'Dairy Meal', quantity: 5, customerName: 'John Kamau', date: '2024-06-18', unit: 'bags' },
-        { id: '2', product: 'Layers Mash', quantity: 10, customerName: 'Mary Wanjiku', date: '2024-06-17', unit: 'kgs' },
-        { id: '3', product: 'Dairy Meal', quantity: 3, customerName: 'John Kamau', date: '2024-06-16', unit: 'bags' },
+        { 
+          id: '1', 
+          items: [{ product: 'Dairy Meal', quantity: 5, unit: 'bags' }],
+          customerName: 'John Kamau', 
+          date: '2024-06-18'
+        },
+        { 
+          id: '2', 
+          items: [{ product: 'Layers Mash', quantity: 10, unit: 'kgs' }],
+          customerName: 'Mary Wanjiku', 
+          date: '2024-06-17'
+        },
+        { 
+          id: '3', 
+          items: [
+            { product: 'Dairy Meal', quantity: 3, unit: 'bags' },
+            { product: 'Broiler Starter', quantity: 2, unit: 'bags' }
+          ],
+          customerName: 'John Kamau', 
+          date: '2024-06-16'
+        },
       ];
       setSales(demoSales);
       localStorage.setItem(`sales_${shopId}`, JSON.stringify(demoSales));
@@ -60,43 +93,69 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     setSales(newSales);
   };
 
+  const addSaleItem = () => {
+    setSaleItems([...saleItems, { product: '', quantity: 0, unit: 'bags' }]);
+  };
+
+  const removeSaleItem = (index: number) => {
+    if (saleItems.length > 1) {
+      setSaleItems(saleItems.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateSaleItem = (index: number, field: keyof SaleItem, value: string | number) => {
+    const updatedItems = saleItems.map((item, i) => 
+      i === index ? { ...item, [field]: value } : item
+    );
+    setSaleItems(updatedItems);
+  };
+
   const handleAddSale = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSale.product || !newSale.quantity || !newSale.customerName) return;
+    
+    const validItems = saleItems.filter(item => item.product && item.quantity > 0);
+    if (!customerName || validItems.length === 0) return;
 
     const sale: Sale = {
       id: Date.now().toString(),
-      product: newSale.product,
-      quantity: parseInt(newSale.quantity),
-      customerName: newSale.customerName,
-      date: new Date().toISOString().split('T')[0],
-      unit: newSale.unit
+      items: validItems,
+      customerName: customerName,
+      date: new Date().toISOString().split('T')[0]
     };
 
     saveSales([sale, ...sales]);
     
-    // Update inventory (reduce stock)
+    // Update inventory (reduce stock for each item)
     const inventory = JSON.parse(localStorage.getItem(`inventory_${shopId}`) || '[]');
-    const updatedInventory = inventory.map((item: any) => 
-      item.product === sale.product 
-        ? { ...item, quantity: Math.max(0, item.quantity - sale.quantity) }
-        : item
-    );
+    let updatedInventory = [...inventory];
+    
+    validItems.forEach(item => {
+      updatedInventory = updatedInventory.map((invItem: any) => 
+        invItem.product === item.product 
+          ? { ...invItem, quantity: Math.max(0, invItem.quantity - item.quantity) }
+          : invItem
+      );
+    });
+    
     localStorage.setItem(`inventory_${shopId}`, JSON.stringify(updatedInventory));
 
+    const itemsDescription = validItems.map(item => `${item.quantity} ${item.unit} ${item.product}`).join(', ');
     toast({
       title: "Sale Recorded",
-      description: `Sale of ${sale.quantity} ${sale.unit} ${sale.product} to ${sale.customerName}`,
+      description: `Sale to ${customerName}: ${itemsDescription}`,
     });
 
-    setNewSale({ product: '', quantity: '', customerName: '', unit: 'bags' });
+    setCustomerName('');
+    setSaleItems([{ product: '', quantity: 0, unit: 'bags' }]);
     setShowAddForm(false);
   };
 
   const sortedSales = [...sales].sort((a, b) => {
     switch (sortBy) {
       case 'product':
-        return a.product.localeCompare(b.product);
+        const aProduct = a.items?.[0]?.product || a.product || '';
+        const bProduct = b.items?.[0]?.product || b.product || '';
+        return aProduct.localeCompare(bProduct);
       case 'customer':
         return a.customerName.localeCompare(b.customerName);
       case 'date':
@@ -106,7 +165,13 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     }
   });
 
-  const totalSales = sales.reduce((sum, sale) => sum + sale.quantity, 0);
+  const totalSales = sales.reduce((sum, sale) => {
+    if (sale.items) {
+      return sum + sale.items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+    }
+    return sum + (sale.quantity || 0);
+  }, 0);
+  
   const uniqueCustomers = new Set(sales.map(sale => sale.customerName)).size;
 
   return (
@@ -179,52 +244,90 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
             <CardTitle>Record New Sale</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleAddSale} className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="space-y-2">
-                <Label>Product</Label>
-                <Select value={newSale.product} onValueChange={(value) => setNewSale({...newSale, product: value})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableProducts.map(product => (
-                      <SelectItem key={product} value={product}>{product}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <form onSubmit={handleAddSale} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Customer Name</Label>
+                  <Input
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Customer name"
+                    required
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Quantity</Label>
-                <Input
-                  type="number"
-                  value={newSale.quantity}
-                  onChange={(e) => setNewSale({...newSale, quantity: e.target.value})}
-                  placeholder="Quantity"
-                  min="1"
-                />
+              
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-medium">Products</Label>
+                  <Button type="button" onClick={addSaleItem} variant="outline" size="sm">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Product
+                  </Button>
+                </div>
+                
+                {saleItems.map((item, index) => (
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg">
+                    <div className="space-y-2">
+                      <Label>Product</Label>
+                      <Select 
+                        value={item.product} 
+                        onValueChange={(value) => updateSaleItem(index, 'product', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableProducts.map(product => (
+                            <SelectItem key={product} value={product}>{product}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Quantity</Label>
+                      <Input
+                        type="number"
+                        value={item.quantity || ''}
+                        onChange={(e) => updateSaleItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                        placeholder="Quantity"
+                        min="1"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Unit</Label>
+                      <Select 
+                        value={item.unit} 
+                        onValueChange={(value) => updateSaleItem(index, 'unit', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bags">Bags</SelectItem>
+                          <SelectItem value="kgs">Kgs</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-end">
+                      {saleItems.length > 1 && (
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => removeSaleItem(index)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="space-y-2">
-                <Label>Unit</Label>
-                <Select value={newSale.unit} onValueChange={(value) => setNewSale({...newSale, unit: value})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="bags">Bags</SelectItem>
-                    <SelectItem value="kgs">Kgs</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Customer Name</Label>
-                <Input
-                  value={newSale.customerName}
-                  onChange={(e) => setNewSale({...newSale, customerName: e.target.value})}
-                  placeholder="Customer name"
-                />
-              </div>
-              <div className="flex items-end space-x-2">
-                <Button type="submit" className="flex-1">Record</Button>
+              
+              <div className="flex space-x-2">
+                <Button type="submit">Record Sale</Button>
                 <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
                   Cancel
                 </Button>
@@ -241,22 +344,36 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Unit</TableHead>
                 <TableHead>Customer</TableHead>
+                <TableHead>Products</TableHead>
+                <TableHead>Total Items</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedSales.map((sale) => (
-                <TableRow key={sale.id}>
-                  <TableCell>{new Date(sale.date).toLocaleDateString()}</TableCell>
-                  <TableCell className="font-medium">{sale.product}</TableCell>
-                  <TableCell>{sale.quantity}</TableCell>
-                  <TableCell>{sale.unit}</TableCell>
-                  <TableCell>{sale.customerName}</TableCell>
-                </TableRow>
-              ))}
+              {sortedSales.map((sale) => {
+                const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+                const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+                
+                return (
+                  <TableRow key={sale.id}>
+                    <TableCell>{new Date(sale.date).toLocaleDateString()}</TableCell>
+                    <TableCell className="font-medium">{sale.customerName}</TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        {items.map((item, index) => (
+                          <div key={index} className="text-sm">
+                            <span className="font-medium">{item.product}</span>
+                            <span className="text-gray-600 ml-2">
+                              {item.quantity} {item.unit}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium">{totalQuantity}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
