@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, ShoppingCart, TrendingUp, ArrowUpDown, Minus, X } from 'lucide-react';
+import { Plus, ShoppingCart, TrendingUp, ArrowUpDown, Minus, X, Search } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface SaleItem {
@@ -42,6 +41,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [customerName, setCustomerName] = useState('');
   const [saleItems, setSaleItems] = useState<SaleItem[]>([{ product: '', quantity: 0, unit: 'bags' }]);
   const [sortBy, setSortBy] = useState<'product' | 'customer' | 'date'>('date');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const savedSales = localStorage.getItem(`sales_${shopId}`);
@@ -150,20 +150,33 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     setShowAddForm(false);
   };
 
-  const sortedSales = [...sales].sort((a, b) => {
-    switch (sortBy) {
-      case 'product':
-        const aProduct = a.items?.[0]?.product || a.product || '';
-        const bProduct = b.items?.[0]?.product || b.product || '';
-        return aProduct.localeCompare(bProduct);
-      case 'customer':
-        return a.customerName.localeCompare(b.customerName);
-      case 'date':
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
-      default:
-        return 0;
-    }
-  });
+  const filteredAndSortedSales = [...sales]
+    .filter(sale => {
+      if (!searchTerm) return true;
+      
+      const searchLower = searchTerm.toLowerCase();
+      
+      // Search in customer name
+      if (sale.customerName.toLowerCase().includes(searchLower)) return true;
+      
+      // Search in products
+      const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+      return items.some(item => item.product.toLowerCase().includes(searchLower));
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'product':
+          const aProduct = a.items?.[0]?.product || a.product || '';
+          const bProduct = b.items?.[0]?.product || b.product || '';
+          return aProduct.localeCompare(bProduct);
+        case 'customer':
+          return a.customerName.localeCompare(b.customerName);
+        case 'date':
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        default:
+          return 0;
+      }
+    });
 
   const totalSales = sales.reduce((sum, sale) => {
     if (sale.items) {
@@ -214,19 +227,30 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       </div>
 
       {/* Controls */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center space-x-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
           <h2 className="text-2xl font-bold text-gray-900">Sales Records</h2>
-          <Select value={sortBy} onValueChange={(value: 'product' | 'customer' | 'date') => setSortBy(value)}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date">Sort by Date</SelectItem>
-              <SelectItem value="product">Sort by Product</SelectItem>
-              <SelectItem value="customer">Sort by Customer</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center space-x-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search customers or products..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 w-64"
+              />
+            </div>
+            <Select value={sortBy} onValueChange={(value: 'product' | 'customer' | 'date') => setSortBy(value)}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date">Sort by Date</SelectItem>
+                <SelectItem value="product">Sort by Product</SelectItem>
+                <SelectItem value="customer">Sort by Customer</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <Button 
           onClick={() => setShowAddForm(!showAddForm)}
@@ -350,7 +374,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedSales.map((sale) => {
+              {filteredAndSortedSales.map((sale) => {
                 const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
                 const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
                 
