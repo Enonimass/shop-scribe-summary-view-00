@@ -151,29 +151,40 @@ const AdminDashboard = () => {
                       <TableHead>Quantity</TableHead>
                       <TableHead>Unit</TableHead>
                       <TableHead>Threshold</TableHead>
+                      <TableHead>Target Quantity</TableHead>
+                      <TableHead>Quantity to Add</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {inventory.map((item: any) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.product}</TableCell>
-                        <TableCell>{item.quantity}</TableCell>
-                        <TableCell>{item.unit}</TableCell>
-                        <TableCell>{item.threshold}</TableCell>
-                        <TableCell>
-                          {item.quantity <= item.threshold ? (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                              Low Stock
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              In Stock
-                            </span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {inventory.map((item: any) => {
+                      const targetQuantity = item.threshold * 2;
+                      const quantityToAdd = Math.max(0, targetQuantity - item.quantity);
+                      
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">{item.product}</TableCell>
+                          <TableCell>{item.quantity}</TableCell>
+                          <TableCell>{item.unit}</TableCell>
+                          <TableCell>{item.threshold}</TableCell>
+                          <TableCell>{targetQuantity}</TableCell>
+                          <TableCell className={quantityToAdd > 0 ? "text-orange-600 font-medium" : "text-gray-500"}>
+                            {quantityToAdd}
+                          </TableCell>
+                          <TableCell>
+                            {item.quantity <= item.threshold ? (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                Low Stock
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                In Stock
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -190,22 +201,37 @@ const AdminDashboard = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Unit</TableHead>
                       <TableHead>Customer</TableHead>
+                      <TableHead>Products</TableHead>
+                      <TableHead>Total Items</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sales.map((sale: any) => (
-                      <TableRow key={sale.id}>
-                        <TableCell>{new Date(sale.date).toLocaleDateString()}</TableCell>
-                        <TableCell className="font-medium">{sale.product}</TableCell>
-                        <TableCell>{sale.quantity}</TableCell>
-                        <TableCell>{sale.unit}</TableCell>
-                        <TableCell>{sale.customerName}</TableCell>
-                      </TableRow>
-                    ))}
+                    {sales.map((sale: any) => {
+                      // Handle both new multi-item sales and legacy single-item sales
+                      const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+                      const totalQuantity = items.reduce((sum: number, item: any) => sum + item.quantity, 0);
+                      
+                      return (
+                        <TableRow key={sale.id}>
+                          <TableCell>{new Date(sale.date).toLocaleDateString()}</TableCell>
+                          <TableCell className="font-medium">{sale.customerName}</TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              {items.map((item: any, index: number) => (
+                                <div key={index} className="text-sm">
+                                  <span className="font-medium">{item.product}</span>
+                                  <span className="text-gray-600 ml-2">
+                                    {item.quantity} {item.unit}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{totalQuantity}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
