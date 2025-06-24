@@ -95,6 +95,17 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
 
   const lowStockItems = inventory.filter(item => item.quantity <= item.threshold);
 
+  // Calculate target quantity and quantity to add
+  const calculateTargetQuantity = (threshold: number) => {
+    return threshold * 2; // Target is 2x the threshold
+  };
+
+  const calculateQuantityToAdd = (currentQuantity: number, threshold: number) => {
+    const targetQuantity = calculateTargetQuantity(threshold);
+    const quantityToAdd = targetQuantity - currentQuantity;
+    return quantityToAdd > 0 ? quantityToAdd : 0;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -198,6 +209,8 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
                 <TableHead>Quantity</TableHead>
                 <TableHead>Unit</TableHead>
                 <TableHead>Threshold</TableHead>
+                <TableHead>Target Quantity</TableHead>
+                <TableHead>Quantity to Add</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -208,6 +221,16 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
                   <TableCell>{item.quantity}</TableCell>
                   <TableCell>{item.unit}</TableCell>
                   <TableCell>{item.threshold}</TableCell>
+                  <TableCell>{calculateTargetQuantity(item.threshold)}</TableCell>
+                  <TableCell>
+                    {calculateQuantityToAdd(item.quantity, item.threshold) > 0 ? (
+                      <span className="text-orange-600 font-medium">
+                        {calculateQuantityToAdd(item.quantity, item.threshold)}
+                      </span>
+                    ) : (
+                      <span className="text-green-600">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {item.quantity <= item.threshold ? (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
