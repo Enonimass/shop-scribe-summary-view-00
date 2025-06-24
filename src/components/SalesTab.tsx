@@ -5,8 +5,11 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, ShoppingCart, TrendingUp, ArrowUpDown, Minus, X, Search } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Plus, ShoppingCart, TrendingUp, ArrowUpDown, Minus, X, Search, Check, ChevronsUpDown } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 interface SaleItem {
   product: string;
@@ -39,9 +42,18 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [customerName, setCustomerName] = useState('');
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([{ product: '', quantity: 0, unit: 'bags' }]);
   const [sortBy, setSortBy] = useState<'product' | 'customer' | 'date'>('date');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Get unique customers from existing sales
+  const getUniqueCustomers = () => {
+    const customers = sales.map(sale => sale.customerName);
+    return [...new Set(customers)].filter(Boolean).sort();
+  };
+
+  const uniqueCustomers = getUniqueCustomers();
 
   useEffect(() => {
     const savedSales = localStorage.getItem(`sales_${shopId}`);
@@ -185,7 +197,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     return sum + (sale.quantity || 0);
   }, 0);
   
-  const uniqueCustomers = new Set(sales.map(sale => sale.customerName)).size;
+  const uniqueCustomersCount = new Set(sales.map(sale => sale.customerName)).size;
 
   return (
     <div className="space-y-6">
@@ -207,7 +219,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Unique Customers</p>
-                <p className="text-2xl font-bold">{uniqueCustomers}</p>
+                <p className="text-2xl font-bold">{uniqueCustomersCount}</p>
               </div>
               <TrendingUp className="h-8 w-8 text-green-600" />
             </div>
@@ -272,12 +284,63 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Customer Name</Label>
-                  <Input
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Customer name"
-                    required
-                  />
+                  <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={customerSearchOpen}
+                        className="w-full justify-between"
+                      >
+                        {customerName || "Select or add customer..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput 
+                          placeholder="Search customers..." 
+                          value={customerName}
+                          onValueChange={setCustomerName}
+                        />
+                        <CommandList>
+                          <CommandEmpty>
+                            <div className="p-2">
+                              <Button
+                                onClick={() => {
+                                  setCustomerSearchOpen(false);
+                                }}
+                                className="w-full"
+                                size="sm"
+                              >
+                                Add "{customerName}" as new customer
+                              </Button>
+                            </div>
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {uniqueCustomers.map((customer) => (
+                              <CommandItem
+                                key={customer}
+                                value={customer}
+                                onSelect={() => {
+                                  setCustomerName(customer);
+                                  setCustomerSearchOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    customerName === customer ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {customer}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
               
