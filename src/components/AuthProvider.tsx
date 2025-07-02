@@ -21,8 +21,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Demo users - in a real app this would come from a backend
 const demoUsers = [
   { id: '1', username: 'kiambu_seller', password: 'password123', role: 'seller' as const, shopId: 'kiambu', shopName: 'Kiambu Shop' },
-  { id: '2', username: 'nakuru_seller', password: 'password123', role: 'seller' as const, shopId: 'nakuru', shopName: 'Nakuru Shop' },
-  { id: '3', username: 'admin', password: 'admin123', role: 'admin' as const },
+  { id: '2', username: 'ikinu_seller', password: 'password123', role: 'seller' as const, shopId: 'ikinu', shopName: 'Ikinu Shop' },
+  { id: '3', username: 'kwa_maiko_seller', password: 'password123', role: 'seller' as const, shopId: 'kwa-maiko', shopName: 'Kwa-Maiko Shop' },
+  { id: '4', username: 'githunguri_seller', password: 'password123', role: 'seller' as const, shopId: 'githunguri', shopName: 'Githunguri Shop' },
+  { id: '5', username: 'manyatta_seller', password: 'password123', role: 'seller' as const, shopId: 'manyatta', shopName: 'Manyatta Shop' },
+  { id: '6', username: 'kibugu_seller', password: 'password123', role: 'seller' as const, shopId: 'kibugu', shopName: 'Kibugu Shop' },
+  { id: '7', username: 'admin', password: 'admin123', role: 'admin' as const },
 ];
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {

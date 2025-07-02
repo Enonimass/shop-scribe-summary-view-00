@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,11 @@ import { LogOut, Shield, Users, Store, BarChart3, Search } from 'lucide-react';
 
 const shops = [
   { id: 'kiambu', name: 'Kiambu Shop' },
-  { id: 'nakuru', name: 'Nakuru Shop' },
+  { id: 'ikinu', name: 'Ikinu Shop' },
+  { id: 'kwa-maiko', name: 'Kwa-Maiko Shop' },
+  { id: 'githunguri', name: 'Githunguri Shop' },
+  { id: 'manyatta', name: 'Manyatta Shop' },
+  { id: 'kibugu', name: 'Kibugu Shop' },
 ];
 
 const AdminDashboard = () => {
@@ -318,9 +323,49 @@ const AdminDashboard = () => {
                       </TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>nakuru_seller</TableCell>
+                      <TableCell>ikinu_seller</TableCell>
                       <TableCell>Seller</TableCell>
-                      <TableCell>Nakuru Shop</TableCell>
+                      <TableCell>Ikinu Shop</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Active
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>kwa_maiko_seller</TableCell>
+                      <TableCell>Seller</TableCell>
+                      <TableCell>Kwa-Maiko Shop</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Active
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>githunguri_seller</TableCell>
+                      <TableCell>Seller</TableCell>
+                      <TableCell>Githunguri Shop</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Active
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>manyatta_seller</TableCell>
+                      <TableCell>Seller</TableCell>
+                      <TableCell>Manyatta Shop</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Active
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>kibugu_seller</TableCell>
+                      <TableCell>Seller</TableCell>
+                      <TableCell>Kibugu Shop</TableCell>
                       <TableCell>
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                           Active
