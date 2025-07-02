@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LogOut, Shield, Users, Store, BarChart3, Search, Key } from 'lucide-react';
 import PasswordManager from './PasswordManager';
+import InventoryManager from './InventoryManager';
 
 const shops = [
   { id: 'kiambu', name: 'Kiambu Shop' },
@@ -117,9 +118,10 @@ const AdminDashboard = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-6 max-w-3xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="inventory">Inventory</TabsTrigger>
+            <TabsTrigger value="inventory-settings">Settings</TabsTrigger>
             <TabsTrigger value="sales">Sales</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="passwords">Passwords</TabsTrigger>
@@ -189,15 +191,14 @@ const AdminDashboard = () => {
                       <TableHead>Quantity</TableHead>
                       <TableHead>Unit</TableHead>
                       <TableHead>Threshold</TableHead>
-                      <TableHead>Target Quantity</TableHead>
+                      <TableHead>Desired Quantity</TableHead>
                       <TableHead>Quantity to Add</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {inventory.map((item: any) => {
-                      const targetQuantity = item.threshold * 2;
-                      const quantityToAdd = Math.max(0, targetQuantity - item.quantity);
+                      const quantityToAdd = Math.max(0, item.desiredQuantity - item.quantity);
                       
                       return (
                         <TableRow key={item.id}>
@@ -205,7 +206,7 @@ const AdminDashboard = () => {
                           <TableCell>{item.quantity}</TableCell>
                           <TableCell>{item.unit}</TableCell>
                           <TableCell>{item.threshold}</TableCell>
-                          <TableCell>{targetQuantity}</TableCell>
+                          <TableCell>{item.desiredQuantity}</TableCell>
                           <TableCell className={quantityToAdd > 0 ? "text-orange-600 font-medium" : "text-gray-500"}>
                             {quantityToAdd}
                           </TableCell>
@@ -227,6 +228,10 @@ const AdminDashboard = () => {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="inventory-settings">
+            <InventoryManager />
           </TabsContent>
 
           <TabsContent value="sales">

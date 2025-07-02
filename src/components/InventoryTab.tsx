@@ -15,16 +15,26 @@ interface InventoryItem {
   quantity: number;
   unit: string;
   threshold: number;
+  desiredQuantity: number;
 }
 
 const availableProducts = [
-  'Dairy Meal',
-  'Layers Mash',
-  'Broiler Starter',
-  'Broiler Finisher',
-  'Pig Grower',
-  'Calf Starter',
-  'Dairy Pellets'
+  'High yield',
+  'Super dairy',
+  'Calf starter',
+  'Young stock',
+  'Sow weaner',
+  'Pig finisher',
+  'Pig grower',
+  'Pig starter',
+  'Chick mash',
+  'Kienyeji mash',
+  'Layer mash',
+  'Layers mix',
+  'Dog meal',
+  'Rabbit',
+  'Maize germ',
+  'Poland wheatbran'
 ];
 
 const InventoryTab = ({ shopId }: { shopId: string }) => {
@@ -40,14 +50,8 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
     if (savedInventory) {
       setInventory(JSON.parse(savedInventory));
     } else {
-      // Initialize with demo data
-      const demoInventory = [
-        { id: '1', product: 'Dairy Meal', quantity: 50, unit: 'bags', threshold: 10 },
-        { id: '2', product: 'Layers Mash', quantity: 8, unit: 'bags', threshold: 15 },
-        { id: '3', product: 'Broiler Starter', quantity: 25, unit: 'kgs', threshold: 20 },
-      ];
-      setInventory(demoInventory);
-      localStorage.setItem(`inventory_${shopId}`, JSON.stringify(demoInventory));
+      // Start with empty inventory
+      setInventory([]);
     }
   }, [shopId]);
 
@@ -79,7 +83,8 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
         product: newProduct,
         quantity: parseInt(newQuantity),
         unit: newUnit,
-        threshold: 10
+        threshold: 15,
+        desiredQuantity: 25
       };
       saveInventory([...inventory, newItem]);
       toast({
@@ -95,14 +100,8 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
 
   const lowStockItems = inventory.filter(item => item.quantity <= item.threshold);
 
-  // Calculate target quantity and quantity to add
-  const calculateTargetQuantity = (threshold: number) => {
-    return threshold * 2; // Target is 2x the threshold
-  };
-
-  const calculateQuantityToAdd = (currentQuantity: number, threshold: number) => {
-    const targetQuantity = calculateTargetQuantity(threshold);
-    const quantityToAdd = targetQuantity - currentQuantity;
+  const calculateQuantityToAdd = (currentQuantity: number, desiredQuantity: number) => {
+    const quantityToAdd = desiredQuantity - currentQuantity;
     return quantityToAdd > 0 ? quantityToAdd : 0;
   };
 
@@ -209,7 +208,7 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
                 <TableHead>Quantity</TableHead>
                 <TableHead>Unit</TableHead>
                 <TableHead>Threshold</TableHead>
-                <TableHead>Target Quantity</TableHead>
+                <TableHead>Desired Quantity</TableHead>
                 <TableHead>Quantity to Add</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
@@ -221,11 +220,11 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
                   <TableCell>{item.quantity}</TableCell>
                   <TableCell>{item.unit}</TableCell>
                   <TableCell>{item.threshold}</TableCell>
-                  <TableCell>{calculateTargetQuantity(item.threshold)}</TableCell>
+                  <TableCell>{item.desiredQuantity}</TableCell>
                   <TableCell>
-                    {calculateQuantityToAdd(item.quantity, item.threshold) > 0 ? (
+                    {calculateQuantityToAdd(item.quantity, item.desiredQuantity) > 0 ? (
                       <span className="text-orange-600 font-medium">
-                        {calculateQuantityToAdd(item.quantity, item.threshold)}
+                        {calculateQuantityToAdd(item.quantity, item.desiredQuantity)}
                       </span>
                     ) : (
                       <span className="text-green-600">-</span>
