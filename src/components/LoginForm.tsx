@@ -71,8 +71,7 @@ const LoginForm = () => {
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
             <p className="text-sm font-semibold text-gray-700 mb-2">Demo Accounts:</p>
             <div className="text-xs text-gray-600 space-y-1">
-              <p><strong>Seller:</strong> kiambu_seller / password123</p>
-              <p><strong>Seller:</strong> nakuru_seller / password123</p>
+              <p><strong>Shops:</strong> kiambu_shop, ikinu_shop, etc. / password123</p>
               <p><strong>Admin:</strong> admin / admin123</p>
             </div>
           </div>

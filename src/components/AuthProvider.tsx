@@ -14,23 +14,29 @@ interface AuthContextType {
   login: (username: string, password: string) => boolean;
   logout: () => void;
   isAuthenticated: boolean;
+  changePassword: (userId: string, newPassword: string) => boolean;
+  getAllUsers: () => any[];
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Demo users - in a real app this would come from a backend
-const demoUsers = [
-  { id: '1', username: 'kiambu_seller', password: 'password123', role: 'seller' as const, shopId: 'kiambu', shopName: 'Kiambu Shop' },
-  { id: '2', username: 'ikinu_seller', password: 'password123', role: 'seller' as const, shopId: 'ikinu', shopName: 'Ikinu Shop' },
-  { id: '3', username: 'kwa_maiko_seller', password: 'password123', role: 'seller' as const, shopId: 'kwa-maiko', shopName: 'Kwa-Maiko Shop' },
-  { id: '4', username: 'githunguri_seller', password: 'password123', role: 'seller' as const, shopId: 'githunguri', shopName: 'Githunguri Shop' },
-  { id: '5', username: 'manyatta_seller', password: 'password123', role: 'seller' as const, shopId: 'manyatta', shopName: 'Manyatta Shop' },
-  { id: '6', username: 'kibugu_seller', password: 'password123', role: 'seller' as const, shopId: 'kibugu', shopName: 'Kibugu Shop' },
+const defaultUsers = [
+  { id: '1', username: 'kiambu_shop', password: 'password123', role: 'seller' as const, shopId: 'kiambu', shopName: 'Kiambu Shop' },
+  { id: '2', username: 'ikinu_shop', password: 'password123', role: 'seller' as const, shopId: 'ikinu', shopName: 'Ikinu Shop' },
+  { id: '3', username: 'kwa_maiko_shop', password: 'password123', role: 'seller' as const, shopId: 'kwa-maiko', shopName: 'Kwa-Maiko Shop' },
+  { id: '4', username: 'githunguri_shop', password: 'password123', role: 'seller' as const, shopId: 'githunguri', shopName: 'Githunguri Shop' },
+  { id: '5', username: 'manyatta_shop', password: 'password123', role: 'seller' as const, shopId: 'manyatta', shopName: 'Manyatta Shop' },
+  { id: '6', username: 'kibugu_shop', password: 'password123', role: 'seller' as const, shopId: 'kibugu', shopName: 'Kibugu Shop' },
   { id: '7', username: 'admin', password: 'admin123', role: 'admin' as const },
 ];
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [users, setUsers] = useState(() => {
+    const savedUsers = localStorage.getItem('systemUsers');
+    return savedUsers ? JSON.parse(savedUsers) : defaultUsers;
+  });
 
   useEffect(() => {
     // Check if user is already logged in
@@ -40,8 +46,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
+  useEffect(() => {
+    // Save users to localStorage whenever they change
+    localStorage.setItem('systemUsers', JSON.stringify(users));
+  }, [users]);
+
   const login = (username: string, password: string): boolean => {
-    const foundUser = demoUsers.find(
+    const foundUser = users.find(
       u => u.username === username && u.password === password
     );
     
@@ -65,12 +76,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.removeItem('currentUser');
   };
 
+  const changePassword = (userId: string, newPassword: string): boolean => {
+    setUsers(prevUsers => {
+      const updatedUsers = prevUsers.map(u => 
+        u.id === userId ? { ...u, password: newPassword } : u
+      );
+      return updatedUsers;
+    });
+    return true;
+  };
+
+  const getAllUsers = () => {
+    return users;
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
       login,
       logout,
-      isAuthenticated: !!user
+      isAuthenticated: !!user,
+      changePassword,
+      getAllUsers
     }}>
       {children}
     </AuthContext.Provider>

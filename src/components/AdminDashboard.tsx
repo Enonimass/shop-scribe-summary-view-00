@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Shield, Users, Store, BarChart3, Search } from 'lucide-react';
+import { LogOut, Shield, Users, Store, BarChart3, Search, Key } from 'lucide-react';
+import PasswordManager from './PasswordManager';
 
 const shops = [
   { id: 'kiambu', name: 'Kiambu Shop' },
@@ -19,10 +19,12 @@ const shops = [
 ];
 
 const AdminDashboard = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, getAllUsers } = useAuth();
   const [selectedShop, setSelectedShop] = useState('kiambu');
   const [salesSortBy, setSalesSortBy] = useState<'product' | 'customer' | 'date'>('date');
   const [salesSearchTerm, setSalesSearchTerm] = useState('');
+
+  const allUsers = getAllUsers();
 
   const getShopData = (shopId: string, dataType: 'inventory' | 'sales') => {
     const data = localStorage.getItem(`${dataType}_${shopId}`);
@@ -115,11 +117,12 @@ const AdminDashboard = () => {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="inventory">Inventory</TabsTrigger>
             <TabsTrigger value="sales">Sales</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="passwords">Passwords</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -312,80 +315,28 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <TableRow>
-                      <TableCell>kiambu_seller</TableCell>
-                      <TableCell>Seller</TableCell>
-                      <TableCell>Kiambu Shop</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Active
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>ikinu_seller</TableCell>
-                      <TableCell>Seller</TableCell>
-                      <TableCell>Ikinu Shop</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Active
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>kwa_maiko_seller</TableCell>
-                      <TableCell>Seller</TableCell>
-                      <TableCell>Kwa-Maiko Shop</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Active
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>githunguri_seller</TableCell>
-                      <TableCell>Seller</TableCell>
-                      <TableCell>Githunguri Shop</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Active
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>manyatta_seller</TableCell>
-                      <TableCell>Seller</TableCell>
-                      <TableCell>Manyatta Shop</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Active
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>kibugu_seller</TableCell>
-                      <TableCell>Seller</TableCell>
-                      <TableCell>Kibugu Shop</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Active
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>admin</TableCell>
-                      <TableCell>Admin</TableCell>
-                      <TableCell>All Shops</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          Admin
-                        </span>
-                      </TableCell>
-                    </TableRow>
+                    {allUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>{user.username}</TableCell>
+                        <TableCell className="capitalize">{user.role}</TableCell>
+                        <TableCell>{user.shopName || 'All Shops'}</TableCell>
+                        <TableCell>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            user.role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                          }`}>
+                            {user.role === 'admin' ? 'Admin' : 'Active'}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="passwords">
+            <PasswordManager />
           </TabsContent>
         </Tabs>
       </div>
