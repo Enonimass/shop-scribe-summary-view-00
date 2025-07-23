@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Package, AlertTriangle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import UnitConverter from './UnitConverter';
 
 interface InventoryItem {
   id: string;
@@ -113,13 +114,19 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
           <h2 className="text-2xl font-bold text-gray-900">Inventory Management</h2>
           <p className="text-gray-600">Track your products and stock levels</p>
         </div>
-        <Button 
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="flex items-center space-x-2"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Stock</span>
-        </Button>
+        <div className="flex space-x-2">
+          <UnitConverter 
+            inventory={inventory} 
+            onConvert={saveInventory}
+          />
+          <Button 
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="flex items-center space-x-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Stock</span>
+          </Button>
+        </div>
       </div>
 
       {/* Low Stock Alert */}
@@ -180,7 +187,8 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="bags">Bags</SelectItem>
-                    <SelectItem value="kgs">Kgs</SelectItem>
+                    <SelectItem value="50kg">50 kg</SelectItem>
+                    <SelectItem value="kg">kg</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
