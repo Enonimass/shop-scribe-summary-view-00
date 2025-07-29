@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus, KeyRound, Trash2 } from 'lucide-react';
+import { UserPlus, KeyRound, Trash2, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -21,11 +21,12 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [passwordResetOpen, setPasswordResetOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [showPasswords, setShowPasswords] = useState<{[key: string]: boolean}>({});
 
   // Create user form state
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<'seller' | 'admin'>('seller');
   const [shopId, setShopId] = useState('');
   const [shopName, setShopName] = useState('');
@@ -38,18 +39,16 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
     setLoading(true);
 
     try {
-      // Use admin API to create user
-      const { data, error } = await supabase.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: {
+      const { error } = await supabase
+        .from('profiles')
+        .insert({
           username,
+          password,
+          display_name: displayName,
           role,
-          shop_id: shopId,
-          shop_name: shopName,
-        }
-      });
+          shop_id: role === 'seller' ? shopId : null,
+          shop_name: role === 'seller' ? shopName : null,
+        });
 
       if (error) {
         toast({
@@ -58,41 +57,20 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
           variant: "destructive",
         });
       } else {
-        // Create profile record
-        if (data.user) {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-              user_id: data.user.id,
-              username,
-              role,
-              shop_id: role === 'seller' ? shopId : null,
-              shop_name: role === 'seller' ? shopName : null,
-            });
-
-          if (profileError) {
-            toast({
-              title: "Profile creation failed",
-              description: profileError.message,
-              variant: "destructive",
-            });
-          } else {
-            toast({
-              title: "User created successfully",
-              description: `${username} has been added to the system.`,
-            });
-            
-            // Reset form
-            setEmail('');
-            setPassword('');
-            setUsername('');
-            setRole('seller');
-            setShopId('');
-            setShopName('');
-            setCreateUserOpen(false);
-            onProfilesUpdate();
-          }
-        }
+        toast({
+          title: "User created successfully",
+          description: `${displayName} has been added to the system.`,
+        });
+        
+        // Reset form
+        setUsername('');
+        setPassword('');
+        setDisplayName('');
+        setRole('seller');
+        setShopId('');
+        setShopName('');
+        setCreateUserOpen(false);
+        onProfilesUpdate();
       }
     } catch (error) {
       toast({
@@ -110,10 +88,10 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.admin.updateUserById(
-        selectedUser.user_id,
-        { password: newPassword }
-      );
+      const { error } = await supabase
+        .from('profiles')
+        .update({ password: newPassword })
+        .eq('id', selectedUser.id);
 
       if (error) {
         toast({
@@ -124,11 +102,12 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
       } else {
         toast({
           title: "Password updated",
-          description: `Password for ${selectedUser.username} has been updated.`,
+          description: `Password for ${selectedUser.display_name} has been updated.`,
         });
         setNewPassword('');
         setPasswordResetOpen(false);
         setSelectedUser(null);
+        onProfilesUpdate();
       }
     } catch (error) {
       toast({
@@ -142,27 +121,28 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
   };
 
   const handleDeleteUser = async (profile: any) => {
-    if (!confirm(`Are you sure you want to delete ${profile.username}? This action cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to delete ${profile.display_name}? This action cannot be undone.`)) {
       return;
     }
 
     setLoading(true);
 
     try {
-      // Delete user via admin API
-      const { error: authError } = await supabase.auth.admin.deleteUser(profile.user_id);
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', profile.id);
       
-      if (authError) {
+      if (error) {
         toast({
           title: "Failed to delete user",
-          description: authError.message,
+          description: error.message,
           variant: "destructive",
         });
       } else {
-        // Profile will be deleted automatically due to cascade
         toast({
           title: "User deleted",
-          description: `${profile.username} has been removed from the system.`,
+          description: `${profile.display_name} has been removed from the system.`,
         });
         onProfilesUpdate();
       }
@@ -175,6 +155,13 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
     }
 
     setLoading(false);
+  };
+
+  const togglePasswordVisibility = (profileId: string) => {
+    setShowPasswords(prev => ({
+      ...prev,
+      [profileId]: !prev[profileId]
+    }));
   };
 
   return (
@@ -195,12 +182,12 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
               </DialogHeader>
               <form onSubmit={handleCreateUser} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="username">Username</Label>
                   <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    id="username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     required
                   />
                 </div>
@@ -216,12 +203,12 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="display-name">Display Name</Label>
                   <Input
-                    id="username"
+                    id="display-name"
                     type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
                     required
                   />
                 </div>
@@ -274,24 +261,38 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
           <TableHeader>
             <TableRow>
               <TableHead>Username</TableHead>
+              <TableHead>Display Name</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Shop</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Password</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {profiles.map((profile) => (
               <TableRow key={profile.id}>
-                <TableCell>{profile.username}</TableCell>
+                <TableCell className="font-medium">{profile.username}</TableCell>
+                <TableCell>{profile.display_name}</TableCell>
                 <TableCell className="capitalize">{profile.role}</TableCell>
                 <TableCell>{profile.shop_name || 'All Shops'}</TableCell>
                 <TableCell>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    profile.role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                  }`}>
-                    {profile.role === 'admin' ? 'Admin' : 'Active'}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-mono text-sm">
+                      {showPasswords[profile.id] ? profile.password : '••••••••'}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => togglePasswordVisibility(profile.id)}
+                      className="p-1"
+                    >
+                      {showPasswords[profile.id] ? (
+                        <EyeOff className="w-3 h-3" />
+                      ) : (
+                        <Eye className="w-3 h-3" />
+                      )}
+                    </Button>
+                  </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center space-x-2">
@@ -328,7 +329,7 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
       <Dialog open={passwordResetOpen} onOpenChange={setPasswordResetOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reset Password for {selectedUser?.username}</DialogTitle>
+            <DialogTitle>Reset Password for {selectedUser?.display_name}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handlePasswordReset} className="space-y-4">
             <div className="space-y-2">
