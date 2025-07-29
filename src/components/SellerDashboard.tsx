@@ -8,7 +8,7 @@ import SalesTab from './SalesTab';
 import { LogOut, Store, User } from 'lucide-react';
 
 const SellerDashboard = () => {
-  const { user, logout } = useAuth();
+  const { profile, logout } = useAuth();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -21,14 +21,14 @@ const SellerDashboard = () => {
                 <Store className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">{user?.shopName}</h1>
+                <h1 className="text-xl font-bold text-gray-900">{profile?.shop_name}</h1>
                 <p className="text-sm text-gray-500">Shop Management</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
                 <User className="w-5 h-5 text-gray-500" />
-                <span className="text-sm font-medium text-gray-700">{user?.username}</span>
+                <span className="text-sm font-medium text-gray-700">{profile?.username}</span>
               </div>
               <Button 
                 variant="outline" 
@@ -57,11 +57,11 @@ const SellerDashboard = () => {
           </TabsList>
 
           <TabsContent value="inventory">
-            <InventoryTab shopId={user?.shopId || ''} />
+            <InventoryTab shopId={profile?.shop_id || ''} />
           </TabsContent>
 
           <TabsContent value="sales">
-            <SalesTab shopId={user?.shopId || ''} />
+            <SalesTab shopId={profile?.shop_id || ''} />
           </TabsContent>
         </Tabs>
       </div>

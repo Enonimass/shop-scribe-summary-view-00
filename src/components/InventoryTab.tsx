@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Package, AlertTriangle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import UnitConverter from './UnitConverter';
 
 interface InventoryItem {
@@ -16,7 +16,7 @@ interface InventoryItem {
   quantity: number;
   unit: string;
   threshold: number;
-  desiredQuantity: number;
+  desired_quantity: number;
 }
 
 const availableProducts = [
@@ -44,59 +44,121 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
   const [newProduct, setNewProduct] = useState('');
   const [newQuantity, setNewQuantity] = useState('');
   const [newUnit, setNewUnit] = useState('bags');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Load inventory from localStorage
-    const savedInventory = localStorage.getItem(`inventory_${shopId}`);
-    if (savedInventory) {
-      setInventory(JSON.parse(savedInventory));
-    } else {
-      // Start with empty inventory
-      setInventory([]);
+    if (shopId) {
+      fetchInventory();
     }
   }, [shopId]);
 
-  const saveInventory = (newInventory: InventoryItem[]) => {
-    localStorage.setItem(`inventory_${shopId}`, JSON.stringify(newInventory));
-    setInventory(newInventory);
+  useEffect(() => {
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('inventory-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'inventory',
+          filter: `shop_id=eq.${shopId}`,
+        },
+        () => {
+          fetchInventory();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [shopId]);
+
+  const fetchInventory = async () => {
+    if (!shopId) return;
+    
+    const { data, error } = await supabase
+      .from('inventory')
+      .select('*')
+      .eq('shop_id', shopId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching inventory:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load inventory",
+        variant: "destructive",
+      });
+    } else {
+      setInventory(data || []);
+    }
   };
 
-  const handleAddStock = (e: React.FormEvent) => {
+  const handleAddStock = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProduct || !newQuantity) return;
+    if (!newProduct || !newQuantity || !shopId) return;
+
+    setLoading(true);
 
     const existingItem = inventory.find(item => item.product === newProduct);
     
     if (existingItem) {
-      const updatedInventory = inventory.map(item =>
-        item.product === newProduct
-          ? { ...item, quantity: item.quantity + parseInt(newQuantity) }
-          : item
-      );
-      saveInventory(updatedInventory);
-      toast({
-        title: "Stock Updated",
-        description: `Added ${newQuantity} ${newUnit} of ${newProduct}`,
-      });
+      // Update existing item
+      const { error } = await supabase
+        .from('inventory')
+        .update({ 
+          quantity: existingItem.quantity + parseInt(newQuantity),
+          unit: newUnit
+        })
+        .eq('id', existingItem.id);
+
+      if (error) {
+        console.error('Error updating inventory:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update stock",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Stock Updated",
+          description: `Added ${newQuantity} ${newUnit} of ${newProduct}`,
+        });
+      }
     } else {
-      const newItem: InventoryItem = {
-        id: Date.now().toString(),
-        product: newProduct,
-        quantity: parseInt(newQuantity),
-        unit: newUnit,
-        threshold: 15,
-        desiredQuantity: 25
-      };
-      saveInventory([...inventory, newItem]);
-      toast({
-        title: "Product Added",
-        description: `${newProduct} added to inventory`,
-      });
+      // Add new item
+      const { error } = await supabase
+        .from('inventory')
+        .insert({
+          shop_id: shopId,
+          product: newProduct,
+          quantity: parseInt(newQuantity),
+          unit: newUnit,
+          threshold: 15,
+          desired_quantity: 25
+        });
+
+      if (error) {
+        console.error('Error adding inventory:', error);
+        toast({
+          title: "Error",
+          description: "Failed to add product",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Product Added",
+          description: `${newProduct} added to inventory`,
+        });
+      }
     }
 
     setNewProduct('');
     setNewQuantity('');
     setShowAddForm(false);
+    setLoading(false);
   };
 
   const lowStockItems = inventory.filter(item => item.quantity <= item.threshold);
@@ -116,8 +178,11 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
         </div>
         <div className="flex space-x-2">
           <UnitConverter 
-            inventory={inventory} 
-            onConvert={saveInventory}
+            inventory={inventory.map(item => ({
+              ...item,
+              desiredQuantity: item.desired_quantity
+            }))} 
+            onConvert={fetchInventory}
           />
           <Button 
             onClick={() => setShowAddForm(!showAddForm)}
@@ -193,7 +258,9 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
                 </Select>
               </div>
               <div className="flex items-end space-x-2">
-                <Button type="submit" className="flex-1">Add</Button>
+                <Button type="submit" className="flex-1" disabled={loading}>
+                  {loading ? 'Adding...' : 'Add'}
+                </Button>
                 <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
                   Cancel
                 </Button>
@@ -228,11 +295,11 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
                   <TableCell>{item.quantity}</TableCell>
                   <TableCell>{item.unit}</TableCell>
                   <TableCell>{item.threshold}</TableCell>
-                  <TableCell>{item.desiredQuantity}</TableCell>
+                  <TableCell>{item.desired_quantity}</TableCell>
                   <TableCell>
-                    {calculateQuantityToAdd(item.quantity, item.desiredQuantity) > 0 ? (
+                    {calculateQuantityToAdd(item.quantity, item.desired_quantity) > 0 ? (
                       <span className="text-orange-600 font-medium">
-                        {calculateQuantityToAdd(item.quantity, item.desiredQuantity)}
+                        {calculateQuantityToAdd(item.quantity, item.desired_quantity)}
                       </span>
                     ) : (
                       <span className="text-green-600">-</span>

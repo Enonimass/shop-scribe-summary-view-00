@@ -6,13 +6,17 @@ import SellerDashboard from '../components/SellerDashboard';
 import AdminDashboard from '../components/AdminDashboard';
 
 const AppContent = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { profile, isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
 
   if (!isAuthenticated) {
     return <LoginForm />;
   }
 
-  if (user?.role === 'admin') {
+  if (profile?.role === 'admin') {
     return <AdminDashboard />;
   }
 

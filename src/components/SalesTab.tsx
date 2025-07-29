@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Plus, ShoppingCart, TrendingUp, ArrowUpDown, Minus, X, Search, Check, ChevronsUpDown } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SaleItem {
   product: string;
@@ -56,49 +57,33 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const uniqueCustomers = getUniqueCustomers();
 
   useEffect(() => {
-    const savedSales = localStorage.getItem(`sales_${shopId}`);
-    if (savedSales) {
-      const parsedSales = JSON.parse(savedSales);
-      // Convert legacy sales to new format
-      const convertedSales = parsedSales.map((sale: any) => {
-        if (sale.product && !sale.items) {
-          return {
-            ...sale,
-            items: [{ product: sale.product, quantity: sale.quantity, unit: sale.unit }]
-          };
-        }
-        return sale;
-      });
-      setSales(convertedSales);
-    } else {
-      // Initialize with demo data
-      const demoSales = [
-        { 
-          id: '1', 
-          items: [{ product: 'Dairy Meal', quantity: 5, unit: 'bags' }],
-          customerName: 'John Kamau', 
-          date: '2024-06-18'
-        },
-        { 
-          id: '2', 
-          items: [{ product: 'Layers Mash', quantity: 10, unit: 'kgs' }],
-          customerName: 'Mary Wanjiku', 
-          date: '2024-06-17'
-        },
-        { 
-          id: '3', 
-          items: [
-            { product: 'Dairy Meal', quantity: 3, unit: 'bags' },
-            { product: 'Broiler Starter', quantity: 2, unit: 'bags' }
-          ],
-          customerName: 'John Kamau', 
-          date: '2024-06-16'
-        },
-      ];
-      setSales(demoSales);
-      localStorage.setItem(`sales_${shopId}`, JSON.stringify(demoSales));
+    if (shopId) {
+      fetchSales();
     }
   }, [shopId]);
+
+  const fetchSales = async () => {
+    if (!shopId) return;
+    
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*')
+      .eq('shop_id', shopId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching sales:', error);
+    } else {
+      // Convert to legacy format for compatibility
+      const convertedSales = (data || []).map(sale => ({
+        id: sale.id,
+        items: [{ product: sale.product, quantity: sale.quantity, unit: sale.unit }],
+        customerName: 'Customer', // You can add customer field to sales table later
+        date: sale.sale_date
+      }));
+      setSales(convertedSales);
+    }
+  };
 
   const saveSales = (newSales: Sale[]) => {
     localStorage.setItem(`sales_${shopId}`, JSON.stringify(newSales));

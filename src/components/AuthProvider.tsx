@@ -1,104 +1,96 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
 
-interface User {
+interface UserProfile {
   id: string;
   username: string;
   role: 'seller' | 'admin';
-  shopId?: string;
-  shopName?: string;
+  shop_id?: string;
+  shop_name?: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => boolean;
-  logout: () => void;
+  profile: UserProfile | null;
+  session: Session | null;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
-  changePassword: (userId: string, newPassword: string) => boolean;
-  getAllUsers: () => any[];
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Demo users - in a real app this would come from a backend
-const defaultUsers = [
-  { id: '1', username: 'kiambu_shop', password: 'password123', role: 'seller' as const, shopId: 'kiambu', shopName: 'Kiambu Shop' },
-  { id: '2', username: 'ikinu_shop', password: 'password123', role: 'seller' as const, shopId: 'ikinu', shopName: 'Ikinu Shop' },
-  { id: '3', username: 'kwa_maiko_shop', password: 'password123', role: 'seller' as const, shopId: 'kwa-maiko', shopName: 'Kwa-Maiko Shop' },
-  { id: '4', username: 'githunguri_shop', password: 'password123', role: 'seller' as const, shopId: 'githunguri', shopName: 'Githunguri Shop' },
-  { id: '5', username: 'manyatta_shop', password: 'password123', role: 'seller' as const, shopId: 'manyatta', shopName: 'Manyatta Shop' },
-  { id: '6', username: 'kibugu_shop', password: 'password123', role: 'seller' as const, shopId: 'kibugu', shopName: 'Kibugu Shop' },
-  { id: '7', username: 'admin', password: 'admin123', role: 'admin' as const },
-];
-
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [users, setUsers] = useState(() => {
-    const savedUsers = localStorage.getItem('systemUsers');
-    return savedUsers ? JSON.parse(savedUsers) : defaultUsers;
-  });
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Fetch user profile
+          setTimeout(async () => {
+            try {
+              const { data: profileData, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('user_id', session.user.id)
+                .single();
+              
+              if (!error && profileData) {
+                setProfile({
+                  id: profileData.id,
+                  username: profileData.username,
+                  role: profileData.role as 'seller' | 'admin',
+                  shop_id: profileData.shop_id,
+                  shop_name: profileData.shop_name,
+                });
+              }
+            } catch (error) {
+              console.error('Error fetching profile:', error);
+            }
+          }, 0);
+        } else {
+          setProfile(null);
+        }
+        
+        setLoading(false);
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    // Save users to localStorage whenever they change
-    localStorage.setItem('systemUsers', JSON.stringify(users));
-  }, [users]);
-
-  const login = (username: string, password: string): boolean => {
-    const foundUser = users.find(
-      u => u.username === username && u.password === password
-    );
-    
-    if (foundUser) {
-      const userInfo: User = {
-        id: foundUser.id,
-        username: foundUser.username,
-        role: foundUser.role,
-        shopId: foundUser.shopId,
-        shopName: foundUser.shopName
-      };
-      setUser(userInfo);
-      localStorage.setItem('currentUser', JSON.stringify(userInfo));
-      return true;
-    }
-    return false;
+  const logout = async () => {
+    await supabase.auth.signOut();
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('currentUser');
-  };
-
-  const changePassword = (userId: string, newPassword: string): boolean => {
-    setUsers(prevUsers => {
-      const updatedUsers = prevUsers.map(u => 
-        u.id === userId ? { ...u, password: newPassword } : u
-      );
-      return updatedUsers;
-    });
-    return true;
-  };
-
-  const getAllUsers = () => {
-    return users;
+  const value: AuthContextType = {
+    user,
+    profile,
+    session,
+    logout,
+    isAuthenticated: !!user,
+    loading,
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      login,
-      logout,
-      isAuthenticated: !!user,
-      changePassword,
-      getAllUsers
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
