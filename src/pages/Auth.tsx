@@ -13,7 +13,7 @@ const Auth = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
-  // Login form state
+  // Login form state - updated for simplified auth
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
