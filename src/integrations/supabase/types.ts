@@ -14,7 +14,105 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      inventory: {
+        Row: {
+          created_at: string
+          desired_quantity: number
+          id: string
+          product: string
+          quantity: number
+          shop_id: string
+          threshold: number
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          desired_quantity?: number
+          id?: string
+          product: string
+          quantity?: number
+          shop_id: string
+          threshold?: number
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          desired_quantity?: number
+          id?: string
+          product?: string
+          quantity?: number
+          shop_id?: string
+          threshold?: number
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          shop_id: string | null
+          shop_name: string | null
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: string
+          shop_id?: string | null
+          shop_name?: string | null
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          shop_id?: string | null
+          shop_name?: string | null
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      sales: {
+        Row: {
+          created_at: string
+          id: string
+          product: string
+          quantity: number
+          sale_date: string
+          shop_id: string
+          unit: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product: string
+          quantity: number
+          sale_date?: string
+          shop_id: string
+          unit: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product?: string
+          quantity?: number
+          sale_date?: string
+          shop_id?: string
+          unit?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
