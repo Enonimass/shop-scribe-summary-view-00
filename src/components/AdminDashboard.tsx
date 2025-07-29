@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LogOut, Shield, Users, Store, BarChart3, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import UserManagement from './UserManagement';
 
 const AdminDashboard = () => {
   const { profile, logout } = useAuth();
@@ -308,39 +309,7 @@ const AdminDashboard = () => {
           </TabsContent>
 
           <TabsContent value="users">
-            <Card>
-              <CardHeader>
-                <CardTitle>User Management</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Username</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Shop</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {profiles.map((profile) => (
-                      <TableRow key={profile.id}>
-                        <TableCell>{profile.username}</TableCell>
-                        <TableCell className="capitalize">{profile.role}</TableCell>
-                        <TableCell>{profile.shop_name || 'All Shops'}</TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            profile.role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                          }`}>
-                            {profile.role === 'admin' ? 'Admin' : 'Active'}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+            <UserManagement profiles={profiles} onProfilesUpdate={fetchProfiles} />
           </TabsContent>
         </Tabs>
       </div>
