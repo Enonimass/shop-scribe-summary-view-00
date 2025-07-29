@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus, KeyRound, Trash2, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, KeyRound, Trash2, Eye, EyeOff, Edit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -20,6 +20,7 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
   const [loading, setLoading] = useState(false);
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [passwordResetOpen, setPasswordResetOpen] = useState(false);
+  const [editUserOpen, setEditUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [showPasswords, setShowPasswords] = useState<{[key: string]: boolean}>({});
 
@@ -33,6 +34,11 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
 
   // Password reset state
   const [newPassword, setNewPassword] = useState('');
+
+  // Edit user state
+  const [editUsername, setEditUsername] = useState('');
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editShopName, setEditShopName] = useState('');
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,6 +118,46 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
     } catch (error) {
       toast({
         title: "Failed to update password",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    }
+
+    setLoading(false);
+  };
+
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          username: editUsername,
+          display_name: editDisplayName,
+          shop_name: editShopName || null,
+        })
+        .eq('id', selectedUser.id);
+
+      if (error) {
+        toast({
+          title: "Failed to update user",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "User updated",
+          description: `${editDisplayName} has been updated.`,
+        });
+        setEditUserOpen(false);
+        setSelectedUser(null);
+        onProfilesUpdate();
+      }
+    } catch (error) {
+      toast({
+        title: "Failed to update user",
         description: "An unexpected error occurred.",
         variant: "destructive",
       });
@@ -301,6 +347,21 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
                       size="sm"
                       onClick={() => {
                         setSelectedUser(profile);
+                        setEditUsername(profile.username);
+                        setEditDisplayName(profile.display_name);
+                        setEditShopName(profile.shop_name || '');
+                        setEditUserOpen(true);
+                      }}
+                      className="flex items-center space-x-1"
+                    >
+                      <Edit className="w-3 h-3" />
+                      <span>Edit</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedUser(profile);
                         setPasswordResetOpen(true);
                       }}
                       className="flex items-center space-x-1"
@@ -345,6 +406,51 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Updating...' : 'Update Password'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={editUserOpen} onOpenChange={setEditUserOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User: {selectedUser?.display_name}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditUser} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-username">Username</Label>
+              <Input
+                id="edit-username"
+                type="text"
+                value={editUsername}
+                onChange={(e) => setEditUsername(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-display-name">Display Name</Label>
+              <Input
+                id="edit-display-name"
+                type="text"
+                value={editDisplayName}
+                onChange={(e) => setEditDisplayName(e.target.value)}
+                required
+              />
+            </div>
+            {selectedUser?.role === 'seller' && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-shop-name">Shop Name</Label>
+                <Input
+                  id="edit-shop-name"
+                  type="text"
+                  value={editShopName}
+                  onChange={(e) => setEditShopName(e.target.value)}
+                />
+              </div>
+            )}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Updating...' : 'Update User'}
             </Button>
           </form>
         </DialogContent>

@@ -41,6 +41,7 @@ const availableProducts = [
 
 const SalesTab = ({ shopId }: { shopId: string }) => {
   const [sales, setSales] = useState<Sale[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
@@ -59,8 +60,24 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   useEffect(() => {
     if (shopId) {
       fetchSales();
+      fetchInventory();
     }
   }, [shopId]);
+
+  const fetchInventory = async () => {
+    if (!shopId) return;
+    
+    const { data, error } = await supabase
+      .from('inventory')
+      .select('*')
+      .eq('shop_id', shopId);
+
+    if (error) {
+      console.error('Error fetching inventory:', error);
+    } else {
+      setInventory(data || []);
+    }
+  };
 
   const fetchSales = async () => {
     if (!shopId) return;
@@ -107,44 +124,85 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     setSaleItems(updatedItems);
   };
 
-  const handleAddSale = (e: React.FormEvent) => {
+  const handleAddSale = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const validItems = saleItems.filter(item => item.product && item.quantity > 0);
     if (!customerName || validItems.length === 0) return;
 
-    const sale: Sale = {
-      id: Date.now().toString(),
-      items: validItems,
-      customerName: customerName,
-      date: new Date().toISOString().split('T')[0]
-    };
+    // Check inventory availability for each item
+    for (const item of validItems) {
+      const inventoryItem = inventory.find(inv => inv.product === item.product);
+      if (!inventoryItem) {
+        toast({
+          title: "Product Not Available",
+          description: `${item.product} is not in inventory`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (inventoryItem.quantity < item.quantity) {
+        toast({
+          title: "Insufficient Stock",
+          description: `Only ${inventoryItem.quantity} ${inventoryItem.unit} of ${item.product} available`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
 
-    saveSales([sale, ...sales]);
-    
-    // Update inventory (reduce stock for each item)
-    const inventory = JSON.parse(localStorage.getItem(`inventory_${shopId}`) || '[]');
-    let updatedInventory = [...inventory];
-    
-    validItems.forEach(item => {
-      updatedInventory = updatedInventory.map((invItem: any) => 
-        invItem.product === item.product 
-          ? { ...invItem, quantity: Math.max(0, invItem.quantity - item.quantity) }
-          : invItem
-      );
-    });
-    
-    localStorage.setItem(`inventory_${shopId}`, JSON.stringify(updatedInventory));
+    try {
+      // Save each sale item to database
+      for (const item of validItems) {
+        const { error } = await supabase
+          .from('sales')
+          .insert({
+            shop_id: shopId,
+            product: item.product,
+            quantity: item.quantity,
+            unit: item.unit,
+            sale_date: new Date().toISOString().split('T')[0]
+          });
 
-    const itemsDescription = validItems.map(item => `${item.quantity} ${item.unit} ${item.product}`).join(', ');
-    toast({
-      title: "Sale Recorded",
-      description: `Sale to ${customerName}: ${itemsDescription}`,
-    });
+        if (error) {
+          console.error('Error saving sale:', error);
+          toast({
+            title: "Error",
+            description: "Failed to record sale",
+            variant: "destructive",
+          });
+          return;
+        }
 
-    setCustomerName('');
-    setSaleItems([{ product: '', quantity: 0, unit: 'bags' }]);
-    setShowAddForm(false);
+        // Update inventory
+        const inventoryItem = inventory.find(inv => inv.product === item.product);
+        if (inventoryItem) {
+          await supabase
+            .from('inventory')
+            .update({ quantity: inventoryItem.quantity - item.quantity })
+            .eq('id', inventoryItem.id);
+        }
+      }
+
+      const itemsDescription = validItems.map(item => `${item.quantity} ${item.unit} ${item.product}`).join(', ');
+      toast({
+        title: "Sale Recorded",
+        description: `Sale to ${customerName}: ${itemsDescription}`,
+      });
+
+      setCustomerName('');
+      setSaleItems([{ product: '', quantity: 0, unit: 'bags' }]);
+      setShowAddForm(false);
+      fetchSales();
+      fetchInventory();
+    } catch (error) {
+      console.error('Error processing sale:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process sale",
+        variant: "destructive",
+      });
+    }
   };
 
   const filteredAndSortedSales = [...sales]
@@ -350,8 +408,10 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                           <SelectValue placeholder="Select product" />
                         </SelectTrigger>
                         <SelectContent>
-                          {availableProducts.map(product => (
-                            <SelectItem key={product} value={product}>{product}</SelectItem>
+                          {inventory.map(item => (
+                            <SelectItem key={item.id} value={item.product}>
+                              {item.product} ({item.quantity} {item.unit} available)
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
