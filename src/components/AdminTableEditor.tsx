@@ -228,7 +228,7 @@ const AdminTableEditor = () => {
     if (customerFilter && !transaction.customer_name.toLowerCase().includes(customerFilter.toLowerCase())) {
       return false;
     }
-    if (shopFilter && transaction.shop_id !== shopFilter) {
+    if (shopFilter && shopFilter !== "all" && transaction.shop_id !== shopFilter) {
       return false;
     }
     return true;
@@ -236,7 +236,7 @@ const AdminTableEditor = () => {
 
   // Filter inventory
   const filteredInventory = inventory.filter(item => {
-    if (shopFilter && item.shop_id !== shopFilter) {
+    if (shopFilter && shopFilter !== "all" && item.shop_id !== shopFilter) {
       return false;
     }
     return true;
@@ -257,7 +257,7 @@ const AdminTableEditor = () => {
               <SelectValue placeholder="All shops" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All shops</SelectItem>
+              <SelectItem value="all">All shops</SelectItem>
               {uniqueShops.map(shop => (
                 <SelectItem key={shop} value={shop}>{shop}</SelectItem>
               ))}
