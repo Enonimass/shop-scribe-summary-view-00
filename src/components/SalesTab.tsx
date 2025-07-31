@@ -522,7 +522,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 return (
                   <TableRow key={sale.id}>
                     <TableCell>{new Date(sale.date).toLocaleDateString()}</TableCell>
-                    <TableCell className="font-medium">{sale.customerName}</TableCell>
+                    <TableCell className="font-medium">{sale.customerName || 'Unknown Customer'}</TableCell>
                     <TableCell>
                       <div className="space-y-1">
                         {items.map((item, index) => (

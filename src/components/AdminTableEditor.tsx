@@ -448,9 +448,9 @@ const AdminTableEditor = () => {
                               value={editValues.customer_name || ''}
                               onChange={(e) => setEditValues({...editValues, customer_name: e.target.value})}
                             />
-                          ) : (
-                            transaction.customer_name
-                          )}
+                           ) : (
+                             transaction.customer_name || 'Unknown Customer'
+                           )}
                         </TableCell>
                         <TableCell>
                           {editingTransaction === transaction.id ? (
