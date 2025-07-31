@@ -95,7 +95,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       const convertedSales = (data || []).map(sale => ({
         id: sale.id,
         items: [{ product: sale.product, quantity: sale.quantity, unit: sale.unit }],
-        customerName: 'Customer', // You can add customer field to sales table later
+        customerName: sale.customer_name || sale.customerName || 'Customer',
         date: sale.sale_date
       }));
       setSales(convertedSales);
@@ -161,6 +161,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
             product: item.product,
             quantity: item.quantity,
             unit: item.unit,
+            customer_name: customerName,
             sale_date: new Date().toISOString().split('T')[0]
           });
 

@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { LogOut, Shield, Users, Store, BarChart3, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import UserManagement from './UserManagement';
+import AdminTableEditor from './AdminTableEditor';
 
 const AdminDashboard = () => {
   const { profile, logout } = useAuth();
@@ -148,11 +149,12 @@ const AdminDashboard = () => {
         )}
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-5 max-w-3xl">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="inventory">Inventory</TabsTrigger>
             <TabsTrigger value="sales">Sales</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="manage">Manage Tables</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -310,6 +312,10 @@ const AdminDashboard = () => {
 
           <TabsContent value="users">
             <UserManagement profiles={profiles} onProfilesUpdate={fetchProfiles} />
+          </TabsContent>
+
+          <TabsContent value="manage">
+            <AdminTableEditor />
           </TabsContent>
         </Tabs>
       </div>
