@@ -122,6 +122,68 @@ export type Database = {
         }
         Relationships: []
       }
+      sales_items: {
+        Row: {
+          created_at: string
+          id: string
+          product: string
+          quantity: number
+          transaction_id: string
+          unit: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product: string
+          quantity: number
+          transaction_id: string
+          unit: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product?: string
+          quantity?: number
+          transaction_id?: string
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_items_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "sales_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_transactions: {
+        Row: {
+          created_at: string
+          customer_name: string
+          id: string
+          sale_date: string
+          shop_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_name: string
+          id?: string
+          sale_date?: string
+          shop_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string
+          id?: string
+          sale_date?: string
+          shop_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

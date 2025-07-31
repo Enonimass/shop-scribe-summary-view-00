@@ -82,24 +82,37 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const fetchSales = async () => {
     if (!shopId) return;
     
-    const { data, error } = await supabase
-      .from('sales')
+    // Fetch transactions
+    const { data: transactions, error: transError } = await supabase
+      .from('sales_transactions')
       .select('*')
       .eq('shop_id', shopId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching sales:', error);
-    } else {
-      // Convert to legacy format for compatibility
-      const convertedSales = (data || []).map(sale => ({
-        id: sale.id,
-        items: [{ product: sale.product, quantity: sale.quantity, unit: sale.unit }],
-        customerName: sale.customer_name || sale.customerName || 'Customer',
-        date: sale.sale_date
-      }));
-      setSales(convertedSales);
+    if (transError) {
+      console.error('Error fetching transactions:', transError);
+      return;
     }
+
+    // Fetch all sales items
+    const { data: allItems, error: itemsError } = await supabase
+      .from('sales_items')
+      .select('*');
+
+    if (itemsError) {
+      console.error('Error fetching sales items:', itemsError);
+      return;
+    }
+
+    // Combine transactions with their items
+    const salesWithItems = (transactions || []).map(transaction => ({
+      id: transaction.id,
+      items: (allItems || []).filter(item => item.transaction_id === transaction.id),
+      customerName: transaction.customer_name,
+      date: transaction.sale_date
+    }));
+
+    setSales(salesWithItems);
   };
 
   const saveSales = (newSales: Sale[]) => {
@@ -152,30 +165,49 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     }
 
     try {
-      // Save each sale item to database
+      // Create transaction
+      const { data: transaction, error: transError } = await supabase
+        .from('sales_transactions')
+        .insert({
+          shop_id: shopId,
+          customer_name: customerName,
+          sale_date: new Date().toISOString().split('T')[0]
+        })
+        .select()
+        .single();
+
+      if (transError) {
+        console.error('Error creating transaction:', transError);
+        toast({
+          title: "Error",
+          description: "Failed to record sale",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Save sale items to database
+      const { error: itemsError } = await supabase
+        .from('sales_items')
+        .insert(validItems.map(item => ({
+          transaction_id: transaction.id,
+          product: item.product,
+          quantity: item.quantity,
+          unit: item.unit
+        })));
+
+      if (itemsError) {
+        console.error('Error saving sale items:', itemsError);
+        toast({
+          title: "Error",
+          description: "Failed to record sale items",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Update inventory for each item
       for (const item of validItems) {
-        const { error } = await supabase
-          .from('sales')
-          .insert({
-            shop_id: shopId,
-            product: item.product,
-            quantity: item.quantity,
-            unit: item.unit,
-            customer_name: customerName,
-            sale_date: new Date().toISOString().split('T')[0]
-          });
-
-        if (error) {
-          console.error('Error saving sale:', error);
-          toast({
-            title: "Error",
-            description: "Failed to record sale",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        // Update inventory
         const inventoryItem = inventory.find(inv => inv.product === item.product);
         if (inventoryItem) {
           await supabase
