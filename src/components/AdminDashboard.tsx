@@ -65,28 +65,62 @@ const AdminDashboard = () => {
     
     if (inventoryData) setInventory(inventoryData);
 
-    // Fetch sales for selected shop
-    const { data: salesData } = await supabase
-      .from('sales')
+    // Fetch sales transactions for selected shop
+    const { data: transactions, error: transError } = await supabase
+      .from('sales_transactions')
       .select('*')
       .eq('shop_id', selectedShop)
       .order('created_at', { ascending: false });
-    
-    if (salesData) setSales(salesData);
+
+    if (transError) {
+      console.error('Error fetching transactions:', transError);
+      return;
+    }
+
+    // Fetch all sales items
+    const { data: allItems, error: itemsError } = await supabase
+      .from('sales_items')
+      .select('*');
+
+    if (itemsError) {
+      console.error('Error fetching sales items:', itemsError);
+      return;
+    }
+
+    // Combine transactions with their items
+    const salesWithItems = (transactions || []).map(transaction => ({
+      ...transaction,
+      items: (allItems || []).filter(item => item.transaction_id === transaction.id)
+    }));
+
+    setSales(salesWithItems);
   };
 
   const filteredAndSortedSales = [...sales]
     .filter(sale => {
       if (!salesSearchTerm) return true;
       const searchLower = salesSearchTerm.toLowerCase();
-      return sale.product.toLowerCase().includes(searchLower);
+      
+      // Search in customer name
+      if (sale.customer_name && sale.customer_name.toLowerCase().includes(searchLower)) return true;
+      
+      // Search in products
+      if (sale.items) {
+        return sale.items.some((item: any) => item.product.toLowerCase().includes(searchLower));
+      }
+      
+      return false;
     })
     .sort((a, b) => {
       switch (salesSortBy) {
         case 'product':
-          return a.product.localeCompare(b.product);
+          const aProduct = a.items?.[0]?.product || '';
+          const bProduct = b.items?.[0]?.product || '';
+          return aProduct.localeCompare(bProduct);
+        case 'customer':
+          return (a.customer_name || '').localeCompare(b.customer_name || '');
         case 'date':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          return new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime();
         default:
           return 0;
       }
@@ -266,11 +300,11 @@ const AdminDashboard = () => {
                   <div className="flex items-center space-x-2">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <Input
-                        placeholder="Search products..."
-                        value={salesSearchTerm}
-                        onChange={(e) => setSalesSearchTerm(e.target.value)}
-                        className="pl-10 w-64"
+                       <Input
+                         placeholder="Search customers or products..."
+                         value={salesSearchTerm}
+                         onChange={(e) => setSalesSearchTerm(e.target.value)}
+                         className="pl-10 w-64"
                       />
                     </div>
                     <Select value={salesSortBy} onValueChange={(value: 'product' | 'customer' | 'date') => setSalesSortBy(value)}>
@@ -280,6 +314,7 @@ const AdminDashboard = () => {
                       <SelectContent>
                         <SelectItem value="date">Sort by Date</SelectItem>
                         <SelectItem value="product">Sort by Product</SelectItem>
+                        <SelectItem value="customer">Sort by Customer</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -290,20 +325,35 @@ const AdminDashboard = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Unit</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Products</TableHead>
+                      <TableHead>Total Items</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredAndSortedSales.map((sale: any) => (
-                      <TableRow key={sale.id}>
-                        <TableCell>{new Date(sale.sale_date).toLocaleDateString()}</TableCell>
-                        <TableCell className="font-medium">{sale.product}</TableCell>
-                        <TableCell>{sale.quantity}</TableCell>
-                        <TableCell>{sale.unit}</TableCell>
-                      </TableRow>
-                    ))}
+                    {filteredAndSortedSales.map((sale: any) => {
+                      const totalQuantity = sale.items ? sale.items.reduce((sum: number, item: any) => sum + item.quantity, 0) : 0;
+                      
+                      return (
+                        <TableRow key={sale.id}>
+                          <TableCell>{new Date(sale.sale_date).toLocaleDateString()}</TableCell>
+                          <TableCell className="font-medium">{sale.customer_name || 'Unknown Customer'}</TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              {sale.items && sale.items.map((item: any, index: number) => (
+                                <div key={index} className="text-sm">
+                                  <span className="font-medium">{item.product}</span>
+                                  <span className="text-gray-600 ml-2">
+                                    {item.quantity} {item.unit}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{totalQuantity}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

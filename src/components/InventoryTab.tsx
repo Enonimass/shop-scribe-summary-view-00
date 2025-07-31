@@ -17,6 +17,7 @@ interface InventoryItem {
   unit: string;
   threshold: number;
   desired_quantity: number;
+  shop_id: string;
 }
 
 const availableProducts = [
@@ -178,11 +179,9 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
         </div>
         <div className="flex space-x-2">
           <UnitConverter 
-            inventory={inventory.map(item => ({
-              ...item,
-              desiredQuantity: item.desired_quantity
-            }))} 
+            inventory={inventory} 
             onConvert={fetchInventory}
+            shopId={shopId}
           />
           <Button 
             onClick={() => setShowAddForm(!showAddForm)}

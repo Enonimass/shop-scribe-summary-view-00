@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RotateCcw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface InventoryItem {
   id: string;
@@ -13,12 +14,14 @@ interface InventoryItem {
   quantity: number;
   unit: string;
   threshold: number;
-  desiredQuantity: number;
+  desired_quantity: number;
+  shop_id: string;
 }
 
 interface UnitConverterProps {
   inventory: InventoryItem[];
-  onConvert: (updatedInventory: InventoryItem[]) => void;
+  onConvert: () => void;
+  shopId: string;
 }
 
 // Conversion rates - customize these as needed
@@ -27,7 +30,7 @@ const conversionRates = {
   '50kg': 50, // 1 unit of 50kg = 50 kg
 };
 
-const UnitConverter = ({ inventory, onConvert }: UnitConverterProps) => {
+const UnitConverter = ({ inventory, onConvert, shopId }: UnitConverterProps) => {
   const [selectedProduct, setSelectedProduct] = useState('');
   const [fromUnit, setFromUnit] = useState('');
   const [quantityToConvert, setQuantityToConvert] = useState('');
@@ -40,7 +43,7 @@ const UnitConverter = ({ inventory, onConvert }: UnitConverterProps) => {
 
   const selectedItem = inventory.find(item => item.product === selectedProduct);
 
-  const handleConvert = () => {
+  const handleConvert = async () => {
     if (!selectedProduct || !quantityToConvert || !fromUnit) {
       toast({
         title: "Error",
@@ -51,7 +54,9 @@ const UnitConverter = ({ inventory, onConvert }: UnitConverterProps) => {
     }
 
     const convertQuantity = parseInt(quantityToConvert);
-    const selectedInventoryItem = inventory.find(item => item.product === selectedProduct);
+    const selectedInventoryItem = inventory.find(item => 
+      item.product === selectedProduct && item.unit === fromUnit
+    );
 
     if (!selectedInventoryItem || selectedInventoryItem.quantity < convertQuantity) {
       toast({
@@ -62,54 +67,90 @@ const UnitConverter = ({ inventory, onConvert }: UnitConverterProps) => {
       return;
     }
 
-    // Calculate kg equivalent
-    const kgEquivalent = convertQuantity * conversionRates[fromUnit as keyof typeof conversionRates];
+    try {
+      // Calculate kg equivalent
+      const kgEquivalent = convertQuantity * conversionRates[fromUnit as keyof typeof conversionRates];
 
-    // Update inventory
-    const updatedInventory = inventory.map(item => {
-      if (item.product === selectedProduct && item.unit === fromUnit) {
-        // Reduce the original unit quantity
-        return { ...item, quantity: item.quantity - convertQuantity };
+      // Update the original item quantity in database
+      const { error: updateError } = await supabase
+        .from('inventory')
+        .update({ quantity: selectedInventoryItem.quantity - convertQuantity })
+        .eq('id', selectedInventoryItem.id);
+
+      if (updateError) {
+        console.error('Error updating inventory:', updateError);
+        toast({
+          title: "Error",
+          description: "Failed to update inventory",
+          variant: "destructive"
+        });
+        return;
       }
-      return item;
-    });
 
-    // Check if there's already a kg entry for this product
-    const existingKgItem = updatedInventory.find(item => 
-      item.product === selectedProduct && item.unit === 'kg'
-    );
-
-    if (existingKgItem) {
-      // Add to existing kg stock
-      const finalInventory = updatedInventory.map(item => 
-        item.id === existingKgItem.id 
-          ? { ...item, quantity: item.quantity + kgEquivalent }
-          : item
+      // Check if there's already a kg entry for this product
+      const existingKgItem = inventory.find(item => 
+        item.product === selectedProduct && item.unit === 'kgs' && item.shop_id === shopId
       );
-      onConvert(finalInventory);
-    } else {
-      // Create new kg entry
-      const newKgItem: InventoryItem = {
-        id: `${selectedProduct}_kg_${Date.now()}`,
-        product: selectedProduct,
-        quantity: kgEquivalent,
-        unit: 'kg',
-        threshold: 15,
-        desiredQuantity: 25
-      };
-      onConvert([...updatedInventory, newKgItem]);
+
+      if (existingKgItem) {
+        // Add to existing kg stock
+        const { error: kgUpdateError } = await supabase
+          .from('inventory')
+          .update({ quantity: existingKgItem.quantity + kgEquivalent })
+          .eq('id', existingKgItem.id);
+
+        if (kgUpdateError) {
+          console.error('Error updating kg inventory:', kgUpdateError);
+          toast({
+            title: "Error",
+            description: "Failed to update kg inventory",
+            variant: "destructive"
+          });
+          return;
+        }
+      } else {
+        // Create new kg entry
+        const { error: insertError } = await supabase
+          .from('inventory')
+          .insert({
+            shop_id: shopId,
+            product: selectedProduct,
+            quantity: kgEquivalent,
+            unit: 'kgs',
+            threshold: 15,
+            desired_quantity: 25
+          });
+
+        if (insertError) {
+          console.error('Error creating kg inventory:', insertError);
+          toast({
+            title: "Error",
+            description: "Failed to create kg inventory",
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+
+      toast({
+        title: "Conversion Successful",
+        description: `Converted ${convertQuantity} ${fromUnit} to ${kgEquivalent} kgs of ${selectedProduct}`,
+      });
+
+      // Reset form and refresh data
+      setSelectedProduct('');
+      setFromUnit('');
+      setQuantityToConvert('');
+      setIsOpen(false);
+      onConvert();
+    } catch (error) {
+      console.error('Error during conversion:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred during conversion",
+        variant: "destructive"
+      });
     }
-
-    toast({
-      title: "Conversion Successful",
-      description: `Converted ${convertQuantity} ${fromUnit} to ${kgEquivalent} kg of ${selectedProduct}`,
-    });
-
-    // Reset form
-    setSelectedProduct('');
-    setFromUnit('');
-    setQuantityToConvert('');
-    setIsOpen(false);
   };
 
   return (
