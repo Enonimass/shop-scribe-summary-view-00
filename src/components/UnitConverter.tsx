@@ -109,7 +109,8 @@ const UnitConverter = ({ inventory, onConvert, shopId }: UnitConverterProps) => 
           return;
         }
       } else {
-        // Create new kg entry
+        // Try to create new kg entry, but if it fails due to unique constraint,
+        // find the existing entry and update it
         const { error: insertError } = await supabase
           .from('inventory')
           .insert({
@@ -122,13 +123,43 @@ const UnitConverter = ({ inventory, onConvert, shopId }: UnitConverterProps) => 
           });
 
         if (insertError) {
-          console.error('Error creating kg inventory:', insertError);
-          toast({
-            title: "Error",
-            description: "Failed to create kg inventory",
-            variant: "destructive"
-          });
-          return;
+          // If it's a unique constraint violation, try to find and update existing entry
+          if (insertError.code === '23505') {
+            const { data: existingData } = await supabase
+              .from('inventory')
+              .select('*')
+              .eq('shop_id', shopId)
+              .eq('product', selectedProduct)
+              .single();
+
+            if (existingData) {
+              const { error: updateError } = await supabase
+                .from('inventory')
+                .update({ 
+                  quantity: existingData.quantity + kgEquivalent,
+                  unit: 'kg'
+                })
+                .eq('id', existingData.id);
+
+              if (updateError) {
+                console.error('Error updating existing inventory:', updateError);
+                toast({
+                  title: "Error",
+                  description: "Failed to update inventory",
+                  variant: "destructive"
+                });
+                return;
+              }
+            }
+          } else {
+            console.error('Error creating kg inventory:', insertError);
+            toast({
+              title: "Error",
+              description: "Failed to create kg inventory",
+              variant: "destructive"
+            });
+            return;
+          }
         }
       }
 
