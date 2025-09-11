@@ -103,87 +103,96 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
 
     setLoading(true);
 
-    // Try to insert as a new entry first (allowing separate entries for different units)
-    const { error: insertError } = await supabase
-      .from('inventory')
-      .insert({
-        shop_id: shopId,
-        product: newProduct,
-        quantity: parseInt(newQuantity),
-        unit: newUnit,
-        threshold: 15,
-        desired_quantity: 25
-      });
+    try {
+      const qty = Number(newQuantity);
+      if (Number.isNaN(qty) || qty <= 0) {
+        toast({
+          title: "Invalid quantity",
+          description: "Enter a positive number",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    if (insertError) {
-      // If unique constraint violation, find existing entry and update based on unit
-      if (insertError.code === '23505') {
-        const { data: existingData, error: fetchError } = await supabase
+      // Check if an entry exists for the same product AND unit
+      const { data: existingItem, error: existingError } = await supabase
+        .from('inventory')
+        .select('*')
+        .eq('shop_id', shopId)
+        .eq('product', newProduct)
+        .eq('unit', newUnit)
+        .maybeSingle();
+
+      if (existingError && (existingError as any).code !== 'PGRST116') {
+        console.error('Error checking existing inventory:', existingError);
+        toast({
+          title: "Error",
+          description: "Failed to check existing inventory",
+          variant: "destructive",
+        });
+      } else if (existingItem) {
+        // Same product and unit -> aggregate quantity
+        const { error: updateError } = await supabase
           .from('inventory')
-          .select('*')
-          .eq('shop_id', shopId)
-          .eq('product', newProduct)
-          .single();
+          .update({ quantity: existingItem.quantity + qty })
+          .eq('id', existingItem.id);
 
-        if (fetchError) {
-          console.error('Error fetching existing inventory:', fetchError);
+        if (updateError) {
+          console.error('Error updating inventory:', updateError);
           toast({
             title: "Error",
-            description: "Failed to fetch existing inventory",
+            description: "Failed to update stock",
             variant: "destructive",
           });
-        } else if (existingData) {
-          // Check if the existing entry has the same unit
-          if (existingData.unit === newUnit) {
-            // Same unit - add to quantity
-            const { error: updateError } = await supabase
-              .from('inventory')
-              .update({ 
-                quantity: existingData.quantity + parseInt(newQuantity)
-              })
-              .eq('id', existingData.id);
+        } else {
+          toast({
+            title: "Stock Updated",
+            description: `Added ${newQuantity} ${newUnit} of ${newProduct}`,
+          });
+        }
+      } else {
+        // No entry for this product+unit -> create a new row
+        const { error: insertError } = await supabase
+          .from('inventory')
+          .insert({
+            shop_id: shopId,
+            product: newProduct,
+            quantity: qty,
+            unit: newUnit,
+            threshold: 15,
+            desired_quantity: 25,
+          });
 
-            if (updateError) {
-              console.error('Error updating inventory:', updateError);
-              toast({
-                title: "Error",
-                description: "Failed to update stock",
-                variant: "destructive",
-              });
-            } else {
-              toast({
-                title: "Stock Updated",
-                description: `Added ${newQuantity} ${newUnit} of ${newProduct}`,
-              });
-            }
-          } else {
-            // Different unit - we need a workaround since DB doesn't allow separate entries
+        if (insertError) {
+          console.error('Error adding inventory:', insertError);
+          if ((insertError as any).code === '23505') {
+            // Likely a unique constraint on (shop_id, product). Needs DB change to allow (shop_id, product, unit)
             toast({
-              title: "Notice",
-              description: `${newProduct} already exists with unit "${existingData.unit}". Consider using unit converter to manage different units.`,
+              title: "Database constraint",
+              description: "Update unique constraint to include unit so separate rows per unit are allowed.",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Error",
+              description: "Failed to add product",
               variant: "destructive",
             });
           }
+        } else {
+          toast({
+            title: "Product Added",
+            description: `${newProduct} added to inventory`,
+          });
         }
-      } else {
-        console.error('Error adding inventory:', insertError);
-        toast({
-          title: "Error",
-          description: "Failed to add product",
-          variant: "destructive",
-        });
       }
-    } else {
-      toast({
-        title: "Product Added",
-        description: `${newProduct} added to inventory`,
-      });
+    } finally {
+      setNewProduct('');
+      setNewQuantity('');
+      setShowAddForm(false);
+      setLoading(false);
+      fetchInventory();
     }
-
-    setNewProduct('');
-    setNewQuantity('');
-    setShowAddForm(false);
-    setLoading(false);
   };
 
   const lowStockItems = inventory.filter(item => item.quantity <= item.threshold);
