@@ -89,7 +89,7 @@ const UnitConverter = ({ inventory, onConvert, shopId }: UnitConverterProps) => 
 
       // Check if there's already a kg entry for this product
       const existingKgItem = inventory.find(item => 
-        item.product === selectedProduct && item.unit === 'kgs' && item.shop_id === shopId
+        item.product === selectedProduct && item.unit === 'kg' && item.shop_id === shopId
       );
 
       if (existingKgItem) {
@@ -116,7 +116,7 @@ const UnitConverter = ({ inventory, onConvert, shopId }: UnitConverterProps) => 
             shop_id: shopId,
             product: selectedProduct,
             quantity: kgEquivalent,
-            unit: 'kgs',
+            unit: 'kg',
             threshold: 15,
             desired_quantity: 25
           });

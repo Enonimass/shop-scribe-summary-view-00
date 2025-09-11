@@ -103,7 +103,7 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
 
     setLoading(true);
 
-    const existingItem = inventory.find(item => item.product === newProduct);
+    const existingItem = inventory.find(item => item.product === newProduct && item.unit === newUnit);
     
     if (existingItem) {
       // Update existing item
