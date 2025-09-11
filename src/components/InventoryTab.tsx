@@ -103,57 +103,81 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
 
     setLoading(true);
 
-    const existingItem = inventory.find(item => item.product === newProduct && item.unit === newUnit);
-    
-    if (existingItem) {
-      // Update existing item
-      const { error } = await supabase
-        .from('inventory')
-        .update({ 
-          quantity: existingItem.quantity + parseInt(newQuantity),
-          unit: newUnit
-        })
-        .eq('id', existingItem.id);
+    // Try to insert as a new entry first (allowing separate entries for different units)
+    const { error: insertError } = await supabase
+      .from('inventory')
+      .insert({
+        shop_id: shopId,
+        product: newProduct,
+        quantity: parseInt(newQuantity),
+        unit: newUnit,
+        threshold: 15,
+        desired_quantity: 25
+      });
 
-      if (error) {
-        console.error('Error updating inventory:', error);
-        toast({
-          title: "Error",
-          description: "Failed to update stock",
-          variant: "destructive",
-        });
+    if (insertError) {
+      // If unique constraint violation, find existing entry and update based on unit
+      if (insertError.code === '23505') {
+        const { data: existingData, error: fetchError } = await supabase
+          .from('inventory')
+          .select('*')
+          .eq('shop_id', shopId)
+          .eq('product', newProduct)
+          .single();
+
+        if (fetchError) {
+          console.error('Error fetching existing inventory:', fetchError);
+          toast({
+            title: "Error",
+            description: "Failed to fetch existing inventory",
+            variant: "destructive",
+          });
+        } else if (existingData) {
+          // Check if the existing entry has the same unit
+          if (existingData.unit === newUnit) {
+            // Same unit - add to quantity
+            const { error: updateError } = await supabase
+              .from('inventory')
+              .update({ 
+                quantity: existingData.quantity + parseInt(newQuantity)
+              })
+              .eq('id', existingData.id);
+
+            if (updateError) {
+              console.error('Error updating inventory:', updateError);
+              toast({
+                title: "Error",
+                description: "Failed to update stock",
+                variant: "destructive",
+              });
+            } else {
+              toast({
+                title: "Stock Updated",
+                description: `Added ${newQuantity} ${newUnit} of ${newProduct}`,
+              });
+            }
+          } else {
+            // Different unit - we need a workaround since DB doesn't allow separate entries
+            toast({
+              title: "Notice",
+              description: `${newProduct} already exists with unit "${existingData.unit}". Consider using unit converter to manage different units.`,
+              variant: "destructive",
+            });
+          }
+        }
       } else {
-        toast({
-          title: "Stock Updated",
-          description: `Added ${newQuantity} ${newUnit} of ${newProduct}`,
-        });
-      }
-    } else {
-      // Add new item
-      const { error } = await supabase
-        .from('inventory')
-        .insert({
-          shop_id: shopId,
-          product: newProduct,
-          quantity: parseInt(newQuantity),
-          unit: newUnit,
-          threshold: 15,
-          desired_quantity: 25
-        });
-
-      if (error) {
-        console.error('Error adding inventory:', error);
+        console.error('Error adding inventory:', insertError);
         toast({
           title: "Error",
           description: "Failed to add product",
           variant: "destructive",
         });
-      } else {
-        toast({
-          title: "Product Added",
-          description: `${newProduct} added to inventory`,
-        });
       }
+    } else {
+      toast({
+        title: "Product Added",
+        description: `${newProduct} added to inventory`,
+      });
     }
 
     setNewProduct('');
