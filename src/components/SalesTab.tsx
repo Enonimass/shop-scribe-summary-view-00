@@ -52,6 +52,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [filterCustomer, setFilterCustomer] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
 
   // Get unique customers from existing sales
   const getUniqueCustomers = () => {
@@ -117,11 +118,6 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     }));
 
     setSales(salesWithItems);
-  };
-
-  const saveSales = (newSales: Sale[]) => {
-    localStorage.setItem(`sales_${shopId}`, JSON.stringify(newSales));
-    setSales(newSales);
   };
 
   const addSaleItem = () => {
@@ -323,6 +319,43 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     }
     return sum + (sale.quantity || 0);
   }, 0);
+
+  // Group sales by date for timeline view
+  const groupSalesByDate = () => {
+    const grouped: { [date: string]: Sale[] } = {};
+    
+    filteredAndSortedSales.forEach(sale => {
+      const date = sale.date;
+      if (!grouped[date]) {
+        grouped[date] = [];
+      }
+      grouped[date].push(sale);
+    });
+    
+    return Object.entries(grouped)
+      .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
+      .map(([date, sales]) => ({
+        date,
+        sales,
+        totalQuantity: sales.reduce((sum, sale) => {
+          if (sale.items) {
+            return sum + sale.items.reduce((itemSum, item) => {
+              if (!filterProduct || item.product === filterProduct) {
+                return itemSum + item.quantity;
+              }
+              return itemSum;
+            }, 0);
+          }
+          if (!filterProduct || sale.product === filterProduct) {
+            return sum + (sale.quantity || 0);
+          }
+          return sum;
+        }, 0),
+        customers: [...new Set(sales.map(sale => sale.customerName))]
+      }));
+  };
+
+  const groupedSales = groupSalesByDate();
   
   const uniqueCustomersCount = new Set(sales.map(sale => sale.customerName)).size;
 
@@ -438,6 +471,20 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   <SelectItem value="date">Sort by Date</SelectItem>
                   <SelectItem value="product">Sort by Product</SelectItem>
                   <SelectItem value="customer">Sort by Customer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-2 mt-4">
+              <Label>View Mode:</Label>
+              <Select value={viewMode} onValueChange={(value: 'table' | 'timeline') => setViewMode(value)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="table">Table View</SelectItem>
+                  <SelectItem value="timeline">Date Timeline</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -595,10 +642,9 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                       {saleItems.length > 1 && (
                         <Button 
                           type="button" 
-                          variant="outline" 
-                          size="sm"
                           onClick={() => removeSaleItem(index)}
-                          className="text-red-600 hover:text-red-700"
+                          variant="outline"
+                          size="icon"
                         >
                           <X className="w-4 h-4" />
                         </Button>
@@ -607,11 +653,13 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   </div>
                 ))}
               </div>
-              
-              <div className="flex space-x-2">
-                <Button type="submit">Record Sale</Button>
+
+              <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
                   Cancel
+                </Button>
+                <Button type="submit">
+                  Record Sale
                 </Button>
               </div>
             </form>
@@ -619,47 +667,123 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
         </Card>
       )}
 
-      {/* Sales Table */}
-      <Card>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Products</TableHead>
-                <TableHead>Total Items</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredAndSortedSales.map((sale) => {
-                const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
-                const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-                
-                return (
-                  <TableRow key={sale.id}>
-                    <TableCell>{new Date(sale.date).toLocaleDateString()}</TableCell>
-                    <TableCell className="font-medium">{sale.customerName || 'Unknown Customer'}</TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        {items.map((item, index) => (
-                          <div key={index} className="text-sm">
-                            <span className="font-medium">{item.product}</span>
-                            <span className="text-gray-600 ml-2">
-                              {item.quantity} {item.unit}
-                            </span>
-                          </div>
-                        ))}
+      {/* Sales Data Display */}
+      {viewMode === 'table' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Sales Records ({filteredAndSortedSales.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Products</TableHead>
+                  <TableHead>Total Quantity</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAndSortedSales.map((sale) => {
+                  const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+                  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+                  
+                  return (
+                    <TableRow key={sale.id}>
+                      <TableCell>{new Date(sale.date).toLocaleDateString()}</TableCell>
+                      <TableCell>{sale.customerName}</TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          {items.map((item, index) => (
+                            <div key={index} className="text-sm">
+                              {item.product} - {item.quantity} {item.unit}
+                            </div>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>{totalQuantity}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Sales Timeline 
+              {filterCustomer && ` - ${filterCustomer}`}
+              {filterProduct && ` - ${filterProduct}`}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {groupedSales.map(({ date, sales, totalQuantity, customers }) => (
+                <Card key={date} className="border-l-4 border-l-blue-500">
+                  <CardContent className="pt-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-semibold text-lg">
+                          {new Date(date).toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                        </h4>
+                        <p className="text-sm text-gray-600">
+                          {sales.length} transaction{sales.length > 1 ? 's' : ''} • 
+                          {customers.length} customer{customers.length > 1 ? 's' : ''} • 
+                          Total: {totalQuantity} items
+                        </p>
                       </div>
-                    </TableCell>
-                    <TableCell className="font-medium">{totalQuantity}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                      <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                        {totalQuantity}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {sales.map((sale) => {
+                        const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+                        
+                        return (
+                          <div key={sale.id} className="bg-gray-50 p-3 rounded-lg">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-medium">{sale.customerName}</p>
+                                <div className="text-sm text-gray-600 mt-1">
+                                  {items.map((item, index) => (
+                                    <div key={index}>
+                                      {item.product}: {item.quantity} {item.unit}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm text-gray-500">
+                                  {items.reduce((sum, item) => sum + item.quantity, 0)} total
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              
+              {groupedSales.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No sales found for the selected filters.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
