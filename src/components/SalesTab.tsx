@@ -48,6 +48,10 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [saleItems, setSaleItems] = useState<SaleItem[]>([{ product: '', quantity: 0, unit: 'bags' }]);
   const [sortBy, setSortBy] = useState<'product' | 'customer' | 'date'>('date');
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterProduct, setFilterProduct] = useState('');
+  const [filterCustomer, setFilterCustomer] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Get unique customers from existing sales
   const getUniqueCustomers = () => {
@@ -131,9 +135,22 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   };
 
   const updateSaleItem = (index: number, field: keyof SaleItem, value: string | number) => {
-    const updatedItems = saleItems.map((item, i) => 
-      i === index ? { ...item, [field]: value } : item
-    );
+    const updatedItems = saleItems.map((item, i) => {
+      if (i === index) {
+        const updatedItem = { ...item, [field]: value };
+        
+        // Auto-select unit when product is selected
+        if (field === 'product' && value) {
+          const inventoryItem = inventory.find(inv => inv.product === value);
+          if (inventoryItem) {
+            updatedItem.unit = inventoryItem.unit;
+          }
+        }
+        
+        return updatedItem;
+      }
+      return item;
+    });
     setSaleItems(updatedItems);
   };
 
@@ -240,16 +257,29 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
 
   const filteredAndSortedSales = [...sales]
     .filter(sale => {
-      if (!searchTerm) return true;
+      // Filter by search term
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesCustomer = sale.customerName.toLowerCase().includes(searchLower);
+        const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+        const matchesProduct = items.some(item => item.product.toLowerCase().includes(searchLower));
+        if (!matchesCustomer && !matchesProduct) return false;
+      }
       
-      const searchLower = searchTerm.toLowerCase();
+      // Filter by specific product
+      if (filterProduct) {
+        const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+        if (!items.some(item => item.product === filterProduct)) return false;
+      }
       
-      // Search in customer name
-      if (sale.customerName.toLowerCase().includes(searchLower)) return true;
+      // Filter by specific customer
+      if (filterCustomer && sale.customerName !== filterCustomer) return false;
       
-      // Search in products
-      const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
-      return items.some(item => item.product.toLowerCase().includes(searchLower));
+      // Filter by date range
+      if (dateFrom && sale.date < dateFrom) return false;
+      if (dateTo && sale.date > dateTo) return false;
+      
+      return true;
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -265,6 +295,27 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
           return 0;
       }
     });
+
+  // Get unique products from inventory for filtering
+  const getUniqueProducts = () => {
+    return [...new Set(inventory.map(item => item.product))].sort();
+  };
+
+  // Calculate filtered totals
+  const filteredTotalQuantity = filteredAndSortedSales.reduce((sum, sale) => {
+    if (sale.items) {
+      return sum + sale.items.reduce((itemSum, item) => {
+        if (!filterProduct || item.product === filterProduct) {
+          return itemSum + item.quantity;
+        }
+        return itemSum;
+      }, 0);
+    }
+    if (!filterProduct || sale.product === filterProduct) {
+      return sum + (sale.quantity || 0);
+    }
+    return sum;
+  }, 0);
 
   const totalSales = sales.reduce((sum, sale) => {
     if (sale.items) {
@@ -315,38 +366,110 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       </div>
 
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h2 className="text-2xl font-bold text-gray-900">Sales Records</h2>
-          <div className="flex items-center space-x-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search customers or products..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-64"
-              />
-            </div>
-            <Select value={sortBy} onValueChange={(value: 'product' | 'customer' | 'date') => setSortBy(value)}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="date">Sort by Date</SelectItem>
-                <SelectItem value="product">Sort by Product</SelectItem>
-                <SelectItem value="customer">Sort by Customer</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Button 
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="flex items-center space-x-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Record Sale</span>
+          </Button>
         </div>
-        <Button 
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="flex items-center space-x-2"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Record Sale</span>
-        </Button>
+        
+        {/* Filters */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              
+              <Select value={filterProduct} onValueChange={setFilterProduct}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by Product" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Products</SelectItem>
+                  {getUniqueProducts().map(product => (
+                    <SelectItem key={product} value={product}>{product}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={filterCustomer} onValueChange={setFilterCustomer}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by Customer" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Customers</SelectItem>
+                  {uniqueCustomers.map(customer => (
+                    <SelectItem key={customer} value={customer}>{customer}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Input
+                type="date"
+                placeholder="From Date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+              
+              <Input
+                type="date"
+                placeholder="To Date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+              
+              <Select value={sortBy} onValueChange={(value: 'product' | 'customer' | 'date') => setSortBy(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Sort by Date</SelectItem>
+                  <SelectItem value="product">Sort by Product</SelectItem>
+                  <SelectItem value="customer">Sort by Customer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Filter Summary */}
+            {(filterProduct || filterCustomer || dateFrom || dateTo) && (
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Filtered Results:</strong> {filteredAndSortedSales.length} records
+                  {filterProduct && ` • Product: ${filterProduct}`}
+                  {filterCustomer && ` • Customer: ${filterCustomer}`}
+                  {(dateFrom || dateTo) && ` • Date: ${dateFrom || 'Start'} to ${dateTo || 'End'}`}
+                  {filterProduct && ` • Total Quantity: ${filteredTotalQuantity}`}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFilterProduct('');
+                    setFilterCustomer('');
+                    setDateFrom('');
+                    setDateTo('');
+                    setSearchTerm('');
+                  }}
+                  className="mt-2"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Add Sale Form */}
@@ -461,18 +584,12 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                     </div>
                     <div className="space-y-2">
                       <Label>Unit</Label>
-                      <Select 
-                        value={item.unit} 
-                        onValueChange={(value) => updateSaleItem(index, 'unit', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="bags">Bags</SelectItem>
-                          <SelectItem value="kgs">Kgs</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Input
+                        value={item.unit}
+                        readOnly
+                        className="bg-gray-50"
+                        placeholder="Auto-selected"
+                      />
                     </div>
                     <div className="flex items-end">
                       {saleItems.length > 1 && (
