@@ -48,8 +48,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [saleItems, setSaleItems] = useState<SaleItem[]>([{ product: '', quantity: 0, unit: 'bags' }]);
   const [sortBy, setSortBy] = useState<'product' | 'customer' | 'date'>('date');
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterProduct, setFilterProduct] = useState('');
-  const [filterCustomer, setFilterCustomer] = useState('');
+  const [filterProduct, setFilterProduct] = useState('all-products');
+  const [filterCustomer, setFilterCustomer] = useState('all-customers');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
@@ -263,13 +263,13 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       }
       
       // Filter by specific product
-      if (filterProduct) {
+      if (filterProduct && filterProduct !== 'all-products') {
         const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
         if (!items.some(item => item.product === filterProduct)) return false;
       }
       
       // Filter by specific customer
-      if (filterCustomer && sale.customerName !== filterCustomer) return false;
+      if (filterCustomer && filterCustomer !== 'all-customers' && sale.customerName !== filterCustomer) return false;
       
       // Filter by date range
       if (dateFrom && sale.date < dateFrom) return false;
@@ -301,13 +301,13 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const filteredTotalQuantity = filteredAndSortedSales.reduce((sum, sale) => {
     if (sale.items) {
       return sum + sale.items.reduce((itemSum, item) => {
-        if (!filterProduct || item.product === filterProduct) {
+        if (!filterProduct || filterProduct === 'all-products' || item.product === filterProduct) {
           return itemSum + item.quantity;
         }
         return itemSum;
       }, 0);
     }
-    if (!filterProduct || sale.product === filterProduct) {
+    if (!filterProduct || filterProduct === 'all-products' || sale.product === filterProduct) {
       return sum + (sale.quantity || 0);
     }
     return sum;
@@ -340,13 +340,13 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
         totalQuantity: sales.reduce((sum, sale) => {
           if (sale.items) {
             return sum + sale.items.reduce((itemSum, item) => {
-              if (!filterProduct || item.product === filterProduct) {
+              if (!filterProduct || filterProduct === 'all-products' || item.product === filterProduct) {
                 return itemSum + item.quantity;
               }
               return itemSum;
             }, 0);
           }
-          if (!filterProduct || sale.product === filterProduct) {
+          if (!filterProduct || filterProduct === 'all-products' || sale.product === filterProduct) {
             return sum + (sale.quantity || 0);
           }
           return sum;
@@ -430,7 +430,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   <SelectValue placeholder="Filter by Product" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Products</SelectItem>
+                  <SelectItem value="all-products">All Products</SelectItem>
                   {getUniqueProducts().map(product => (
                     <SelectItem key={product} value={product}>{product}</SelectItem>
                   ))}
@@ -442,7 +442,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   <SelectValue placeholder="Filter by Customer" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Customers</SelectItem>
+                  <SelectItem value="all-customers">All Customers</SelectItem>
                   {uniqueCustomers.map(customer => (
                     <SelectItem key={customer} value={customer}>{customer}</SelectItem>
                   ))}
@@ -503,8 +503,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setFilterProduct('');
-                    setFilterCustomer('');
+                    setFilterProduct('all-products');
+                    setFilterCustomer('all-customers');
                     setDateFrom('');
                     setDateTo('');
                     setSearchTerm('');
