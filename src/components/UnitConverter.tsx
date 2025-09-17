@@ -247,8 +247,8 @@ const UnitConverter = ({ inventory, onConvert, shopId }: UnitConverterProps) => 
               </div>
 
               {fromUnit && quantityToConvert && (
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-700">
+                <div className="p-3 bg-green-light/20 rounded-lg">
+                  <p className="text-sm text-green-awesome">
                     Converting {quantityToConvert} {fromUnit} will give you{' '}
                     <strong>
                       {parseInt(quantityToConvert) * conversionRates[fromUnit as keyof typeof conversionRates]} kg

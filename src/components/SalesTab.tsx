@@ -370,7 +370,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 <p className="text-sm font-medium text-gray-600">Total Sales</p>
                 <p className="text-2xl font-bold">{totalSales}</p>
               </div>
-              <ShoppingCart className="h-8 w-8 text-blue-600" />
+              <ShoppingCart className="h-8 w-8 text-green-awesome" />
             </div>
           </CardContent>
         </Card>
@@ -491,8 +491,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
             
             {/* Filter Summary */}
             {(filterProduct || filterCustomer || dateFrom || dateTo) && (
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-800">
+              <div className="mt-4 p-3 bg-green-light/20 rounded-lg">
+                <p className="text-sm text-green-awesome">
                   <strong>Filtered Results:</strong> {filteredAndSortedSales.length} records
                   {filterProduct && ` • Product: ${filterProduct}`}
                   {filterCustomer && ` • Customer: ${filterCustomer}`}
@@ -721,7 +721,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
           <CardContent>
             <div className="space-y-4">
               {groupedSales.map(({ date, sales, totalQuantity, customers }) => (
-                <Card key={date} className="border-l-4 border-l-blue-500">
+                <Card key={date} className="border-l-4 border-l-green-awesome">
                   <CardContent className="pt-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>
@@ -739,7 +739,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                           Total: {totalQuantity} items
                         </p>
                       </div>
-                      <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                      <div className="bg-green-light/30 text-green-awesome px-3 py-1 rounded-full text-sm font-medium">
                         {totalQuantity}
                       </div>
                     </div>

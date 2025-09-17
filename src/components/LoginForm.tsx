@@ -8,10 +8,10 @@ const LoginForm = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-green-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-light to-green-awesome p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
+          <div className="mx-auto mb-4 w-16 h-16 bg-green-awesome rounded-full flex items-center justify-center">
             <Store className="w-8 h-8 text-white" />
           </div>
           <CardTitle className="text-2xl font-bold text-gray-900">Shop Manager</CardTitle>
@@ -20,7 +20,8 @@ const LoginForm = () => {
         <CardContent>
           <Button 
             onClick={() => navigate('/auth')} 
-            className="w-full bg-blue-600 hover:bg-blue-700"
+            variant="green-awesome"
+            className="w-full"
           >
             Go to Login/Sign Up
           </Button>
