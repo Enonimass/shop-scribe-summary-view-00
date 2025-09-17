@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Shield, Users, Store, BarChart3, Search } from 'lucide-react';
+import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import UserManagement from './UserManagement';
 import AdminTableEditor from './AdminTableEditor';
@@ -19,6 +19,11 @@ const AdminDashboard = () => {
   const [sales, setSales] = useState<any[]>([]);
   const [salesSortBy, setSalesSortBy] = useState<'product' | 'customer' | 'date'>('date');
   const [salesSearchTerm, setSalesSearchTerm] = useState('');
+  const [filterProduct, setFilterProduct] = useState('all-products');
+  const [filterCustomer, setFilterCustomer] = useState('all-customers');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
 
   // Get unique shops from profiles
   const shops = profiles
@@ -96,20 +101,40 @@ const AdminDashboard = () => {
     setSales(salesWithItems);
   };
 
+  // Get unique customers from existing sales
+  const getUniqueCustomers = () => {
+    const customers = sales.map(sale => sale.customer_name);
+    return [...new Set(customers)].filter(Boolean).sort();
+  };
+
+  // Get unique products from inventory for filtering
+  const getUniqueProducts = () => {
+    return [...new Set(inventory.map(item => item.product))].sort();
+  };
+
   const filteredAndSortedSales = [...sales]
     .filter(sale => {
-      if (!salesSearchTerm) return true;
-      const searchLower = salesSearchTerm.toLowerCase();
-      
-      // Search in customer name
-      if (sale.customer_name && sale.customer_name.toLowerCase().includes(searchLower)) return true;
-      
-      // Search in products
-      if (sale.items) {
-        return sale.items.some((item: any) => item.product.toLowerCase().includes(searchLower));
+      // Filter by search term
+      if (salesSearchTerm) {
+        const searchLower = salesSearchTerm.toLowerCase();
+        const matchesCustomer = sale.customer_name && sale.customer_name.toLowerCase().includes(searchLower);
+        const matchesProduct = sale.items && sale.items.some((item: any) => item.product.toLowerCase().includes(searchLower));
+        if (!matchesCustomer && !matchesProduct) return false;
       }
       
-      return false;
+      // Filter by specific product
+      if (filterProduct && filterProduct !== 'all-products') {
+        if (!sale.items || !sale.items.some((item: any) => item.product === filterProduct)) return false;
+      }
+      
+      // Filter by specific customer
+      if (filterCustomer && filterCustomer !== 'all-customers' && sale.customer_name !== filterCustomer) return false;
+      
+      // Filter by date range
+      if (dateFrom && sale.sale_date < dateFrom) return false;
+      if (dateTo && sale.sale_date > dateTo) return false;
+      
+      return true;
     })
     .sort((a, b) => {
       switch (salesSortBy) {
@@ -125,6 +150,51 @@ const AdminDashboard = () => {
           return 0;
       }
     });
+
+  // Calculate filtered totals
+  const filteredTotalQuantity = filteredAndSortedSales.reduce((sum, sale) => {
+    if (sale.items) {
+      return sum + sale.items.reduce((itemSum: number, item: any) => {
+        if (!filterProduct || filterProduct === 'all-products' || item.product === filterProduct) {
+          return itemSum + item.quantity;
+        }
+        return itemSum;
+      }, 0);
+    }
+    return sum;
+  }, 0);
+
+  // Group sales by date for timeline view
+  const groupedSales = (() => {
+    const grouped: { [date: string]: any[] } = {};
+    
+    filteredAndSortedSales.forEach(sale => {
+      const date = sale.sale_date;
+      if (!grouped[date]) {
+        grouped[date] = [];
+      }
+      grouped[date].push(sale);
+    });
+    
+    return Object.entries(grouped)
+      .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
+      .map(([date, sales]) => ({
+        date,
+        sales,
+        totalQuantity: sales.reduce((sum, sale) => {
+          if (sale.items) {
+            return sum + sale.items.reduce((itemSum: number, item: any) => {
+              if (!filterProduct || filterProduct === 'all-products' || item.product === filterProduct) {
+                return itemSum + item.quantity;
+              }
+              return itemSum;
+            }, 0);
+          }
+          return sum;
+        }, 0),
+        customers: [...new Set(sales.map(sale => sale.customer_name))]
+      }));
+  })();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100">`
@@ -289,6 +359,48 @@ const AdminDashboard = () => {
           </TabsContent>
 
           <TabsContent value="sales">
+            {/* Sales Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Total Sales</p>
+                      <p className="text-2xl font-bold">{sales.reduce((sum, sale) => {
+                        if (sale.items) {
+                          return sum + sale.items.reduce((itemSum: number, item: any) => itemSum + item.quantity, 0);
+                        }
+                        return sum;
+                      }, 0)}</p>
+                    </div>
+                    <ShoppingCart className="h-8 w-8 text-green-awesome" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Unique Customers</p>
+                      <p className="text-2xl font-bold">{new Set(sales.map(sale => sale.customer_name)).size}</p>
+                    </div>
+                    <Users className="h-8 w-8 text-green-light" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Sales Records</p>
+                      <p className="text-2xl font-bold">{sales.length}</p>
+                    </div>
+                    <BarChart3 className="h-8 w-8 text-yellow-green" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             <Card>
               <CardHeader>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -297,65 +409,173 @@ const AdminDashboard = () => {
                       ? `- ${shops.find(s => s.id === selectedShop)?.name}` 
                       : ''}
                   </CardTitle>
-                  <div className="flex items-center space-x-2">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                       <Input
-                         placeholder="Search customers or products..."
-                         value={salesSearchTerm}
-                         onChange={(e) => setSalesSearchTerm(e.target.value)}
-                         className="pl-10 w-64"
-                      />
-                    </div>
-                    <Select value={salesSortBy} onValueChange={(value: 'product' | 'customer' | 'date') => setSalesSortBy(value)}>
-                      <SelectTrigger className="w-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="date">Sort by Date</SelectItem>
-                        <SelectItem value="product">Sort by Product</SelectItem>
-                        <SelectItem value="customer">Sort by Customer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Products</TableHead>
-                      <TableHead>Total Items</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredAndSortedSales.map((sale: any) => {
-                      const totalQuantity = sale.items ? sale.items.reduce((sum: number, item: any) => sum + item.quantity, 0) : 0;
-                      
-                      return (
-                        <TableRow key={sale.id}>
-                          <TableCell>{new Date(sale.sale_date).toLocaleDateString()}</TableCell>
-                          <TableCell className="font-medium">{sale.customer_name || 'Unknown Customer'}</TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              {sale.items && sale.items.map((item: any, index: number) => (
-                                <div key={index} className="text-sm">
-                                  <span className="font-medium">{item.product}</span>
-                                  <span className="text-gray-600 ml-2">
-                                    {item.quantity} {item.unit}
-                                  </span>
-                                </div>
-                              ))}
+                {/* Enhanced Filters */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="Search customers or products..."
+                      value={salesSearchTerm}
+                      onChange={(e) => setSalesSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  <Select value={filterProduct} onValueChange={setFilterProduct}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter by Product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all-products">All Products</SelectItem>
+                      {getUniqueProducts().map(product => (
+                        <SelectItem key={product} value={product}>{product}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select value={filterCustomer} onValueChange={setFilterCustomer}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter by Customer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all-customers">All Customers</SelectItem>
+                      {getUniqueCustomers().map(customer => (
+                        <SelectItem key={customer} value={customer}>{customer}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select value={salesSortBy} onValueChange={(value: 'product' | 'customer' | 'date') => setSalesSortBy(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">Sort by Date</SelectItem>
+                      <SelectItem value="product">Sort by Product</SelectItem>
+                      <SelectItem value="customer">Sort by Customer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Date Range Filters */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                  <Input
+                    type="date"
+                    placeholder="From Date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                  />
+                  
+                  <Input
+                    type="date"
+                    placeholder="To Date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                  />
+                  
+                  <Select value={viewMode} onValueChange={(value: 'table' | 'timeline') => setViewMode(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="table">Table View</SelectItem>
+                      <SelectItem value="timeline">Date Timeline</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter Summary */}
+                {(filterProduct !== 'all-products' || filterCustomer !== 'all-customers' || dateFrom || dateTo) && (
+                  <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-sm text-green-800">
+                      <strong>Filtered Results:</strong> {filteredAndSortedSales.length} records
+                      {filterProduct !== 'all-products' && ` • Product: ${filterProduct}`}
+                      {filterCustomer !== 'all-customers' && ` • Customer: ${filterCustomer}`}
+                      {dateFrom && ` • From: ${dateFrom}`}
+                      {dateTo && ` • To: ${dateTo}`}
+                      <span className="ml-2 text-xs">
+                        (Total Quantity: {filteredTotalQuantity})
+                      </span>
+                    </p>
+                  </div>
+                )}
+
+                {/* Table or Timeline View */}
+                {viewMode === 'table' ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Products</TableHead>
+                        <TableHead>Total Items</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAndSortedSales.map((sale: any) => {
+                        const totalQuantity = sale.items ? sale.items.reduce((sum: number, item: any) => sum + item.quantity, 0) : 0;
+                        
+                        return (
+                          <TableRow key={sale.id}>
+                            <TableCell>{new Date(sale.sale_date).toLocaleDateString()}</TableCell>
+                            <TableCell className="font-medium">{sale.customer_name || 'Unknown Customer'}</TableCell>
+                            <TableCell>
+                              <div className="space-y-1">
+                                {sale.items && sale.items.map((item: any, index: number) => (
+                                  <div key={index} className="text-sm">
+                                    <span className="font-medium">{item.product}</span>
+                                    <span className="text-gray-600 ml-2">
+                                      {item.quantity} {item.unit}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-medium">{totalQuantity}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="space-y-4">
+                    {groupedSales.map(({ date, sales: dateSales, totalQuantity, customers }) => (
+                      <Card key={date} className="border-l-4 border-green-awesome">
+                        <CardHeader className="pb-3">
+                          <div className="flex justify-between items-center">
+                            <h3 className="font-semibold text-lg">{new Date(date).toLocaleDateString()}</h3>
+                            <div className="text-sm text-gray-600">
+                              {dateSales.length} sales • {totalQuantity} total items • {customers.length} customers
                             </div>
-                          </TableCell>
-                          <TableCell className="font-medium">{totalQuantity}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <div className="grid gap-2">
+                            {dateSales.map((sale: any) => (
+                              <div key={sale.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                                <div>
+                                  <span className="font-medium">{sale.customer_name}</span>
+                                  <div className="text-sm text-gray-600">
+                                    {sale.items ? 
+                                      sale.items.map((item: any) => `${item.quantity} ${item.unit} ${item.product}`).join(', ')
+                                      : 'No items'
+                                    }
+                                  </div>
+                                </div>
+                                <div className="text-sm font-medium">
+                                  {sale.items ? sale.items.reduce((sum: number, item: any) => sum + item.quantity, 0) : 0} items
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

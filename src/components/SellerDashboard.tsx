@@ -11,14 +11,14 @@ const SellerDashboard = () => {
   const { profile, logout } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
+      <div className="bg-white/90 backdrop-blur-sm shadow-lg border-b border-green-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Store className="w-6 h-6 text-white" />
+              <div className="w-10 h-10 bg-green-awesome rounded-lg flex items-center justify-center shadow-lg">
+                <Store className="w-6 h-6 text-green-awesome-foreground" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">{profile?.shop_name}</h1>
@@ -31,7 +31,7 @@ const SellerDashboard = () => {
                 <span className="text-sm font-medium text-gray-700">{profile?.username}</span>
               </div>
               <Button 
-                variant="outline" 
+                variant="yellow-green" 
                 size="sm" 
                 onClick={logout}
                 className="flex items-center space-x-2"
@@ -47,7 +47,7 @@ const SellerDashboard = () => {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="inventory" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className="grid w-full grid-cols-2 max-w-md bg-white/80 backdrop-blur-sm">
             <TabsTrigger value="inventory" className="flex items-center space-x-2">
               <span>Inventory</span>
             </TabsTrigger>
