@@ -36,6 +36,17 @@
 
     --radius: 0.5rem;
 
+    /* Awesome Green Color System */
+    --green-awesome: 142 76% 36%;
+    --green-awesome-foreground: 0 0% 98%;
+    --green-light: 142 69% 58%;
+    --green-light-foreground: 142 87% 8%;
+    
+    /* Yellow-Green Color System */
+    --yellow-green: 79 81% 56%;
+    --yellow-green-foreground: 79 100% 12%;
+    --yellow-green-hover: 79 81% 46%;
+
     --sidebar-background: 0 0% 98%;
 
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -81,6 +92,16 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+    
+    /* Dark mode green colors */
+    --green-awesome: 142 69% 45%;
+    --green-awesome-foreground: 0 0% 98%;
+    --green-light: 142 60% 65%;
+    --green-light-foreground: 142 87% 8%;
+    --yellow-green: 79 75% 65%;
+    --yellow-green-foreground: 79 100% 12%;
+    --yellow-green-hover: 79 75% 55%;
+    
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;

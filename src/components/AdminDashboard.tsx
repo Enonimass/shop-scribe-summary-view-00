@@ -127,14 +127,14 @@ const AdminDashboard = () => {
     });
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100">`
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
+      <div className="bg-white/90 backdrop-blur-sm shadow-lg border-b border-green-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-                <Shield className="w-6 h-6 text-white" />
+              <div className="w-10 h-10 bg-green-awesome rounded-lg flex items-center justify-center shadow-lg">
+                <Shield className="w-6 h-6 text-green-awesome-foreground" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
@@ -147,7 +147,7 @@ const AdminDashboard = () => {
                 <span className="text-sm font-medium text-gray-700">{profile?.username}</span>
               </div>
               <Button 
-                variant="outline" 
+                variant="yellow-green" 
                 size="sm" 
                 onClick={logout}
                 className="flex items-center space-x-2"
@@ -183,7 +183,7 @@ const AdminDashboard = () => {
         )}
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 max-w-3xl">
+          <TabsList className="grid w-full grid-cols-5 max-w-3xl bg-white/80 backdrop-blur-sm">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="inventory">Inventory</TabsTrigger>
             <TabsTrigger value="sales">Sales</TabsTrigger>
@@ -200,7 +200,7 @@ const AdminDashboard = () => {
                       <p className="text-sm font-medium text-gray-600">Total Products</p>
                       <p className="text-2xl font-bold">{inventory.length}</p>
                     </div>
-                    <BarChart3 className="h-8 w-8 text-blue-600" />
+                    <BarChart3 className="h-8 w-8 text-green-awesome" />
                   </div>
                 </CardContent>
               </Card>
@@ -211,7 +211,7 @@ const AdminDashboard = () => {
                       <p className="text-sm font-medium text-gray-600">Total Sales</p>
                       <p className="text-2xl font-bold">{sales.length}</p>
                     </div>
-                    <BarChart3 className="h-8 w-8 text-green-600" />
+                    <BarChart3 className="h-8 w-8 text-green-light" />
                   </div>
                 </CardContent>
               </Card>
@@ -224,7 +224,7 @@ const AdminDashboard = () => {
                         {inventory.filter((item: any) => item.quantity <= item.threshold).length}
                       </p>
                     </div>
-                    <BarChart3 className="h-8 w-8 text-red-600" />
+                    <BarChart3 className="h-8 w-8 text-yellow-green" />
                   </div>
                 </CardContent>
               </Card>
@@ -235,7 +235,7 @@ const AdminDashboard = () => {
                       <p className="text-sm font-medium text-gray-600">Active Shops</p>
                       <p className="text-2xl font-bold">{shops.length}</p>
                     </div>
-                    <Store className="h-8 w-8 text-purple-600" />
+                    <Store className="h-8 w-8 text-green-awesome" />
                   </div>
                 </CardContent>
               </Card>

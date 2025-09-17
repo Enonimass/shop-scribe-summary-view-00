@@ -61,6 +61,19 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				'green-awesome': {
+					DEFAULT: 'hsl(var(--green-awesome))',
+					foreground: 'hsl(var(--green-awesome-foreground))'
+				},
+				'green-light': {
+					DEFAULT: 'hsl(var(--green-light))',
+					foreground: 'hsl(var(--green-light-foreground))'
+				},
+				'yellow-green': {
+					DEFAULT: 'hsl(var(--yellow-green))',
+					foreground: 'hsl(var(--yellow-green-foreground))',
+					hover: 'hsl(var(--yellow-green-hover))'
 				}
 			},
 			borderRadius: {
