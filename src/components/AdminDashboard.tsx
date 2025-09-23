@@ -512,7 +512,7 @@ const AdminDashboard = () => {
                             <TableCell>{sale.shop_id}</TableCell>
                           )}
                         </TableRow>
-                      )))}
+                      ))}
                     </TableBody>
                   </Table>
                 ) : (
