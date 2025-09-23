@@ -535,7 +535,7 @@ const AdminDashboard = () => {
                     <TableBody>
                       {inventory.map((item) => (
                         <TableRow key={item.id}>
-                          <TableCell className="font-medium">{item.product_name}</TableCell>
+                          <TableCell className="font-medium">{item.product}</TableCell>
                           <TableCell>{item.quantity}</TableCell>
                           <TableCell>{item.unit}</TableCell>
                           <TableCell>{new Date(item.updated_at).toLocaleDateString()}</TableCell>
