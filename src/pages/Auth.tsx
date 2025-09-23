@@ -62,11 +62,11 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-light to-green-awesome p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 w-16 h-16 bg-green-awesome rounded-full flex items-center justify-center">
-            <Store className="w-8 h-8 text-white" />
+          <div className="mx-auto mb-4 w-16 h-16">
+            <img src="/src/assets/kimp-feeds-logo.jpeg" alt="Kimp Feeds Logo" className="w-full h-full object-contain rounded-full" />
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">Shop Manager</CardTitle>
-          <CardDescription>Welcome to your store management system</CardDescription>
+          <CardTitle className="text-2xl font-bold text-gray-900">Kimp Feeds</CardTitle>
+          <CardDescription>Welcome to your livestock nutrition system</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -96,15 +96,6 @@ const Auth = () => {
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm font-semibold text-gray-700 mb-2">Pre-configured accounts:</p>
-            <div className="text-xs text-gray-600 space-y-1">
-              <p>• Admin: admin / admin123</p>
-              <p>• Shop 1: shop1 / shop123</p>
-              <p>• Shop 2: shop2 / shop456</p>
-              <p>• Shop 3: shop3 / shop789</p>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
