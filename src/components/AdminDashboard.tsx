@@ -49,513 +49,503 @@ const AdminDashboard = () => {
   const fetchProfiles = async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('*');
     
-    if (!error && data) {
-      setProfiles(data);
-      // Set "all" as default selected
-      if (!selectedShop) {
-        setSelectedShop('all');
+    if (error) {
+      console.error('Error fetching profiles:', error);
+    } else {
+      setProfiles(data || []);
+      // Auto-select first shop if available
+      if (data && data.length > 0) {
+        const firstShop = data.find(p => p.role === 'seller' && p.shop_id);
+        if (firstShop && !selectedShop) {
+          setSelectedShop(firstShop.shop_id);
+        }
       }
     }
   };
 
   const fetchShopData = async () => {
-    if (selectedShop === 'all') {
-      // Fetch all inventory data
-      const { data: inventoryData } = await supabase
-        .from('inventory')
-        .select('*');
-      
-      if (inventoryData) setInventory(inventoryData);
+    if (!selectedShop) return;
 
-      // Fetch all sales transactions
-      const { data: transactions, error: transError } = await supabase
-        .from('sales_transactions')
-        .select('*')
-        .order('created_at', { ascending: false });
+    try {
+      let inventoryQuery;
+      let salesQuery;
 
-      if (transError) {
-        console.error('Error fetching all sales transactions:', transError);
-        return;
-      }
-
-      // Fetch all sales items for the transactions
-      if (transactions && transactions.length > 0) {
-        const transactionIds = transactions.map(t => t.id);
-        const { data: salesData } = await supabase
-          .from('sales_items')
+      if (selectedShop === 'all') {
+        // Fetch all data across all shops
+        inventoryQuery = supabase.from('inventory').select('*');
+        salesQuery = supabase.from('sales').select('*');
+      } else {
+        // Fetch data for specific shop
+        inventoryQuery = supabase
+          .from('inventory')
           .select('*')
-          .in('transaction_id', transactionIds);
+          .eq('shop_id', selectedShop);
         
-        // Combine transactions with their items
-        const salesWithItems = (transactions || []).map(transaction => ({
-          ...transaction,
-          items: (salesData || []).filter(item => item.transaction_id === transaction.id)
-        }));
-
-        setSales(salesWithItems);
-      }
-    } else {
-      // Fetch inventory for selected shop
-      const { data: inventoryData } = await supabase
-        .from('inventory')
-        .select('*')
-        .eq('shop_id', selectedShop);
-      
-      if (inventoryData) setInventory(inventoryData);
-
-      // Fetch sales transactions for selected shop
-      const { data: transactions, error: transError } = await supabase
-        .from('sales_transactions')
-        .select('*')
-        .eq('shop_id', selectedShop)
-        .order('created_at', { ascending: false });
-
-      if (transError) {
-        console.error('Error fetching transactions:', transError);
-        return;
+        salesQuery = supabase
+          .from('sales')
+          .select('*')
+          .eq('shop_id', selectedShop);
       }
 
-      // Fetch all sales items
-      const { data: allItems, error: itemsError } = await supabase
-        .from('sales_items')
-        .select('*');
+      const [inventoryResult, salesResult] = await Promise.all([
+        inventoryQuery,
+        salesQuery
+      ]);
 
-      if (itemsError) {
-        console.error('Error fetching sales items:', itemsError);
-        return;
+      if (inventoryResult.error) {
+        console.error('Error fetching inventory:', inventoryResult.error);
+      } else {
+        setInventory(inventoryResult.data || []);
       }
 
-      // Combine transactions with their items
-      const salesWithItems = (transactions || []).map(transaction => ({
-        ...transaction,
-        items: (allItems || []).filter(item => item.transaction_id === transaction.id)
-      }));
-
-      setSales(salesWithItems);
+      if (salesResult.error) {
+        console.error('Error fetching sales:', salesResult.error);
+      } else {
+        setSales(salesResult.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching shop data:', error);
     }
   };
 
-  // Get unique customers from existing sales
-  const getUniqueCustomers = () => {
-    const customers = sales.map(sale => sale.customer_name);
-    return [...new Set(customers)].filter(Boolean).sort();
-  };
+  // Get unique products and customers for filters
+  const uniqueProducts = [...new Set(sales.flatMap(sale => 
+    sale.items?.map(item => item.product) || []
+  ))];
+  
+  const uniqueCustomers = [...new Set(sales.map(sale => sale.customer_name).filter(Boolean))];
 
-  // Get unique products from inventory for filtering
-  const getUniqueProducts = () => {
-    return [...new Set(inventory.map(item => item.product))].sort();
-  };
+  // Filter and sort sales data
+  const filteredSales = sales.filter(sale => {
+    const matchesSearch = !salesSearchTerm || 
+      sale.customer_name?.toLowerCase().includes(salesSearchTerm.toLowerCase()) ||
+      sale.items?.some(item => 
+        item.product?.toLowerCase().includes(salesSearchTerm.toLowerCase())
+      );
 
-  const filteredAndSortedSales = [...sales]
-    .filter(sale => {
-      // Filter by search term
-      if (salesSearchTerm) {
-        const searchLower = salesSearchTerm.toLowerCase();
-        const matchesCustomer = sale.customer_name && sale.customer_name.toLowerCase().includes(searchLower);
-        const matchesProduct = sale.items && sale.items.some((item: any) => 
-          item.product && item.product.toLowerCase().includes(searchLower)
-        );
-        if (!matchesCustomer && !matchesProduct) return false;
-      }
+    const matchesProduct = filterProduct === 'all-products' || 
+      sale.items?.some(item => item.product === filterProduct);
 
-      // Filter by customer
-      if (filterCustomer !== 'all-customers' && sale.customer_name !== filterCustomer) {
-        return false;
-      }
+    const matchesCustomer = filterCustomer === 'all-customers' || 
+      sale.customer_name === filterCustomer;
 
-      // Filter by product
-      if (filterProduct !== 'all-products') {
-        const hasProduct = sale.items && sale.items.some((item: any) => item.product === filterProduct);
-        if (!hasProduct) return false;
-      }
+    const saleDate = new Date(sale.sale_date);
+    const matchesDateFrom = !dateFrom || saleDate >= new Date(dateFrom);
+    const matchesDateTo = !dateTo || saleDate <= new Date(dateTo);
 
-      // Filter by date range
-      if (dateFrom && sale.sale_date < dateFrom) return false;
-      if (dateTo && sale.sale_date > dateTo) return false;
+    return matchesSearch && matchesProduct && matchesCustomer && matchesDateFrom && matchesDateTo;
+  });
 
-      return true;
-    })
-    .sort((a, b) => {
-      switch (salesSortBy) {
-        case 'customer':
-          return (a.customer_name || '').localeCompare(b.customer_name || '');
-        case 'product':
-          const aProduct = a.items?.[0]?.product || '';
-          const bProduct = b.items?.[0]?.product || '';
-          return aProduct.localeCompare(bProduct);
-        case 'date':
-        default:
-          return new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime();
-      }
-    });
+  const sortedSales = [...filteredSales].sort((a, b) => {
+    switch (salesSortBy) {
+      case 'product':
+        const aProduct = a.items?.[0]?.product || '';
+        const bProduct = b.items?.[0]?.product || '';
+        return aProduct.localeCompare(bProduct);
+      case 'customer':
+        return (a.customer_name || '').localeCompare(b.customer_name || '');
+      case 'date':
+      default:
+        return new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime();
+    }
+  });
 
+  const filteredAndSortedSales = sortedSales;
+
+  // Calculate total quantities for filtered sales
   const filteredTotalQuantity = filteredAndSortedSales.reduce((total, sale) => {
-    if (sale.items) {
-      return total + sale.items.reduce((itemSum: number, item: any) => {
-        if (!filterProduct || filterProduct === 'all-products' || item.product === filterProduct) {
-          return itemSum + item.quantity;
-        }
-        return itemSum;
-      }, 0);
-    }
-    return total;
+    return total + (sale.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0);
   }, 0);
 
   // Group sales by date for timeline view
-  const groupedSales = (() => {
-    const grouped: { [key: string]: any[] } = {};
+  const groupedSales = filteredAndSortedSales.reduce((acc, sale) => {
+    const date = new Date(sale.sale_date).toDateString();
+    const existing = acc.find(g => g.date === date);
     
-    filteredAndSortedSales.forEach(sale => {
-      const date = sale.sale_date;
-      if (!grouped[date]) {
-        grouped[date] = [];
+    if (existing) {
+      existing.sales.push(sale);
+      existing.totalQuantity += sale.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
+      if (!existing.customers.includes(sale.customer_name)) {
+        existing.customers.push(sale.customer_name);
       }
-      grouped[date].push(sale);
-    });
-    
-    return Object.entries(grouped)
-      .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
-      .map(([date, sales]) => ({
+    } else {
+      acc.push({
         date,
-        sales,
-        totalQuantity: sales.reduce((sum, sale) => {
-          if (sale.items) {
-            return sum + sale.items.reduce((itemSum: number, item: any) => {
-              if (!filterProduct || filterProduct === 'all-products' || item.product === filterProduct) {
-                return itemSum + item.quantity;
-              }
-              return itemSum;
-            }, 0);
-          }
-          return sum;
-        }, 0),
-        customers: [...new Set(sales.map(sale => sale.customer_name))]
-      }));
-  })();
+        sales: [sale],
+        totalQuantity: sale.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0,
+        customers: [sale.customer_name]
+      });
+    }
+    return acc;
+  }, [] as any[]);
+
+  const clearAllFilters = () => {
+    setSalesSearchTerm('');
+    setFilterProduct('all-products');
+    setFilterCustomer('all-customers');
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const hasActiveFilters = salesSearchTerm || filterProduct !== 'all-products' || 
+    filterCustomer !== 'all-customers' || dateFrom || dateTo;
+
+  if (!profile || profile.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="w-96">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-600">
+              <Shield className="h-5 w-5" />
+              Access Denied
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600">You don't have permission to access this page.</p>
+            <Button onClick={logout} className="w-full mt-4">
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100">
-      {/* Header */}
-      <div className="bg-white/90 backdrop-blur-sm shadow-lg border-b border-green-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-green-awesome rounded-lg flex items-center justify-center shadow-lg">
-                <Shield className="w-6 h-6 text-green-awesome-foreground" />
+    <div className="min-h-screen bg-gray-50">
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <img 
+                  src="/src/assets/kimp-feeds-logo.jpeg" 
+                  alt="Kimp Feeds" 
+                  className="h-8 w-8 rounded"
+                />
+                <h1 className="text-2xl font-bold text-gray-900">Kimp Feeds Admin</h1>
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Kimp Feeds Admin</h1>
-                <p className="text-sm text-gray-500">System Management</p>
+              <div className="h-6 w-px bg-gray-300"></div>
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Shield className="h-4 w-4" />
+                <span>Administrator Dashboard</span>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <Users className="w-5 h-5 text-gray-500" />
-                <span className="text-sm font-medium text-gray-700">{profile?.username}</span>
-              </div>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600">Welcome, {profile.display_name}</span>
               <Button 
-                variant="yellow-green" 
-                size="sm" 
-                onClick={logout}
-                className="flex items-center space-x-2"
+                onClick={logout} 
+                variant="outline" 
+                size="sm"
+                className="flex items-center gap-2"
               >
-                <LogOut className="w-4 h-4" />
-                <span>Logout</span>
+                <LogOut className="h-4 w-4" />
+                Logout
               </Button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Shop Selector */}
-        {shops.length > 0 && (
-          <div className="mb-6">
-            <div className="flex items-center space-x-4">
-              <Store className="w-5 h-5 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Select Shop:</span>
-              <Select value={selectedShop} onValueChange={setSelectedShop}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Select a shop" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="font-semibold">All Shops (Aggregated)</SelectItem>
-                  {shops.map(shop => (
-                    <SelectItem key={shop.shop_id} value={shop.shop_id}>{shop.shop_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        )}
-
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="inventory">Inventory</TabsTrigger>
-            <TabsTrigger value="sales">Sales</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="manage">Manage Tables</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Sales Overview
+            </TabsTrigger>
+            <TabsTrigger value="inventory" className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4" />
+              Inventory
+            </TabsTrigger>
+            <TabsTrigger value="users" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              User Management
+            </TabsTrigger>
+            <TabsTrigger value="manage" className="flex items-center gap-2">
+              <Store className="h-4 w-4" />
+              Table Management
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="space-y-6">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-                  <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                <CardHeader>
+                  <CardTitle>Shop Selection</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{inventory.length}</div>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedShop === 'all' ? 'Across all shops' : 'In selected shop'}
-                  </p>
+                  <Select value={selectedShop} onValueChange={setSelectedShop}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a shop to view data" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Shops (Aggregated)</SelectItem>
+                      {shops.map((shop) => (
+                        <SelectItem key={shop.shop_id} value={shop.shop_id}>
+                          {shop.shop_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{sales.length}</div>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedShop === 'all' ? 'Across all shops' : 'This shop'}
-                  </p>
-                </CardContent>
-              </Card>
+              {selectedShop && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <CardTitle>Sales Data</CardTitle>
+                      <div className="flex gap-2">
+                        <Button
+                          variant={viewMode === 'table' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setViewMode('table')}
+                        >
+                          Table View
+                        </Button>
+                        <Button
+                          variant={viewMode === 'timeline' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setViewMode('timeline')}
+                        >
+                          Timeline View
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Search and Filters */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+                      <div className="space-y-2">
+                        <Label htmlFor="search">Search</Label>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                          <Input
+                            id="search"
+                            placeholder="Search sales..."
+                            value={salesSearchTerm}
+                            onChange={(e) => setSalesSearchTerm(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
-                  <Store className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {inventory.filter(item => item.quantity <= item.threshold).length}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Need restocking
-                  </p>
-                </CardContent>
-              </Card>
+                      <div className="space-y-2">
+                        <Label htmlFor="product-filter">Product</Label>
+                        <Select value={filterProduct} onValueChange={setFilterProduct}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all-products">All Products</SelectItem>
+                            {uniqueProducts.map((product) => (
+                              <SelectItem key={product} value={product}>
+                                {product}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Shops</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{shops.length}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Total registered
-                  </p>
-                </CardContent>
-              </Card>
+                      <div className="space-y-2">
+                        <Label htmlFor="customer-filter">Customer</Label>
+                        <Select value={filterCustomer} onValueChange={setFilterCustomer}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all-customers">All Customers</SelectItem>
+                            {uniqueCustomers.map((customer) => (
+                              <SelectItem key={customer} value={customer}>
+                                {customer}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="sort">Sort By</Label>
+                        <Select value={salesSortBy} onValueChange={(value) => setSalesSortBy(value as any)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="date">Date</SelectItem>
+                            <SelectItem value="customer">Customer</SelectItem>
+                            <SelectItem value="product">Product</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="date-from">From Date</Label>
+                        <Input
+                          id="date-from"
+                          type="date"
+                          value={dateFrom}
+                          onChange={(e) => setDateFrom(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="date-to">To Date</Label>
+                        <Input
+                          id="date-to"
+                          type="date"
+                          value={dateTo}
+                          onChange={(e) => setDateTo(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="flex items-end">
+                        <Button 
+                          variant="outline" 
+                          onClick={clearAllFilters}
+                          disabled={!hasActiveFilters}
+                          className="w-full"
+                        >
+                          Clear Filters
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Filter Summary */}
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="text-sm text-green-800">
+                        Showing <span className="font-semibold text-gray-900">{filteredAndSortedSales.length}</span> sales
+                        {filterProduct !== 'all-products' && (
+                          <span> • Product: <span className="font-semibold">{filterProduct}</span></span>
+                        )}
+                        {filterCustomer !== 'all-customers' && (
+                          <span> • Customer: <span className="font-semibold">{filterCustomer}</span></span>
+                        )}
+                        {(dateFrom || dateTo) && (
+                          <span> • Date: {dateFrom || 'any'} to {dateTo || 'any'}</span>
+                        )}
+                        <span> • Total Quantity: <span className="font-semibold">{filteredTotalQuantity}</span></span>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardContent>
+                    {viewMode === 'table' ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Customer</TableHead>
+                            <TableHead>Products</TableHead>
+                            <TableHead>Total Quantity</TableHead>
+                            {selectedShop === 'all' && <TableHead>Shop</TableHead>}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredAndSortedSales.map((sale) => (
+                            <TableRow key={sale.id}>
+                              <TableCell>{new Date(sale.sale_date).toLocaleDateString()}</TableCell>
+                              <TableCell>{sale.customer_name}</TableCell>
+                              <TableCell>
+                                {sale.items?.map((item: any) => (
+                                  <div key={item.id} className="text-sm">
+                                    {item.quantity} {item.unit} {item.product}
+                                  </div>
+                                )) || 'No items'}
+                              </TableCell>
+                              <TableCell>
+                                {sale.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0}
+                              </TableCell>
+                              {selectedShop === 'all' && (
+                                <TableCell>{sale.shop_id}</TableCell>
+                              )}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <div className="space-y-4">
+                        {groupedSales.map(({ date, sales: dateSales, totalQuantity, customers }) => (
+                          <Card key={date} className="border-l-4 border-l-green-500">
+                            <CardHeader>
+                              <div className="flex justify-between items-start">
+                                <CardTitle className="text-lg">
+                                  {new Date(date).toLocaleDateString('en-US', { 
+                                    weekday: 'long', 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric' 
+                                  })}
+                                </CardTitle>
+                                <div className="text-right text-sm text-gray-600">
+                                  <div>{dateSales.length} sales</div>
+                                  <div>{totalQuantity} total items</div>
+                                  <div>{customers.filter(c => c).length} customers</div>
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-3">
+                                {dateSales.map((sale) => (
+                                  <div key={sale.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                    <div>
+                                      <div className="font-medium">{sale.customer_name}</div>
+                                      <div className="text-sm text-gray-600">
+                                        {sale.items?.map((item: any) => `${item.quantity} ${item.unit} ${item.product}`).join(', ') || 'No items'}
+                                      </div>
+                                      {selectedShop === 'all' && (
+                                        <div className="text-xs text-gray-500">Shop: {sale.shop_id}</div>
+                                      )}
+                                    </div>
+                                    <div className="text-sm font-medium">
+                                      {sale.items ? sale.items.reduce((sum: number, item: any) => sum + item.quantity, 0) : 0} items
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </TabsContent>
 
           <TabsContent value="inventory">
             <Card>
               <CardHeader>
-                <CardTitle>Inventory Management</CardTitle>
+                <CardTitle>Inventory Overview</CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Threshold</TableHead>
-                      <TableHead>Desired Qty</TableHead>
-                      <TableHead>Shop</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                      {inventory.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">{item.product}</TableCell>
-                          <TableCell>{item.quantity}</TableCell>
-                          <TableCell>{item.unit}</TableCell>
-                          <TableCell>{item.threshold}</TableCell>
-                          <TableCell>{item.desired_quantity}</TableCell>
-                          <TableCell>
-                            {selectedShop === 'all' ? 
-                              (shops.find(s => s.shop_id === item.shop_id)?.shop_name || item.shop_id)
-                              : 'Current Shop'
-                            }
-                          </TableCell>
-                          <TableCell>
-                            <span className={item.quantity <= item.threshold ? 'px-2 py-1 rounded-full text-xs bg-red-100 text-red-800' : 'px-2 py-1 rounded-full text-xs bg-green-100 text-green-800'}>
-                              {item.quantity <= item.threshold ? 'Low Stock' : 'In Stock'}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="sales">
-            <Card>
-              <CardHeader>
-                <CardTitle>Sales Reports</CardTitle>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-                  <div>
-                    <Label>Search</Label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        placeholder="Search customer or product..."
-                        value={salesSearchTerm}
-                        onChange={(e) => setSalesSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Filter by Product</Label>
-                    <Select value={filterProduct} onValueChange={setFilterProduct}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all-products">All Products</SelectItem>
-                        {getUniqueProducts().map(product => (
-                          <SelectItem key={product} value={product}>{product}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Filter by Customer</Label>
-                    <Select value={filterCustomer} onValueChange={setFilterCustomer}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all-customers">All Customers</SelectItem>
-                        {getUniqueCustomers().map(customer => (
-                          <SelectItem key={customer} value={customer}>{customer}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>View Mode</Label>
-                    <Select value={viewMode} onValueChange={(value: 'table' | 'timeline') => setViewMode(value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="table">Table View</SelectItem>
-                        <SelectItem value="timeline">Timeline View</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                
-                {/* Filter Summary */}
-                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="text-sm text-gray-600">
-                    Showing <span className="font-semibold text-gray-900">{filteredAndSortedSales.length}</span> sales
-                    {filterProduct !== 'all-products' && (
-                      <span> • Product: <span className="font-semibold">{filterProduct}</span></span>
-                    )}
-                    {filterCustomer !== 'all-customers' && (
-                      <span> • Customer: <span className="font-semibold">{filterCustomer}</span></span>
-                    )}
-                    {(dateFrom || dateTo) && (
-                      <span> • Date: {dateFrom || 'any'} to {dateTo || 'any'}</span>
-                    )}
-                    <span> • Total Quantity: <span className="font-semibold">{filteredTotalQuantity}</span></span>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {viewMode === 'table' ? (
+                {selectedShop ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Products</TableHead>
-                        <TableHead>Total Quantity</TableHead>
-                        {selectedShop === 'all' && <TableHead>Shop</TableHead>}
+                        <TableHead>Product</TableHead>
+                        <TableHead>Quantity</TableHead>
+                        <TableHead>Unit</TableHead>
+                        <TableHead>Last Updated</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredAndSortedSales.map((sale) => (
-                        <TableRow key={sale.id}>
-                          <TableCell>{new Date(sale.sale_date).toLocaleDateString()}</TableCell>
-                          <TableCell>{sale.customer_name}</TableCell>
-                          <TableCell>
-                            {sale.items?.map((item: any) => (
-                              <div key={item.id} className="text-sm">
-                                {item.quantity} {item.unit} {item.product}
-                              </div>
-                            )) || 'No items'}
-                          </TableCell>
-                          <TableCell>
-                            {sale.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0}
-                          </TableCell>
-                          {selectedShop === 'all' && (
-                            <TableCell>{sale.shop_id}</TableCell>
-                          )}
+                      {inventory.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">{item.product_name}</TableCell>
+                          <TableCell>{item.quantity}</TableCell>
+                          <TableCell>{item.unit}</TableCell>
+                          <TableCell>{new Date(item.updated_at).toLocaleDateString()}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 ) : (
-                  <div className="space-y-4">
-                    {groupedSales.map(({ date, sales: dateSales, totalQuantity, customers }) => (
-                      <Card key={date} className="border-l-4 border-l-green-500">
-                        <CardHeader>
-                          <div className="flex justify-between items-start">
-                            <CardTitle className="text-lg">
-                              {new Date(date).toLocaleDateString('en-US', { 
-                                weekday: 'long', 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric' 
-                              })}
-                            </CardTitle>
-                            <div className="text-sm text-gray-600">
-                              {dateSales.length} sales • {totalQuantity} total items • {customers.length} customers
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="pt-0">
-                          <div className="grid gap-2">
-                            {dateSales.map((sale: any) => (
-                              <div key={sale.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                                <div>
-                                  <span className="font-medium">{sale.customer_name}</span>
-                                  <div className="text-sm text-gray-600">
-                                    {sale.items ? 
-                                      sale.items.map((item: any) => `${item.quantity} ${item.unit} ${item.product}`).join(', ')
-                                      : 'No items'
-                                    }
-                                  </div>
-                                </div>
-                                <div className="text-sm font-medium">
-                                  {sale.items ? sale.items.reduce((sum: number, item: any) => sum + item.quantity, 0) : 0} items
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                  <div className="text-center py-8 text-gray-500">
+                    Please select a shop to view inventory data.
                   </div>
                 )}
               </CardContent>
