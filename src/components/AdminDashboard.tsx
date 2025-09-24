@@ -539,28 +539,83 @@ const AdminDashboard = () => {
               </CardHeader>
               <CardContent>
                 {selectedShop ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Product</TableHead>
-                        <TableHead>Quantity</TableHead>
-                        <TableHead>Unit</TableHead>
-                        <TableHead>Last Updated</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {inventory.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">{item.product}</TableCell>
-                          <TableCell>{item.quantity}</TableCell>
-                          <TableCell>{item.unit}</TableCell>
-                          <TableCell>{new Date(item.updated_at).toLocaleDateString()}</TableCell>
+                  <div className="space-y-4">
+                    {/* Low Stock Alert */}
+                    {inventory.filter(item => item.quantity <= item.threshold).length > 0 && (
+                      <Card className="border-orange-200 bg-orange-50">
+                        <CardContent className="pt-6">
+                          <div className="flex items-center space-x-2 text-orange-800">
+                            <div className="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center">
+                              <span className="text-xs text-white">!</span>
+                            </div>
+                            <span className="font-medium">Low Stock Alert</span>
+                          </div>
+                          <p className="text-orange-700 mt-1">
+                            {inventory.filter(item => item.quantity <= item.threshold)
+                              .map(item => item.product).join(', ')} running low
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Current Stock</TableHead>
+                          <TableHead>Unit</TableHead>
+                          <TableHead>Threshold</TableHead>
+                          <TableHead>Desired Quantity</TableHead>
+                          <TableHead>Quantity to Add</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Last Updated</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {inventory.map((item) => {
+                          const quantityToAdd = Math.max(0, item.desired_quantity - item.quantity);
+                          const isLowStock = item.quantity <= item.threshold;
+                          
+                          return (
+                            <TableRow key={item.id} className={isLowStock ? 'bg-red-50' : ''}>
+                              <TableCell className="font-medium">{item.product}</TableCell>
+                              <TableCell className={isLowStock ? 'text-red-600 font-medium' : ''}>
+                                {item.quantity}
+                              </TableCell>
+                              <TableCell>{item.unit}</TableCell>
+                              <TableCell>{item.threshold}</TableCell>
+                              <TableCell>{item.desired_quantity}</TableCell>
+                              <TableCell>
+                                {quantityToAdd > 0 ? (
+                                  <span className="text-orange-600 font-medium">
+                                    {quantityToAdd}
+                                  </span>
+                                ) : (
+                                  <span className="text-green-600">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {isLowStock ? (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    Low Stock
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    In Stock
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {new Date(item.updated_at).toLocaleDateString()}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
                 ) : (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-muted-foreground">
                     Please select a shop to view inventory data.
                   </div>
                 )}
