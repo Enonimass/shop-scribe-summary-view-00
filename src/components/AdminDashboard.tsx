@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import UserManagement from './UserManagement';
 import AdminTableEditor from './AdminTableEditor';
 import { Label } from '@/components/ui/label';
+import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
 
 const AdminDashboard = () => {
   const { profile, logout } = useAuth();
@@ -215,27 +216,27 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-background">
+      <div className="bg-card shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <img 
-                  src="/src/assets/kimp-feeds-logo.jpeg" 
+                  src={kimpFeedsLogo} 
                   alt="Kimp Feeds" 
-                  className="h-8 w-8 rounded"
+                  className="h-10 w-10 rounded-lg object-cover"
                 />
-                <h1 className="text-2xl font-bold text-gray-900">Kimp Feeds Admin</h1>
+                <h1 className="text-2xl font-bold text-foreground">Kimp Feeds Admin</h1>
               </div>
-              <div className="h-6 w-px bg-gray-300"></div>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className="h-6 w-px bg-border"></div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Shield className="h-4 w-4" />
                 <span>Administrator Dashboard</span>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">Welcome, {profile.display_name}</span>
+              <span className="text-sm text-muted-foreground">Welcome, {profile.display_name}</span>
               <Button 
                 onClick={logout} 
                 variant="outline" 
@@ -246,6 +247,42 @@ const AdminDashboard = () => {
                 Logout
               </Button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Shop Selection Section */}
+      <div className="bg-muted/30 border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="shop-select" className="text-base font-medium">Select Shop</Label>
+              <Select value={selectedShop} onValueChange={setSelectedShop}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a shop to view data" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Shops (Aggregated)</SelectItem>
+                  {shops.map((shop) => (
+                    <SelectItem key={shop.shop_id} value={shop.shop_id}>
+                      {shop.shop_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedShop && (
+              <div className="space-y-2">
+                <Label className="text-base font-medium">Currently Viewing</Label>
+                <div className="text-xl font-bold text-green-awesome flex items-center gap-2">
+                  <Store className="h-5 w-5" />
+                  {selectedShop === 'all' 
+                    ? 'All Shops (Aggregated View)' 
+                    : shops.find(s => s.shop_id === selectedShop)?.shop_name || selectedShop
+                  }
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -273,27 +310,6 @@ const AdminDashboard = () => {
 
           <TabsContent value="overview">
             <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Shop Selection</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Select value={selectedShop} onValueChange={setSelectedShop}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a shop to view data" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Shops (Aggregated)</SelectItem>
-                      {shops.map((shop) => (
-                        <SelectItem key={shop.shop_id} value={shop.shop_id}>
-                          {shop.shop_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </CardContent>
-              </Card>
-
               {selectedShop && (
                 <Card>
                   <CardHeader>
