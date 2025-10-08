@@ -592,18 +592,23 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 {saleItems.map((item, index) => (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg">
                     <div className="space-y-2">
-                      <Label>Product</Label>
+                      <Label>Product & Unit</Label>
                       <Select 
-                        value={item.product} 
-                        onValueChange={(value) => updateSaleItem(index, 'product', value)}
+                        value={item.product && item.unit ? `${item.product}|${item.unit}` : ''} 
+                        onValueChange={(value) => {
+                          const [product, unit] = value.split('|');
+                          setSaleItems(saleItems.map((sItem, i) => 
+                            i === index ? { ...sItem, product, unit } : sItem
+                          ));
+                        }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select product" />
+                          <SelectValue placeholder="Select product & unit" />
                         </SelectTrigger>
                         <SelectContent>
-                          {inventory.map(item => (
-                            <SelectItem key={item.id} value={item.product}>
-                              {item.product} ({item.quantity} {item.unit} available)
+                          {inventory.map(invItem => (
+                            <SelectItem key={invItem.id} value={`${invItem.product}|${invItem.unit}`}>
+                              {invItem.product} - {invItem.unit} ({invItem.quantity} available)
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -617,15 +622,6 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                         onChange={(e) => updateSaleItem(index, 'quantity', parseInt(e.target.value) || 0)}
                         placeholder="Quantity"
                         min="1"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Unit</Label>
-                      <Input
-                        value={item.unit}
-                        readOnly
-                        className="bg-gray-50"
-                        placeholder="Auto-selected"
                       />
                     </div>
                     <div className="flex items-end">
