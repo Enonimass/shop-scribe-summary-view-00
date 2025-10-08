@@ -133,17 +133,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const updateSaleItem = (index: number, field: keyof SaleItem, value: string | number) => {
     const updatedItems = saleItems.map((item, i) => {
       if (i === index) {
-        const updatedItem = { ...item, [field]: value };
-        
-        // Auto-select unit when product is selected
-        if (field === 'product' && value) {
-          const inventoryItem = inventory.find(inv => inv.product === value);
-          if (inventoryItem) {
-            updatedItem.unit = inventoryItem.unit;
-          }
-        }
-        
-        return updatedItem;
+        return { ...item, [field]: value };
       }
       return item;
     });
