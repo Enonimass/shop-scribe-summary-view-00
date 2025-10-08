@@ -405,15 +405,74 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
         <Card>
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Search..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 z-10" />
+                    <Input
+                      placeholder="Search products or customers..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </PopoverTrigger>
+                {searchTerm && (
+                  <PopoverContent className="w-80 p-0 z-50 bg-white dark:bg-gray-800" align="start">
+                    <Command>
+                      <CommandList>
+                        <CommandEmpty>No suggestions found.</CommandEmpty>
+                        
+                        {/* Product suggestions */}
+                        {(() => {
+                          const productSuggestions = getUniqueProducts().filter(product =>
+                            product.toLowerCase().startsWith(searchTerm.toLowerCase())
+                          );
+                          return productSuggestions.length > 0 && (
+                            <CommandGroup heading="Products">
+                              {productSuggestions.slice(0, 5).map((product) => (
+                                <CommandItem
+                                  key={product}
+                                  value={product}
+                                  onSelect={() => {
+                                    setSearchTerm(product);
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  {product}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          );
+                        })()}
+                        
+                        {/* Customer suggestions */}
+                        {(() => {
+                          const customerSuggestions = uniqueCustomers.filter(customer =>
+                            customer.toLowerCase().startsWith(searchTerm.toLowerCase())
+                          );
+                          return customerSuggestions.length > 0 && (
+                            <CommandGroup heading="Customers">
+                              {customerSuggestions.slice(0, 5).map((customer) => (
+                                <CommandItem
+                                  key={customer}
+                                  value={customer}
+                                  onSelect={() => {
+                                    setSearchTerm(customer);
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  {customer}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          );
+                        })()}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                )}
+              </Popover>
               
               <Select value={filterProduct} onValueChange={setFilterProduct}>
                 <SelectTrigger>
