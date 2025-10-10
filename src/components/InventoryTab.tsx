@@ -228,7 +228,7 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
 
       {/* Low Stock Alert */}
       {lowStockItems.length > 0 && (
-        <Card className="border-orange-200 bg-orange-50">
+        <Card className="border-orange-200 bg-orange-50/80 backdrop-blur-sm">
           <CardContent className="pt-6">
             <div className="flex items-center space-x-2 text-orange-800">
               <AlertTriangle className="w-5 h-5" />
@@ -243,7 +243,7 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
 
       {/* Add Stock Form */}
       {showAddForm && (
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-green-200">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Package className="w-5 h-5" />
@@ -303,7 +303,7 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
       )}
 
       {/* Inventory Table */}
-      <Card>
+      <Card className="bg-white/80 backdrop-blur-sm border-green-200">
         <CardHeader>
           <CardTitle>Current Inventory</CardTitle>
         </CardHeader>

@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Edit, Trash2, Save, X, Search } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -300,15 +302,49 @@ const AdminTableEditor = () => {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center space-x-2">
-          <Search className="w-4 h-4" />
-          <Input
-            placeholder="Filter by customer name..."
-            value={customerFilter}
-            onChange={(e) => setCustomerFilter(e.target.value)}
-            className="w-64"
-          />
-        </div>
+        <Popover open={customerFilter.length > 0}>
+          <PopoverTrigger asChild>
+            <div className="flex items-center space-x-2">
+              <Search className="w-4 h-4" />
+              <Input
+                placeholder="Filter by customer name..."
+                value={customerFilter}
+                onChange={(e) => setCustomerFilter(e.target.value)}
+                className="w-64"
+              />
+            </div>
+          </PopoverTrigger>
+          {customerFilter.length > 0 && (
+            <PopoverContent className="w-64 p-0 z-50" align="start">
+              <Command>
+                <CommandList>
+                  <CommandEmpty>No suggestions found.</CommandEmpty>
+                  {(() => {
+                    const suggestions = uniqueCustomers.filter(customer =>
+                      customer.toLowerCase().includes(customerFilter.toLowerCase())
+                    );
+                    return suggestions.length > 0 && (
+                      <CommandGroup heading="Customers">
+                        {suggestions.slice(0, 5).map((customer) => (
+                          <CommandItem
+                            key={customer}
+                            value={customer}
+                            onSelect={() => {
+                              setCustomerFilter(customer);
+                            }}
+                            className="cursor-pointer"
+                          >
+                            {customer}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    );
+                  })()}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          )}
+        </Popover>
       </div>
 
       <Tabs defaultValue="inventory" className="w-full">
@@ -319,7 +355,7 @@ const AdminTableEditor = () => {
         </TabsList>
 
         <TabsContent value="inventory">
-          <Card>
+          <Card className="bg-white/80 backdrop-blur-sm border-green-200">
             <CardHeader>
               <CardTitle>Inventory Items ({filteredInventory.length})</CardTitle>
             </CardHeader>
@@ -447,7 +483,7 @@ const AdminTableEditor = () => {
         </TabsContent>
 
         <TabsContent value="sales">
-          <Card>
+          <Card className="bg-white/80 backdrop-blur-sm border-green-200">
             <CardHeader>
               <CardTitle>Sales Transactions ({filteredTransactions.length})</CardTitle>
             </CardHeader>

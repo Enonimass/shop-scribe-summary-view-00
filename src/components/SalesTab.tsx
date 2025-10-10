@@ -354,36 +354,36 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     <div className="space-y-6">
       {/* Header with Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-green-200">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Sales</p>
-                <p className="text-2xl font-bold">{totalSales}</p>
+                <p className="text-sm font-medium text-muted-foreground">Total Sales</p>
+                <p className="text-2xl font-bold text-foreground">{totalSales}</p>
               </div>
               <ShoppingCart className="h-8 w-8 text-green-awesome" />
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-green-200">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Unique Customers</p>
-                <p className="text-2xl font-bold">{uniqueCustomersCount}</p>
+                <p className="text-sm font-medium text-muted-foreground">Unique Customers</p>
+                <p className="text-2xl font-bold text-foreground">{uniqueCustomersCount}</p>
               </div>
-              <TrendingUp className="h-8 w-8 text-green-600" />
+              <TrendingUp className="h-8 w-8 text-green-awesome" />
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-green-200">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Records</p>
-                <p className="text-2xl font-bold">{sales.length}</p>
+                <p className="text-sm font-medium text-muted-foreground">Records</p>
+                <p className="text-2xl font-bold text-foreground">{sales.length}</p>
               </div>
-              <ArrowUpDown className="h-8 w-8 text-purple-600" />
+              <ArrowUpDown className="h-8 w-8 text-green-awesome" />
             </div>
           </CardContent>
         </Card>
@@ -403,13 +403,13 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
         </div>
         
         {/* Filters */}
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-green-200">
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-              <Popover>
+              <Popover open={searchTerm.length > 0}>
                 <PopoverTrigger asChild>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 z-10" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
                     <Input
                       placeholder="Search products or customers..."
                       value={searchTerm}
@@ -418,8 +418,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                     />
                   </div>
                 </PopoverTrigger>
-                {searchTerm && (
-                  <PopoverContent className="w-80 p-0 z-50 bg-white dark:bg-gray-800" align="start">
+                {searchTerm.length > 0 && (
+                  <PopoverContent className="w-80 p-0 z-50" align="start">
                     <Command>
                       <CommandList>
                         <CommandEmpty>No suggestions found.</CommandEmpty>
@@ -427,7 +427,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                         {/* Product suggestions */}
                         {(() => {
                           const productSuggestions = getUniqueProducts().filter(product =>
-                            product.toLowerCase().startsWith(searchTerm.toLowerCase())
+                            product.toLowerCase().includes(searchTerm.toLowerCase())
                           );
                           return productSuggestions.length > 0 && (
                             <CommandGroup heading="Products">
@@ -450,7 +450,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                         {/* Customer suggestions */}
                         {(() => {
                           const customerSuggestions = uniqueCustomers.filter(customer =>
-                            customer.toLowerCase().startsWith(searchTerm.toLowerCase())
+                            customer.toLowerCase().includes(searchTerm.toLowerCase())
                           );
                           return customerSuggestions.length > 0 && (
                             <CommandGroup heading="Customers">
@@ -571,7 +571,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
 
       {/* Add Sale Form */}
       {showAddForm && (
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-green-200">
           <CardHeader>
             <CardTitle>Record New Sale</CardTitle>
           </CardHeader>
@@ -756,7 +756,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
           </CardContent>
         </Card>
       ) : (
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-green-200">
           <CardHeader>
             <CardTitle>
               Sales Timeline 
@@ -767,7 +767,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
           <CardContent>
             <div className="space-y-4">
               {groupedSales.map(({ date, sales, totalQuantity, customers }) => (
-                <Card key={date} className="border-l-4 border-l-green-awesome">
+                <Card key={date} className="border-l-4 border-l-green-awesome bg-white/60">
                   <CardContent className="pt-4">
                     <div className="flex justify-between items-start mb-3">
                       <div>
