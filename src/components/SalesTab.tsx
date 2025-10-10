@@ -243,19 +243,20 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
 
   const filteredAndSortedSales = [...sales]
     .filter(sale => {
-      // Filter by search term
+      // Filter by specific product FIRST (exact match only)
+      if (filterProduct && filterProduct !== 'all-products') {
+        const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+        if (!items.some(item => item.product === filterProduct)) return false;
+      }
+      
+      // Filter by search term (exact match)
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
         const matchesCustomer = sale.customerName.toLowerCase().includes(searchLower);
         const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
-        const matchesProduct = items.some(item => item.product.toLowerCase().includes(searchLower));
+        // Only show sales where at least one product exactly matches
+        const matchesProduct = items.some(item => item.product.toLowerCase() === searchLower);
         if (!matchesCustomer && !matchesProduct) return false;
-      }
-      
-      // Filter by specific product
-      if (filterProduct && filterProduct !== 'all-products') {
-        const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
-        if (!items.some(item => item.product === filterProduct)) return false;
       }
       
       // Filter by specific customer

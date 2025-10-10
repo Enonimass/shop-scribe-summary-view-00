@@ -315,6 +315,7 @@ const AdminTableEditor = () => {
         <TabsList>
           <TabsTrigger value="inventory">Inventory Management</TabsTrigger>
           <TabsTrigger value="sales">Sales Transactions</TabsTrigger>
+          <TabsTrigger value="products">Product Management</TabsTrigger>
         </TabsList>
 
         <TabsContent value="inventory">
@@ -587,9 +588,204 @@ const AdminTableEditor = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="products">
+          <ProductManagement />
+        </TabsContent>
       </Tabs>
       </div>
     </div>
+  );
+};
+
+// Product Management Component
+const ProductManagement = () => {
+  const [products, setProducts] = useState<string[]>([]);
+  const [editingProduct, setEditingProduct] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [newProduct, setNewProduct] = useState('');
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from('inventory')
+      .select('product');
+
+    if (error) {
+      console.error('Error fetching products:', error);
+    } else {
+      const uniqueProducts = [...new Set(data.map(item => item.product))].sort();
+      setProducts(uniqueProducts);
+    }
+  };
+
+  const addProduct = async () => {
+    if (!newProduct.trim()) {
+      toast({
+        title: "Error",
+        description: "Product name cannot be empty",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (products.includes(newProduct.trim())) {
+      toast({
+        title: "Error",
+        description: "Product already exists",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Success",
+      description: `Product "${newProduct}" added. Create inventory records to use it.`,
+    });
+    
+    setProducts([...products, newProduct.trim()].sort());
+    setNewProduct('');
+  };
+
+  const startEditing = (product: string) => {
+    setEditingProduct(product);
+    setEditValue(product);
+  };
+
+  const saveEdit = async () => {
+    if (!editValue.trim() || !editingProduct) return;
+
+    if (editValue === editingProduct) {
+      setEditingProduct(null);
+      return;
+    }
+
+    // Update all inventory records with this product
+    const { error } = await supabase
+      .from('inventory')
+      .update({ product: editValue.trim() })
+      .eq('product', editingProduct);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update product name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Update sales items
+    await supabase
+      .from('sales_items')
+      .update({ product: editValue.trim() })
+      .eq('product', editingProduct);
+
+    toast({
+      title: "Success",
+      description: "Product name updated successfully",
+    });
+
+    setEditingProduct(null);
+    fetchProducts();
+  };
+
+  const deleteProduct = async (product: string) => {
+    // Check if product is in use
+    const { data: inventoryCheck } = await supabase
+      .from('inventory')
+      .select('id')
+      .eq('product', product);
+
+    if (inventoryCheck && inventoryCheck.length > 0) {
+      toast({
+        title: "Cannot Delete",
+        description: "This product is in use in inventory records. Remove those first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProducts(products.filter(p => p !== product));
+    toast({
+      title: "Success",
+      description: "Product removed from list",
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Product Management</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex gap-2">
+          <Input
+            placeholder="Add new product..."
+            value={newProduct}
+            onChange={(e) => setNewProduct(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && addProduct()}
+          />
+          <Button onClick={addProduct}>Add Product</Button>
+        </div>
+
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Product Name</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {products.map((product) => (
+              <TableRow key={product}>
+                <TableCell>
+                  {editingProduct === product ? (
+                    <Input
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && saveEdit()}
+                    />
+                  ) : (
+                    product
+                  )}
+                </TableCell>
+                <TableCell>
+                  <div className="flex space-x-2">
+                    {editingProduct === product ? (
+                      <>
+                        <Button size="sm" onClick={saveEdit}>
+                          <Save className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingProduct(null)}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => startEditing(product)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="destructive" 
+                          onClick={() => deleteProduct(product)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 };
 
