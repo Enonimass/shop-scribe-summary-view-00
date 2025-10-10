@@ -71,12 +71,14 @@ const AdminDashboard = () => {
 
     try {
       let inventoryQuery;
-      let salesQuery;
+      let salesTransactionsQuery;
 
       if (selectedShop === 'all') {
         // Fetch all data across all shops
         inventoryQuery = supabase.from('inventory').select('*');
-        salesQuery = supabase.from('sales').select('*');
+        salesTransactionsQuery = supabase
+          .from('sales_transactions')
+          .select('*, sales_items(*)');
       } else {
         // Fetch data for specific shop
         inventoryQuery = supabase
@@ -84,15 +86,15 @@ const AdminDashboard = () => {
           .select('*')
           .eq('shop_id', selectedShop);
         
-        salesQuery = supabase
-          .from('sales')
-          .select('*')
+        salesTransactionsQuery = supabase
+          .from('sales_transactions')
+          .select('*, sales_items(*)')
           .eq('shop_id', selectedShop);
       }
 
       const [inventoryResult, salesResult] = await Promise.all([
         inventoryQuery,
-        salesQuery
+        salesTransactionsQuery
       ]);
 
       if (inventoryResult.error) {
@@ -104,7 +106,15 @@ const AdminDashboard = () => {
       if (salesResult.error) {
         console.error('Error fetching sales:', salesResult.error);
       } else {
-        setSales(salesResult.data || []);
+        // Transform the data to match the expected format
+        const transformedSales = (salesResult.data || []).map(transaction => ({
+          id: transaction.id,
+          customer_name: transaction.customer_name,
+          sale_date: transaction.sale_date,
+          shop_id: transaction.shop_id,
+          items: transaction.sales_items || []
+        }));
+        setSales(transformedSales);
       }
     } catch (error) {
       console.error('Error fetching shop data:', error);
