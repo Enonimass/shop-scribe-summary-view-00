@@ -33,6 +33,7 @@ interface SalesItem {
   product: string;
   quantity: number;
   unit: string;
+  transaction_id?: string;
 }
 
 const AdminTableEditor = () => {
@@ -40,6 +41,7 @@ const AdminTableEditor = () => {
   const [salesTransactions, setSalesTransactions] = useState<SalesTransaction[]>([]);
   const [editingInventory, setEditingInventory] = useState<string | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<string | null>(null);
+  const [editingSalesItems, setEditingSalesItems] = useState<Record<string, SalesItem>>({});
   const [editValues, setEditValues] = useState<any>({});
   const [customerFilter, setCustomerFilter] = useState('');
   const [shopFilter, setShopFilter] = useState('');
@@ -116,6 +118,13 @@ const AdminTableEditor = () => {
       sale_date: transaction.sale_date,
       shop_id: transaction.shop_id
     });
+    
+    // Initialize editing state for items
+    const itemsMap: Record<string, SalesItem> = {};
+    transaction.items.forEach(item => {
+      itemsMap[item.id] = { ...item };
+    });
+    setEditingSalesItems(itemsMap);
   };
 
   const saveInventoryEdit = async () => {
@@ -146,26 +155,51 @@ const AdminTableEditor = () => {
   const saveTransactionEdit = async () => {
     if (!editingTransaction) return;
 
-    const { error } = await supabase
+    // Update transaction
+    const { error: transError } = await supabase
       .from('sales_transactions')
       .update(editValues)
       .eq('id', editingTransaction);
 
-    if (error) {
+    if (transError) {
       toast({
         title: "Error",
         description: "Failed to update transaction",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Success",
-        description: "Transaction updated successfully",
-      });
-      setEditingTransaction(null);
-      setEditValues({});
-      fetchSalesTransactions();
+      return;
     }
+
+    // Update all sales items
+    for (const itemId in editingSalesItems) {
+      const item = editingSalesItems[itemId];
+      const { error: itemError } = await supabase
+        .from('sales_items')
+        .update({
+          product: item.product,
+          quantity: item.quantity,
+          unit: item.unit
+        })
+        .eq('id', itemId);
+
+      if (itemError) {
+        toast({
+          title: "Error",
+          description: `Failed to update item: ${item.product}`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    toast({
+      title: "Success",
+      description: "Transaction updated successfully",
+    });
+    setEditingTransaction(null);
+    setEditValues({});
+    setEditingSalesItems({});
+    fetchSalesTransactions();
   };
 
   const deleteInventoryItem = async (id: string) => {
@@ -214,6 +248,7 @@ const AdminTableEditor = () => {
     setEditingInventory(null);
     setEditingTransaction(null);
     setEditValues({});
+    setEditingSalesItems({});
   };
 
   // Get unique customers and shops for filtering
@@ -243,13 +278,14 @@ const AdminTableEditor = () => {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Database Management</h2>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Database Management</h2>
+        </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4 p-4 bg-gray-50 rounded-lg">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-4 p-4 bg-white/80 backdrop-blur-sm rounded-lg shadow-sm">
         <div className="flex items-center space-x-2">
           <Label htmlFor="shop-filter">Shop:</Label>
           <Select value={shopFilter} onValueChange={setShopFilter}>
@@ -334,6 +370,7 @@ const AdminTableEditor = () => {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="bags">Bags</SelectItem>
+                              <SelectItem value="50kg Bags">50kg Bags</SelectItem>
                               <SelectItem value="kgs">Kgs</SelectItem>
                             </SelectContent>
                           </Select>
@@ -463,13 +500,53 @@ const AdminTableEditor = () => {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="space-y-1">
-                            {transaction.items.map((item, index) => (
-                              <div key={index} className="text-sm">
-                                <span className="font-medium">{item.product}</span>
-                                <span className="text-gray-600 ml-2">
-                                  {item.quantity} {item.unit}
-                                </span>
+                          <div className="space-y-2">
+                            {transaction.items.map((item) => (
+                              <div key={item.id} className="text-sm">
+                                {editingTransaction === transaction.id ? (
+                                  <div className="flex gap-2 items-center flex-wrap">
+                                    <Input
+                                      className="w-32"
+                                      value={editingSalesItems[item.id]?.product || item.product}
+                                      onChange={(e) => setEditingSalesItems({
+                                        ...editingSalesItems,
+                                        [item.id]: { ...editingSalesItems[item.id], id: item.id, product: e.target.value, quantity: editingSalesItems[item.id]?.quantity || item.quantity, unit: editingSalesItems[item.id]?.unit || item.unit }
+                                      })}
+                                    />
+                                    <Input
+                                      type="number"
+                                      className="w-20"
+                                      value={editingSalesItems[item.id]?.quantity || item.quantity}
+                                      onChange={(e) => setEditingSalesItems({
+                                        ...editingSalesItems,
+                                        [item.id]: { ...editingSalesItems[item.id], id: item.id, product: editingSalesItems[item.id]?.product || item.product, quantity: Number(e.target.value), unit: editingSalesItems[item.id]?.unit || item.unit }
+                                      })}
+                                    />
+                                    <Select
+                                      value={editingSalesItems[item.id]?.unit || item.unit}
+                                      onValueChange={(value) => setEditingSalesItems({
+                                        ...editingSalesItems,
+                                        [item.id]: { ...editingSalesItems[item.id], id: item.id, product: editingSalesItems[item.id]?.product || item.product, quantity: editingSalesItems[item.id]?.quantity || item.quantity, unit: value }
+                                      })}
+                                    >
+                                      <SelectTrigger className="w-28">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="bags">Bags</SelectItem>
+                                        <SelectItem value="50kg Bags">50kg Bags</SelectItem>
+                                        <SelectItem value="kgs">Kgs</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <span className="font-medium">{item.product}</span>
+                                    <span className="text-gray-600 ml-2">
+                                      {item.quantity} {item.unit}
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -511,6 +588,7 @@ const AdminTableEditor = () => {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 };
