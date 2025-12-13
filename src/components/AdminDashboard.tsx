@@ -23,6 +23,7 @@ const AdminDashboard = () => {
   const [salesSearchTerm, setSalesSearchTerm] = useState('');
   const [filterProduct, setFilterProduct] = useState('all-products');
   const [filterCustomer, setFilterCustomer] = useState('all-customers');
+  const [filterUnit, setFilterUnit] = useState('all-units');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
@@ -121,12 +122,16 @@ const AdminDashboard = () => {
     }
   };
 
-  // Get unique products and customers for filters
+  // Get unique products, customers, and units for filters
   const uniqueProducts = [...new Set(sales.flatMap(sale => 
     sale.items?.map(item => item.product) || []
-  ))];
+  ))].sort();
   
-  const uniqueCustomers = [...new Set(sales.map(sale => sale.customer_name).filter(Boolean))];
+  const uniqueCustomers = [...new Set(sales.map(sale => sale.customer_name).filter(Boolean))].sort();
+  
+  const uniqueUnits = [...new Set(sales.flatMap(sale => 
+    sale.items?.map(item => item.unit) || []
+  ))].filter(Boolean).sort();
 
   // Filter and sort sales data
   const filteredSales = sales.filter(sale => {
@@ -142,11 +147,17 @@ const AdminDashboard = () => {
     const matchesCustomer = filterCustomer === 'all-customers' || 
       sale.customer_name === filterCustomer;
 
+    const matchesUnit = filterUnit === 'all-units' || 
+      sale.items?.some(item => {
+        const productMatch = filterProduct === 'all-products' || item.product === filterProduct;
+        return productMatch && item.unit === filterUnit;
+      });
+
     const saleDate = new Date(sale.sale_date);
     const matchesDateFrom = !dateFrom || saleDate >= new Date(dateFrom);
     const matchesDateTo = !dateTo || saleDate <= new Date(dateTo);
 
-    return matchesSearch && matchesProduct && matchesCustomer && matchesDateFrom && matchesDateTo;
+    return matchesSearch && matchesProduct && matchesCustomer && matchesUnit && matchesDateFrom && matchesDateTo;
   });
 
   const sortedSales = [...filteredSales].sort((a, b) => {
@@ -165,9 +176,16 @@ const AdminDashboard = () => {
 
   const filteredAndSortedSales = sortedSales;
 
-  // Calculate total quantities for filtered sales
+  // Calculate total quantities for filtered sales - only for matching product AND unit
   const filteredTotalQuantity = filteredAndSortedSales.reduce((total, sale) => {
-    return total + (sale.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0);
+    return total + (sale.items?.reduce((sum: number, item: any) => {
+      const matchesProduct = filterProduct === 'all-products' || item.product === filterProduct;
+      const matchesUnit = filterUnit === 'all-units' || item.unit === filterUnit;
+      if (matchesProduct && matchesUnit) {
+        return sum + item.quantity;
+      }
+      return sum;
+    }, 0) || 0);
   }, 0);
 
   // Group sales by date for timeline view
@@ -196,12 +214,13 @@ const AdminDashboard = () => {
     setSalesSearchTerm('');
     setFilterProduct('all-products');
     setFilterCustomer('all-customers');
+    setFilterUnit('all-units');
     setDateFrom('');
     setDateTo('');
   };
 
   const hasActiveFilters = salesSearchTerm || filterProduct !== 'all-products' || 
-    filterCustomer !== 'all-customers' || dateFrom || dateTo;
+    filterCustomer !== 'all-customers' || filterUnit !== 'all-units' || dateFrom || dateTo;
 
   if (!profile || profile.role !== 'admin') {
     return (
@@ -409,6 +428,23 @@ const AdminDashboard = () => {
                       </div>
 
                       <div className="space-y-2">
+                        <Label htmlFor="unit-filter">Unit Type</Label>
+                        <Select value={filterUnit} onValueChange={setFilterUnit}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all-units">All Units</SelectItem>
+                            {uniqueUnits.map((unit) => (
+                              <SelectItem key={unit} value={unit}>
+                                {unit}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
                         <Label htmlFor="date-from">From Date</Label>
                         <Input
                           id="date-from"
@@ -447,13 +483,16 @@ const AdminDashboard = () => {
                         {filterProduct !== 'all-products' && (
                           <span> • Product: <span className="font-semibold">{filterProduct}</span></span>
                         )}
+                        {filterUnit !== 'all-units' && (
+                          <span> • Unit: <span className="font-semibold">{filterUnit}</span></span>
+                        )}
                         {filterCustomer !== 'all-customers' && (
                           <span> • Customer: <span className="font-semibold">{filterCustomer}</span></span>
                         )}
                         {(dateFrom || dateTo) && (
                           <span> • Date: {dateFrom || 'any'} to {dateTo || 'any'}</span>
                         )}
-                        <span> • Total Quantity: <span className="font-semibold">{filteredTotalQuantity}</span></span>
+                        <span> • Total Quantity: <span className="font-semibold">{filteredTotalQuantity}{filterUnit !== 'all-units' ? ` ${filterUnit}` : ''}</span></span>
                       </div>
                     </div>
                   </CardContent>
