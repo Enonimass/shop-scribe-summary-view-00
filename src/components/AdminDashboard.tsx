@@ -509,25 +509,35 @@ const AdminDashboard = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredAndSortedSales.map((sale) => (
-                            <TableRow key={sale.id}>
-                              <TableCell>{new Date(sale.sale_date).toLocaleDateString()}</TableCell>
-                              <TableCell>{sale.customer_name}</TableCell>
-                              <TableCell>
-                                {sale.items?.map((item: any) => (
-                                  <div key={item.id} className="text-sm">
-                                    {item.quantity} {item.unit} {item.product}
-                                  </div>
-                                )) || 'No items'}
-                              </TableCell>
-                              <TableCell>
-                                {sale.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0}
-                              </TableCell>
-                              {selectedShop === 'all' && (
-                                <TableCell>{sale.shop_id}</TableCell>
-                              )}
-                            </TableRow>
-                          ))}
+                          {filteredAndSortedSales.map((sale) => {
+                            // Filter items based on selected product and unit
+                            const displayItems = (sale.items || []).filter((item: any) => {
+                              const matchesProduct = filterProduct === 'all-products' || item.product === filterProduct;
+                              const matchesUnit = filterUnit === 'all-units' || item.unit === filterUnit;
+                              return matchesProduct && matchesUnit;
+                            });
+                            const totalQuantity = displayItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
+                            
+                            if (displayItems.length === 0) return null;
+                            
+                            return (
+                              <TableRow key={sale.id}>
+                                <TableCell>{new Date(sale.sale_date).toLocaleDateString()}</TableCell>
+                                <TableCell>{sale.customer_name}</TableCell>
+                                <TableCell>
+                                  {displayItems.map((item: any) => (
+                                    <div key={item.id} className="text-sm">
+                                      {item.quantity} {item.unit} {item.product}
+                                    </div>
+                                  ))}
+                                </TableCell>
+                                <TableCell>{totalQuantity}</TableCell>
+                                {selectedShop === 'all' && (
+                                  <TableCell>{sale.shop_id}</TableCell>
+                                )}
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     ) : (

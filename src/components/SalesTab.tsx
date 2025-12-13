@@ -770,8 +770,16 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
               </TableHeader>
               <TableBody>
                 {filteredAndSortedSales.map((sale) => {
-                  const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
-                  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+                  const allItems = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+                  // Filter items based on selected product and unit
+                  const displayItems = allItems.filter(item => {
+                    const matchesProduct = filterProduct === 'all-products' || item.product === filterProduct;
+                    const matchesUnit = filterUnit === 'all-units' || item.unit === filterUnit;
+                    return matchesProduct && matchesUnit;
+                  });
+                  const totalQuantity = displayItems.reduce((sum, item) => sum + item.quantity, 0);
+                  
+                  if (displayItems.length === 0) return null;
                   
                   return (
                     <TableRow key={sale.id}>
@@ -779,7 +787,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                       <TableCell>{sale.customerName}</TableCell>
                       <TableCell>
                         <div className="space-y-1">
-                          {items.map((item, index) => (
+                          {displayItems.map((item, index) => (
                             <div key={index} className="text-sm">
                               {item.product} - {item.quantity} {item.unit}
                             </div>
@@ -831,7 +839,15 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                     
                     <div className="space-y-2">
                       {sales.map((sale) => {
-                        const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+                        const allItems = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+                        // Filter items based on selected product and unit
+                        const displayItems = allItems.filter(item => {
+                          const matchesProduct = filterProduct === 'all-products' || item.product === filterProduct;
+                          const matchesUnit = filterUnit === 'all-units' || item.unit === filterUnit;
+                          return matchesProduct && matchesUnit;
+                        });
+                        
+                        if (displayItems.length === 0) return null;
                         
                         return (
                           <div key={sale.id} className="bg-gray-50 p-3 rounded-lg">
@@ -839,7 +855,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                               <div>
                                 <p className="font-medium">{sale.customerName}</p>
                                 <div className="text-sm text-gray-600 mt-1">
-                                  {items.map((item, index) => (
+                                  {displayItems.map((item, index) => (
                                     <div key={index}>
                                       {item.product}: {item.quantity} {item.unit}
                                     </div>
@@ -848,7 +864,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                               </div>
                               <div className="text-right">
                                 <p className="text-sm text-gray-500">
-                                  {items.reduce((sum, item) => sum + item.quantity, 0)} total
+                                  {displayItems.reduce((sum, item) => sum + item.quantity, 0)} total
                                 </p>
                               </div>
                             </div>
