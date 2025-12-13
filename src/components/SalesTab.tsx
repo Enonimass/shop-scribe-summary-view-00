@@ -50,6 +50,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProduct, setFilterProduct] = useState('all-products');
   const [filterCustomer, setFilterCustomer] = useState('all-customers');
+  const [filterUnit, setFilterUnit] = useState('all-units');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
@@ -243,17 +244,26 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
 
   const filteredAndSortedSales = [...sales]
     .filter(sale => {
+      const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+      
       // Filter by specific product FIRST (exact match only)
       if (filterProduct && filterProduct !== 'all-products') {
-        const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
         if (!items.some(item => item.product === filterProduct)) return false;
+      }
+      
+      // Filter by unit type
+      if (filterUnit && filterUnit !== 'all-units') {
+        const hasMatchingUnit = items.some(item => {
+          const matchesProduct = !filterProduct || filterProduct === 'all-products' || item.product === filterProduct;
+          return matchesProduct && item.unit === filterUnit;
+        });
+        if (!hasMatchingUnit) return false;
       }
       
       // Filter by search term (exact match)
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
         const matchesCustomer = sale.customerName.toLowerCase().includes(searchLower);
-        const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
         // Only show sales where at least one product exactly matches
         const matchesProduct = items.some(item => item.product.toLowerCase() === searchLower);
         if (!matchesCustomer && !matchesProduct) return false;
@@ -288,17 +298,32 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     return [...new Set(inventory.map(item => item.product))].sort();
   };
 
-  // Calculate filtered totals
+  // Get unique units from sales for filtering
+  const getUniqueUnits = () => {
+    const units = sales.flatMap(sale => {
+      if (sale.items) {
+        return sale.items.map(item => item.unit);
+      }
+      return sale.unit ? [sale.unit] : [];
+    });
+    return [...new Set(units)].filter(Boolean).sort();
+  };
+
+  // Calculate filtered totals - only for matching product AND unit
   const filteredTotalQuantity = filteredAndSortedSales.reduce((sum, sale) => {
     if (sale.items) {
       return sum + sale.items.reduce((itemSum, item) => {
-        if (!filterProduct || filterProduct === 'all-products' || item.product === filterProduct) {
+        const matchesProduct = !filterProduct || filterProduct === 'all-products' || item.product === filterProduct;
+        const matchesUnit = !filterUnit || filterUnit === 'all-units' || item.unit === filterUnit;
+        if (matchesProduct && matchesUnit) {
           return itemSum + item.quantity;
         }
         return itemSum;
       }, 0);
     }
-    if (!filterProduct || filterProduct === 'all-products' || sale.product === filterProduct) {
+    const matchesProduct = !filterProduct || filterProduct === 'all-products' || sale.product === filterProduct;
+    const matchesUnit = !filterUnit || filterUnit === 'all-units' || sale.unit === filterUnit;
+    if (matchesProduct && matchesUnit) {
       return sum + (sale.quantity || 0);
     }
     return sum;
@@ -499,6 +524,18 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 </SelectContent>
               </Select>
               
+              <Select value={filterUnit} onValueChange={setFilterUnit}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by Unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all-units">All Units</SelectItem>
+                  {getUniqueUnits().map(unit => (
+                    <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
               <Input
                 type="date"
                 placeholder="From Date"
@@ -540,14 +577,15 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
             </div>
             
             {/* Filter Summary */}
-            {(filterProduct || filterCustomer || dateFrom || dateTo) && (
+            {(filterProduct !== 'all-products' || filterCustomer !== 'all-customers' || filterUnit !== 'all-units' || dateFrom || dateTo) && (
               <div className="mt-4 p-3 bg-green-light/20 rounded-lg">
                 <p className="text-sm text-green-awesome">
                   <strong>Filtered Results:</strong> {filteredAndSortedSales.length} records
-                  {filterProduct && ` • Product: ${filterProduct}`}
-                  {filterCustomer && ` • Customer: ${filterCustomer}`}
+                  {filterProduct !== 'all-products' && ` • Product: ${filterProduct}`}
+                  {filterUnit !== 'all-units' && ` • Unit: ${filterUnit}`}
+                  {filterCustomer !== 'all-customers' && ` • Customer: ${filterCustomer}`}
                   {(dateFrom || dateTo) && ` • Date: ${dateFrom || 'Start'} to ${dateTo || 'End'}`}
-                  {filterProduct && ` • Total Quantity: ${filteredTotalQuantity}`}
+                  {(filterProduct !== 'all-products' || filterUnit !== 'all-units') && ` • Total Quantity: ${filteredTotalQuantity}${filterUnit !== 'all-units' ? ` ${filterUnit}` : ''}`}
                 </p>
                 <Button
                   variant="outline"
@@ -555,6 +593,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   onClick={() => {
                     setFilterProduct('all-products');
                     setFilterCustomer('all-customers');
+                    setFilterUnit('all-units');
                     setDateFrom('');
                     setDateTo('');
                     setSearchTerm('');
