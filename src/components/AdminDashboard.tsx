@@ -627,6 +627,19 @@ const AdminDashboard = () => {
             </div>
           </TabsContent>
 
+          <TabsContent value="product-analytics">
+            <ProductAnalytics 
+              sales={allSales} 
+              shops={shops} 
+              selectedShop={selectedShop}
+              onShopChange={setSelectedShop}
+            />
+          </TabsContent>
+
+          <TabsContent value="customer-analytics">
+            <CustomerAnalytics sales={allSales} shops={shops} />
+          </TabsContent>
+
           <TabsContent value="inventory">
             <Card>
               <CardHeader>
