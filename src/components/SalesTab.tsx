@@ -46,6 +46,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [customerName, setCustomerName] = useState('');
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([{ product: '', quantity: 0, unit: 'bags' }]);
+  const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
   const [sortBy, setSortBy] = useState<'product' | 'customer' | 'date'>('date');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProduct, setFilterProduct] = useState('all-products');
