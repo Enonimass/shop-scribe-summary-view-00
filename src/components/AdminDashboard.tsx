@@ -6,10 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart } from 'lucide-react';
+import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart, TrendingUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import UserManagement from './UserManagement';
 import AdminTableEditor from './AdminTableEditor';
+import ProductAnalytics from './ProductAnalytics';
+import CustomerAnalytics from './CustomerAnalytics';
 import { Label } from '@/components/ui/label';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
 
@@ -27,6 +29,7 @@ const AdminDashboard = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
+  const [allSales, setAllSales] = useState<any[]>([]);
 
   // Get unique shops from profiles
   const shops = profiles
@@ -40,6 +43,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchProfiles();
+    fetchAllSales();
   }, []);
 
   useEffect(() => {
@@ -119,6 +123,30 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error('Error fetching shop data:', error);
+    }
+  };
+
+  const fetchAllSales = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sales_transactions')
+        .select('*, sales_items(*)');
+      
+      if (error) {
+        console.error('Error fetching all sales:', error);
+        return;
+      }
+      
+      const transformed = (data || []).map(transaction => ({
+        id: transaction.id,
+        customer_name: transaction.customer_name,
+        sale_date: transaction.sale_date,
+        shop_id: transaction.shop_id,
+        items: transaction.sales_items || []
+      }));
+      setAllSales(transformed);
+    } catch (error) {
+      console.error('Error fetching all sales:', error);
     }
   };
 
@@ -318,10 +346,18 @@ const AdminDashboard = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Sales Overview
+            </TabsTrigger>
+            <TabsTrigger value="product-analytics" className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Product Analytics
+            </TabsTrigger>
+            <TabsTrigger value="customer-analytics" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Customer Analytics
             </TabsTrigger>
             <TabsTrigger value="inventory" className="flex items-center gap-2">
               <ShoppingCart className="h-4 w-4" />
@@ -589,6 +625,19 @@ const AdminDashboard = () => {
                 </Card>
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="product-analytics">
+            <ProductAnalytics 
+              sales={allSales} 
+              shops={shops} 
+              selectedShop={selectedShop}
+              onShopChange={setSelectedShop}
+            />
+          </TabsContent>
+
+          <TabsContent value="customer-analytics">
+            <CustomerAnalytics sales={allSales} shops={shops} />
           </TabsContent>
 
           <TabsContent value="inventory">
