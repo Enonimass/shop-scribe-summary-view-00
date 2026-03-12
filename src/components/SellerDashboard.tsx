@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 const SellerDashboard = () => {
   const { profile, logout } = useAuth();
   const [allSales, setAllSales] = useState<any[]>([]);
-  const [profiles, setProfiles] = useState<any[]>([]);
+  const [selectedShop, setSelectedShop] = useState(profile?.shop_id || '');
 
   const shopId = profile?.shop_id || '';
 
