@@ -176,7 +176,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
         .insert({
           shop_id: shopId,
           customer_name: customerName,
-          sale_date: new Date().toISOString().split('T')[0]
+          sale_date: saleDate
         })
         .select()
         .single();
