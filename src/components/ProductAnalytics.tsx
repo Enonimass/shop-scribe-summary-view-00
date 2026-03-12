@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -8,16 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { TrendingUp, Package, BarChart3 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
-// Product categories
-const PRODUCT_CATEGORIES: Record<string, string[]> = {
-  'Dairy': ['Dairy Meal', 'Dairy Pellets'],
-  'High Yield': ['Dairy Meal', 'Dairy Pellets'],
-  'Supers': ['Broiler Starter', 'Broiler Finisher'],
-  'Calf Starter': ['Calf Starter'],
-  'Poultry': ['Layers Mash', 'Broiler Starter', 'Broiler Finisher'],
-  'Swine / PG Feeds': ['Pig Grower'],
-};
 
 const CHART_COLORS = [
   'hsl(142, 76%, 36%)',
@@ -49,6 +41,21 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [productFilter, setProductFilter] = useState('all');
   const [shopFilter, setShopFilter] = useState('all-combined');
+  const [dbCategories, setDbCategories] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      const { data: cats } = await supabase.from('product_categories').select('*') as any;
+      const { data: items } = await supabase.from('product_category_items').select('*') as any;
+      const map: Record<string, string[]> = {};
+      (cats || []).forEach((cat: any) => {
+        map[cat.name] = (items || []).filter((i: any) => i.category_id === cat.id).map((i: any) => i.product_name);
+      });
+      setDbCategories(map);
+    };
+    loadCategories();
+  }, []);
+
 
   // Get all items from sales
   const allItems = useMemo(() => {
@@ -93,7 +100,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
   const filteredItems = useMemo(() => {
     let items = periodFilteredItems;
     if (categoryFilter !== 'all') {
-      const categoryProducts = PRODUCT_CATEGORIES[categoryFilter] || [];
+      const categoryProducts = dbCategories[categoryFilter] || [];
       items = items.filter(item => categoryProducts.includes(item.product));
     }
     if (productFilter !== 'all') {
@@ -160,7 +167,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     periodFilteredItems.forEach(item => {
       let items = [item];
       if (categoryFilter !== 'all') {
-        const categoryProducts = PRODUCT_CATEGORIES[categoryFilter] || [];
+        const categoryProducts = dbCategories[categoryFilter] || [];
         if (!categoryProducts.includes(item.product)) return;
       }
       if (productFilter !== 'all' && item.product !== productFilter) return;
@@ -261,7 +268,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  {Object.keys(PRODUCT_CATEGORIES).map(cat => (
+                  {Object.keys(dbCategories).map(cat => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
                 </SelectContent>

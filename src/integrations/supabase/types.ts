@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      customers: {
+        Row: {
+          created_at: string
+          first_purchase_date: string | null
+          id: string
+          last_purchase_date: string | null
+          name: string
+          phone: string | null
+          place: string | null
+          shop_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          first_purchase_date?: string | null
+          id?: string
+          last_purchase_date?: string | null
+          name: string
+          phone?: string | null
+          place?: string | null
+          shop_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          first_purchase_date?: string | null
+          id?: string
+          last_purchase_date?: string | null
+          name?: string
+          phone?: string | null
+          place?: string | null
+          shop_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       inventory: {
         Row: {
           created_at: string
@@ -49,6 +85,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      product_categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      product_category_items: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          product_name: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          product_name: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          product_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_category_items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
