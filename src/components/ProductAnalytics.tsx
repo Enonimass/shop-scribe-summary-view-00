@@ -100,7 +100,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
   const filteredItems = useMemo(() => {
     let items = periodFilteredItems;
     if (categoryFilter !== 'all') {
-      const categoryProducts = PRODUCT_CATEGORIES[categoryFilter] || [];
+      const categoryProducts = dbCategories[categoryFilter] || [];
       items = items.filter(item => categoryProducts.includes(item.product));
     }
     if (productFilter !== 'all') {
