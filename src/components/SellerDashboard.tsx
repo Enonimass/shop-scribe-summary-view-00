@@ -103,6 +103,8 @@ const SellerDashboard = () => {
             <ProductAnalytics 
               sales={allSales} 
               shops={[{ shop_id: shopId, shop_name: profile?.shop_name || '' }]}
+              selectedShop={selectedShop}
+              onShopChange={setSelectedShop}
             />
           </TabsContent>
 
