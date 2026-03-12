@@ -9,15 +9,8 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLe
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { TrendingUp, Package, BarChart3 } from 'lucide-react';
 
-// Product categories
-const PRODUCT_CATEGORIES: Record<string, string[]> = {
-  'Dairy': ['Dairy Meal', 'Dairy Pellets'],
-  'High Yield': ['Dairy Meal', 'Dairy Pellets'],
-  'Supers': ['Broiler Starter', 'Broiler Finisher'],
-  'Calf Starter': ['Calf Starter'],
-  'Poultry': ['Layers Mash', 'Broiler Starter', 'Broiler Finisher'],
-  'Swine / PG Feeds': ['Pig Grower'],
-};
+// Product categories - will be loaded from DB
+
 
 const CHART_COLORS = [
   'hsl(142, 76%, 36%)',
