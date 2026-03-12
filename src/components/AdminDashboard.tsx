@@ -745,6 +745,14 @@ const AdminDashboard = () => {
             <UserManagement profiles={profiles} onProfilesUpdate={fetchProfiles} />
           </TabsContent>
 
+          <TabsContent value="customers">
+            <CustomerManagement shopId="" shops={shops} isAdmin={true} />
+          </TabsContent>
+
+          <TabsContent value="categories">
+            <CategoryManagement />
+          </TabsContent>
+
           <TabsContent value="manage">
             <AdminTableEditor />
           </TabsContent>
