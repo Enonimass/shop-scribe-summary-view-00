@@ -106,16 +106,14 @@ const SellerDashboard = () => {
           <TabsContent value="product-analytics">
             <ProductAnalytics 
               sales={allSales} 
-              profiles={profiles} 
-              selectedShop={shopId}
+              shops={[{ shop_id: shopId, shop_name: profile?.shop_name || '' }]}
             />
           </TabsContent>
 
           <TabsContent value="customer-analytics">
             <CustomerAnalytics 
               sales={allSales} 
-              profiles={profiles} 
-              selectedShop={shopId}
+              shops={[{ shop_id: shopId, shop_name: profile?.shop_name || '' }]}
             />
           </TabsContent>
         </Tabs>
