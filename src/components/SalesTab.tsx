@@ -620,6 +620,14 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
             <form onSubmit={handleAddSale} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label>Sale Date</Label>
+                  <Input
+                    type="date"
+                    value={saleDate}
+                    onChange={(e) => setSaleDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label>Customer Name</Label>
                   <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
                     <PopoverTrigger asChild>
