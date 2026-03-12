@@ -46,6 +46,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [customerName, setCustomerName] = useState('');
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([{ product: '', quantity: 0, unit: 'bags' }]);
+  const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
   const [sortBy, setSortBy] = useState<'product' | 'customer' | 'date'>('date');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProduct, setFilterProduct] = useState('all-products');
@@ -175,7 +176,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
         .insert({
           shop_id: shopId,
           customer_name: customerName,
-          sale_date: new Date().toISOString().split('T')[0]
+          sale_date: saleDate
         })
         .select()
         .single();
@@ -229,6 +230,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
 
       setCustomerName('');
       setSaleItems([{ product: '', quantity: 0, unit: 'bags' }]);
+      setSaleDate(new Date().toISOString().split('T')[0]);
       setShowAddForm(false);
       fetchSales();
       fetchInventory();
@@ -618,6 +620,14 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
             <form onSubmit={handleAddSale} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label>Sale Date</Label>
+                  <Input
+                    type="date"
+                    value={saleDate}
+                    onChange={(e) => setSaleDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label>Customer Name</Label>
                   <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
                     <PopoverTrigger asChild>
@@ -716,11 +726,12 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                     <div className="space-y-2">
                       <Label>Quantity</Label>
                       <Input
-                        type="number"
+        type="number"
                         value={item.quantity || ''}
-                        onChange={(e) => updateSaleItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                        onChange={(e) => updateSaleItem(index, 'quantity', parseFloat(e.target.value) || 0)}
                         placeholder="Quantity"
-                        min="1"
+                        min="0.1"
+                        step="0.1"
                       />
                     </div>
                     <div className="flex items-end">

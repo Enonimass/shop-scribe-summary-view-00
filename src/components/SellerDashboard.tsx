@@ -1,14 +1,51 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import InventoryTab from './InventoryTab';
 import SalesTab from './SalesTab';
+import ProductAnalytics from './ProductAnalytics';
+import CustomerAnalytics from './CustomerAnalytics';
 import { LogOut, Store, User } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const SellerDashboard = () => {
   const { profile, logout } = useAuth();
+  const [allSales, setAllSales] = useState<any[]>([]);
+  const [selectedShop, setSelectedShop] = useState(profile?.shop_id || '');
+
+  const shopId = profile?.shop_id || '';
+
+  useEffect(() => {
+    if (shopId) {
+      fetchShopSales();
+    }
+  }, [shopId]);
+
+  const fetchShopSales = async () => {
+    if (!shopId) return;
+    
+    const { data: transactions } = await supabase
+      .from('sales_transactions')
+      .select('*')
+      .eq('shop_id', shopId)
+      .order('sale_date', { ascending: false });
+
+    const { data: allItems } = await supabase
+      .from('sales_items')
+      .select('*');
+
+    const salesWithItems = (transactions || []).map(transaction => ({
+      id: transaction.id,
+      items: (allItems || []).filter(item => item.transaction_id === transaction.id),
+      customerName: transaction.customer_name,
+      date: transaction.sale_date,
+      shop_id: transaction.shop_id
+    }));
+
+    setAllSales(salesWithItems);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100">
@@ -47,21 +84,35 @@ const SellerDashboard = () => {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="inventory" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 max-w-md bg-white/80 backdrop-blur-sm">
-            <TabsTrigger value="inventory" className="flex items-center space-x-2">
-              <span>Inventory</span>
-            </TabsTrigger>
-            <TabsTrigger value="sales" className="flex items-center space-x-2">
-              <span>Sales</span>
-            </TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 max-w-2xl bg-white/80 backdrop-blur-sm">
+            <TabsTrigger value="inventory">Inventory</TabsTrigger>
+            <TabsTrigger value="sales">Sales</TabsTrigger>
+            <TabsTrigger value="product-analytics">Product Analytics</TabsTrigger>
+            <TabsTrigger value="customer-analytics">Customer Analytics</TabsTrigger>
           </TabsList>
 
           <TabsContent value="inventory">
-            <InventoryTab shopId={profile?.shop_id || ''} />
+            <InventoryTab shopId={shopId} />
           </TabsContent>
 
           <TabsContent value="sales">
-            <SalesTab shopId={profile?.shop_id || ''} />
+            <SalesTab shopId={shopId} />
+          </TabsContent>
+
+          <TabsContent value="product-analytics">
+            <ProductAnalytics 
+              sales={allSales} 
+              shops={[{ shop_id: shopId, shop_name: profile?.shop_name || '' }]}
+              selectedShop={selectedShop}
+              onShopChange={setSelectedShop}
+            />
+          </TabsContent>
+
+          <TabsContent value="customer-analytics">
+            <CustomerAnalytics 
+              sales={allSales} 
+              shops={[{ shop_id: shopId, shop_name: profile?.shop_name || '' }]}
+            />
           </TabsContent>
         </Tabs>
       </div>
