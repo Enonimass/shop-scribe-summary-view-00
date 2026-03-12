@@ -348,10 +348,10 @@ const AdminDashboard = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="flex flex-wrap w-full gap-1">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              Sales Overview
+              Sales
             </TabsTrigger>
             <TabsTrigger value="product-analytics" className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
@@ -361,17 +361,25 @@ const AdminDashboard = () => {
               <Users className="h-4 w-4" />
               Customer Analytics
             </TabsTrigger>
+            <TabsTrigger value="customers" className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4" />
+              Customers
+            </TabsTrigger>
+            <TabsTrigger value="categories" className="flex items-center gap-2">
+              <Tag className="h-4 w-4" />
+              Categories
+            </TabsTrigger>
             <TabsTrigger value="inventory" className="flex items-center gap-2">
               <ShoppingCart className="h-4 w-4" />
               Inventory
             </TabsTrigger>
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
-              User Management
+              Users
             </TabsTrigger>
             <TabsTrigger value="manage" className="flex items-center gap-2">
               <Store className="h-4 w-4" />
-              Table Management
+              Tables
             </TabsTrigger>
           </TabsList>
 
