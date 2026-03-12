@@ -230,6 +230,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
 
       setCustomerName('');
       setSaleItems([{ product: '', quantity: 0, unit: 'bags' }]);
+      setSaleDate(new Date().toISOString().split('T')[0]);
       setShowAddForm(false);
       fetchSales();
       fetchInventory();
