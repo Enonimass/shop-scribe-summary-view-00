@@ -126,6 +126,30 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchAllSales = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sales_transactions')
+        .select('*, sales_items(*)');
+      
+      if (error) {
+        console.error('Error fetching all sales:', error);
+        return;
+      }
+      
+      const transformed = (data || []).map(transaction => ({
+        id: transaction.id,
+        customer_name: transaction.customer_name,
+        sale_date: transaction.sale_date,
+        shop_id: transaction.shop_id,
+        items: transaction.sales_items || []
+      }));
+      setAllSales(transformed);
+    } catch (error) {
+      console.error('Error fetching all sales:', error);
+    }
+  };
+
   // Get unique products, customers, and units for filters
   const uniqueProducts = [...new Set(sales.flatMap(sale => 
     sale.items?.map(item => item.product) || []
