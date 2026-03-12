@@ -20,12 +20,8 @@ const SellerDashboard = () => {
   useEffect(() => {
     if (shopId) {
       fetchShopSales();
-      // Create a minimal profiles entry for this shop
-      if (profile) {
-        setProfiles([profile]);
-      }
     }
-  }, [shopId, profile]);
+  }, [shopId]);
 
   const fetchShopSales = async () => {
     if (!shopId) return;
