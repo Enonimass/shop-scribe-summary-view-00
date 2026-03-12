@@ -43,6 +43,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchProfiles();
+    fetchAllSales();
   }, []);
 
   useEffect(() => {
