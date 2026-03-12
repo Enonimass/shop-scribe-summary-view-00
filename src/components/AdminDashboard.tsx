@@ -29,6 +29,7 @@ const AdminDashboard = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
+  const [allSales, setAllSales] = useState<any[]>([]);
 
   // Get unique shops from profiles
   const shops = profiles
