@@ -41,6 +41,21 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [productFilter, setProductFilter] = useState('all');
   const [shopFilter, setShopFilter] = useState('all-combined');
+  const [dbCategories, setDbCategories] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      const { data: cats } = await supabase.from('product_categories').select('*') as any;
+      const { data: items } = await supabase.from('product_category_items').select('*') as any;
+      const map: Record<string, string[]> = {};
+      (cats || []).forEach((cat: any) => {
+        map[cat.name] = (items || []).filter((i: any) => i.category_id === cat.id).map((i: any) => i.product_name);
+      });
+      setDbCategories(map);
+    };
+    loadCategories();
+  }, []);
+
 
   // Get all items from sales
   const allItems = useMemo(() => {
