@@ -101,6 +101,10 @@ const SellerDashboard = () => {
             <SalesTab shopId={shopId} />
           </TabsContent>
 
+          <TabsContent value="customers">
+            <CustomerManagement shopId={shopId} />
+          </TabsContent>
+
           <TabsContent value="product-analytics">
             <ProductAnalytics 
               sales={allSales} 
