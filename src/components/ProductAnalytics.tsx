@@ -167,7 +167,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     periodFilteredItems.forEach(item => {
       let items = [item];
       if (categoryFilter !== 'all') {
-        const categoryProducts = PRODUCT_CATEGORIES[categoryFilter] || [];
+        const categoryProducts = dbCategories[categoryFilter] || [];
         if (!categoryProducts.includes(item.product)) return;
       }
       if (productFilter !== 'all' && item.product !== productFilter) return;
