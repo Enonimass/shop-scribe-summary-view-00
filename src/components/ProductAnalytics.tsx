@@ -214,10 +214,31 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Product Analytics Filters
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Product Analytics Filters
+            </CardTitle>
+            <ExportButtons
+              filename={`product-analytics-${new Date().toISOString().split('T')[0]}`}
+              getData={() => ({
+                title: 'Product Analytics Report',
+                headers: ['Product', 'Total Quantity', 'Transactions', 'Avg per Transaction'],
+                rows: salesByProduct.map(({ product, quantity }) => {
+                  const txCount = new Set(
+                    filteredItems.filter(i => i.product === product).map(i => i.sale_date + i.customer_name)
+                  ).size;
+                  return [product, quantity, txCount, txCount > 0 ? Number((quantity / txCount).toFixed(1)) : 0];
+                }),
+                summary: {
+                  'Total Quantity Sold': totalQuantity.toLocaleString(),
+                  'Products Tracked': uniqueProducts.length,
+                  'Total Transactions': totalTransactions,
+                  'Period': periodType === 'month' ? selectedMonth : periodType === 'year' ? selectedYear : `${customFrom} to ${customTo}`,
+                },
+              })}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

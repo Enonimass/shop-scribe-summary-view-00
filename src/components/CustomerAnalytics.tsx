@@ -8,6 +8,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLe
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { Users, UserPlus, UserMinus, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import ExportButtons from './ExportButtons';
 
 const CHART_COLORS = [
   'hsl(142, 76%, 36%)',
