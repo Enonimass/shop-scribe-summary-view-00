@@ -278,24 +278,28 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-background">
       <div className="bg-card shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <img 
-                  src={kimpFeedsLogo} 
-                  alt="Kimp Feeds" 
-                  className="h-10 w-10 rounded-lg object-cover"
-                />
-                <h1 className="text-2xl font-bold text-foreground">Kimp Feeds Admin</h1>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex items-center gap-2">
+              <img 
+                src={kimpFeedsLogo} 
+                alt="Kimp Feeds" 
+                className="h-10 w-10 rounded-lg object-cover"
+              />
+              <div>
+                <h1 className="text-lg sm:text-2xl font-bold text-foreground">Kimp Feeds Admin</h1>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground sm:hidden">
+                  <Shield className="h-3 w-3" />
+                  <span>Administrator</span>
+                </div>
               </div>
-              <div className="h-6 w-px bg-border"></div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="hidden sm:flex items-center gap-2 ml-3 text-sm text-muted-foreground">
+                <div className="h-6 w-px bg-border"></div>
                 <Shield className="h-4 w-4" />
                 <span>Administrator Dashboard</span>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">Welcome, {profile.display_name}</span>
+            <div className="flex items-center gap-3">
+              <span className="hidden sm:inline text-sm text-muted-foreground">Welcome, {profile.display_name}</span>
               <Button 
                 onClick={logout} 
                 variant="outline" 
@@ -348,37 +352,40 @@ const AdminDashboard = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="flex flex-wrap w-full gap-1">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Sales
+          <TabsList className="flex flex-wrap w-full gap-1 h-auto p-1">
+            <TabsTrigger value="overview" className="flex items-center gap-1 text-xs sm:text-sm">
+              <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Sales</span>
+              <span className="sm:hidden">Sales</span>
             </TabsTrigger>
-            <TabsTrigger value="product-analytics" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Product Analytics
+            <TabsTrigger value="product-analytics" className="flex items-center gap-1 text-xs sm:text-sm">
+              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Product Analytics</span>
+              <span className="sm:hidden">Products</span>
             </TabsTrigger>
-            <TabsTrigger value="customer-analytics" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Customer Analytics
+            <TabsTrigger value="customer-analytics" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Customer Analytics</span>
+              <span className="sm:hidden">Analytics</span>
             </TabsTrigger>
-            <TabsTrigger value="customers" className="flex items-center gap-2">
-              <UserCheck className="h-4 w-4" />
+            <TabsTrigger value="customers" className="flex items-center gap-1 text-xs sm:text-sm">
+              <UserCheck className="h-3 w-3 sm:h-4 sm:w-4" />
               Customers
             </TabsTrigger>
-            <TabsTrigger value="categories" className="flex items-center gap-2">
-              <Tag className="h-4 w-4" />
+            <TabsTrigger value="categories" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Tag className="h-3 w-3 sm:h-4 sm:w-4" />
               Categories
             </TabsTrigger>
-            <TabsTrigger value="inventory" className="flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4" />
+            <TabsTrigger value="inventory" className="flex items-center gap-1 text-xs sm:text-sm">
+              <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4" />
               Inventory
             </TabsTrigger>
-            <TabsTrigger value="users" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
+            <TabsTrigger value="users" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Users className="h-3 w-3 sm:h-4 sm:w-4" />
               Users
             </TabsTrigger>
-            <TabsTrigger value="manage" className="flex items-center gap-2">
-              <Store className="h-4 w-4" />
+            <TabsTrigger value="manage" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Store className="h-3 w-3 sm:h-4 sm:w-4" />
               Tables
             </TabsTrigger>
           </TabsList>

@@ -136,7 +136,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
       .sort((a, b) => b.quantity - a.quantity);
   }, [filteredItems]);
 
-  // Sales trend over time (line chart)
+  // Sales trend over time (line chart) - with combined total
   const salesTrend = useMemo(() => {
     const map: Record<string, Record<string, number>> = {};
     filteredItems.forEach(item => {
@@ -152,12 +152,16 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     });
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, products]) => ({
-        date: periodType === 'year'
-          ? new Date(date + '-01').toLocaleDateString('en-US', { month: 'short' })
-          : new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        ...products,
-      }));
+      .map(([date, products]) => {
+        const total = Object.values(products).reduce((s, v) => s + v, 0);
+        return {
+          date: periodType === 'year'
+            ? new Date(date + '-01').toLocaleDateString('en-US', { month: 'short' })
+            : new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          ...products,
+          Total: total,
+        };
+      });
   }, [filteredItems, periodType]);
 
   // Per-shop comparison data
@@ -191,6 +195,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     uniqueProducts.forEach((product, i) => {
       config[product] = { label: product, color: CHART_COLORS[i % CHART_COLORS.length] };
     });
+    config['Total'] = { label: 'Combined Total', color: 'hsl(0, 0%, 20%)' };
     return config;
   }, [uniqueProducts]);
 
@@ -397,6 +402,16 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
                       connectNulls
                     />
                   ))}
+                  <Line
+                    key="Total"
+                    type="monotone"
+                    dataKey="Total"
+                    stroke="hsl(0, 0%, 20%)"
+                    strokeWidth={3}
+                    strokeDasharray="6 3"
+                    dot={{ r: 4 }}
+                    connectNulls
+                  />
                 </LineChart>
               </ChartContainer>
             ) : (
@@ -422,8 +437,11 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
                     outerRadius={100}
                     dataKey="quantity"
                     nameKey="product"
-                    label={({ product, quantity }) => `${product}: ${quantity}`}
-                    labelLine={false}
+                    label={({ product, quantity }) => {
+                      const pct = ((quantity / totalQuantity) * 100).toFixed(1);
+                      return `${product}: ${pct}%`;
+                    }}
+                    labelLine={true}
                     fontSize={10}
                   >
                     {salesByProduct.map((_, index) => (
@@ -464,29 +482,29 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
       </div>
 
       {/* Data Table */}
-      <Card>
-        <CardHeader>
+      <Card className="bg-card border-2 border-border">
+        <CardHeader className="bg-muted/60">
           <CardTitle className="text-lg">Product Sales Summary</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Total Quantity</TableHead>
-                <TableHead>Transactions</TableHead>
-                <TableHead>Avg per Transaction</TableHead>
+              <TableRow className="bg-muted">
+                <TableHead className="font-bold">Product</TableHead>
+                <TableHead className="font-bold">Total Quantity</TableHead>
+                <TableHead className="font-bold">Transactions</TableHead>
+                <TableHead className="font-bold">Avg per Transaction</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {salesByProduct.map(({ product, quantity }) => {
+              {salesByProduct.map(({ product, quantity }, idx) => {
                 const txCount = new Set(
                   filteredItems.filter(i => i.product === product).map(i => i.sale_date + i.customer_name)
                 ).size;
                 return (
-                  <TableRow key={product}>
-                    <TableCell className="font-medium">{product}</TableCell>
-                    <TableCell>{quantity.toLocaleString()}</TableCell>
+                  <TableRow key={product} className={idx % 2 === 0 ? 'bg-muted/30' : ''}>
+                    <TableCell className="font-semibold">{product}</TableCell>
+                    <TableCell className="font-medium">{quantity.toLocaleString()}</TableCell>
                     <TableCell>{txCount}</TableCell>
                     <TableCell>{txCount > 0 ? (quantity / txCount).toFixed(1) : '0'}</TableCell>
                   </TableRow>
