@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Package, AlertTriangle } from 'lucide-react';
+import ExportButtons from './ExportButtons';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import UnitConverter from './UnitConverter';
@@ -210,7 +211,27 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
           <h2 className="text-2xl font-bold text-gray-900">Inventory Management</h2>
           <p className="text-gray-600">Track your products and stock levels</p>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
+          <ExportButtons
+            filename={`inventory-${new Date().toISOString().split('T')[0]}`}
+            getData={() => ({
+              title: 'Inventory Report',
+              headers: ['Product', 'Quantity', 'Unit', 'Threshold', 'Desired Qty', 'To Add', 'Status'],
+              rows: inventory.map(item => [
+                item.product,
+                item.quantity,
+                item.unit,
+                item.threshold,
+                item.desired_quantity,
+                calculateQuantityToAdd(item.quantity, item.desired_quantity),
+                item.quantity <= item.threshold ? 'Low Stock' : 'OK',
+              ]),
+              summary: {
+                'Total Products': inventory.length,
+                'Low Stock Items': lowStockItems.length,
+              },
+            })}
+          />
           <UnitConverter 
             inventory={inventory} 
             onConvert={fetchInventory}

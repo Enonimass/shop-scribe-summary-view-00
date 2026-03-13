@@ -8,6 +8,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLe
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { Users, UserPlus, UserMinus, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import ExportButtons from './ExportButtons';
 
 const CHART_COLORS = [
   'hsl(142, 76%, 36%)',
@@ -209,10 +210,31 @@ const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({ sales, shops }) =
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Customer Analytics Filters
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Customer Analytics Filters
+            </CardTitle>
+            <ExportButtons
+              filename={`customer-analytics-${new Date().toISOString().split('T')[0]}`}
+              getData={() => ({
+                title: 'Customer Analytics Report',
+                headers: ['Customer', 'Total Quantity', 'Transactions', 'Products', 'Status'],
+                rows: topCustomers.map(c => {
+                  const status = newCustomers.includes(c.name) ? 'New' : 
+                    inactiveCustomers.includes(c.name) ? 'Inactive' : 'Returning';
+                  return [c.name, c.quantity, c.transactions, c.products, status];
+                }),
+                summary: {
+                  'Total Customers': allTimeCustomers.length,
+                  'Active': activeCustomers.length,
+                  'New': newCustomers.length,
+                  'Returning': returningCustomers.length,
+                  'Inactive': inactiveCustomers.length,
+                },
+              })}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
