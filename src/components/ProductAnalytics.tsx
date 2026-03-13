@@ -195,6 +195,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     uniqueProducts.forEach((product, i) => {
       config[product] = { label: product, color: CHART_COLORS[i % CHART_COLORS.length] };
     });
+    config['Total'] = { label: 'Combined Total', color: 'hsl(0, 0%, 20%)' };
     return config;
   }, [uniqueProducts]);
 
