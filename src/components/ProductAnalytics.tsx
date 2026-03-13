@@ -402,6 +402,16 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
                       connectNulls
                     />
                   ))}
+                  <Line
+                    key="Total"
+                    type="monotone"
+                    dataKey="Total"
+                    stroke="hsl(0, 0%, 20%)"
+                    strokeWidth={3}
+                    strokeDasharray="6 3"
+                    dot={{ r: 4 }}
+                    connectNulls
+                  />
                 </LineChart>
               </ChartContainer>
             ) : (
