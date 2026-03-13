@@ -53,18 +53,18 @@ const SellerDashboard = () => {
       {/* Header */}
       <div className="bg-white/90 backdrop-blur-sm shadow-lg border-b border-green-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 py-3">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-green-awesome rounded-lg flex items-center justify-center shadow-lg">
                 <Store className="w-6 h-6 text-green-awesome-foreground" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">{profile?.shop_name}</h1>
-                <p className="text-sm text-gray-500">Shop Management</p>
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900">{profile?.shop_name}</h1>
+                <p className="text-xs sm:text-sm text-gray-500">Shop Management</p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3">
+              <div className="hidden sm:flex items-center space-x-2">
                 <User className="w-5 h-5 text-gray-500" />
                 <span className="text-sm font-medium text-gray-700">{profile?.username}</span>
               </div>

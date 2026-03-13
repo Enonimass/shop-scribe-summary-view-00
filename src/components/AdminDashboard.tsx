@@ -278,24 +278,28 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-background">
       <div className="bg-card shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <img 
-                  src={kimpFeedsLogo} 
-                  alt="Kimp Feeds" 
-                  className="h-10 w-10 rounded-lg object-cover"
-                />
-                <h1 className="text-2xl font-bold text-foreground">Kimp Feeds Admin</h1>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex items-center gap-2">
+              <img 
+                src={kimpFeedsLogo} 
+                alt="Kimp Feeds" 
+                className="h-10 w-10 rounded-lg object-cover"
+              />
+              <div>
+                <h1 className="text-lg sm:text-2xl font-bold text-foreground">Kimp Feeds Admin</h1>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground sm:hidden">
+                  <Shield className="h-3 w-3" />
+                  <span>Administrator</span>
+                </div>
               </div>
-              <div className="h-6 w-px bg-border"></div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="hidden sm:flex items-center gap-2 ml-3 text-sm text-muted-foreground">
+                <div className="h-6 w-px bg-border"></div>
                 <Shield className="h-4 w-4" />
                 <span>Administrator Dashboard</span>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">Welcome, {profile.display_name}</span>
+            <div className="flex items-center gap-3">
+              <span className="hidden sm:inline text-sm text-muted-foreground">Welcome, {profile.display_name}</span>
               <Button 
                 onClick={logout} 
                 variant="outline" 

@@ -211,9 +211,9 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
         return;
       }
 
-      // Update inventory for each item
+      // Update inventory for each item - match both product AND unit
       for (const item of validItems) {
-        const inventoryItem = inventory.find(inv => inv.product === item.product);
+        const inventoryItem = inventory.find(inv => inv.product === item.product && inv.unit === item.unit);
         if (inventoryItem) {
           await supabase
             .from('inventory')
