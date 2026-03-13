@@ -136,7 +136,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
       .sort((a, b) => b.quantity - a.quantity);
   }, [filteredItems]);
 
-  // Sales trend over time (line chart)
+  // Sales trend over time (line chart) - with combined total
   const salesTrend = useMemo(() => {
     const map: Record<string, Record<string, number>> = {};
     filteredItems.forEach(item => {
@@ -152,12 +152,16 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     });
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, products]) => ({
-        date: periodType === 'year'
-          ? new Date(date + '-01').toLocaleDateString('en-US', { month: 'short' })
-          : new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        ...products,
-      }));
+      .map(([date, products]) => {
+        const total = Object.values(products).reduce((s, v) => s + v, 0);
+        return {
+          date: periodType === 'year'
+            ? new Date(date + '-01').toLocaleDateString('en-US', { month: 'short' })
+            : new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          ...products,
+          Total: total,
+        };
+      });
   }, [filteredItems, periodType]);
 
   // Per-shop comparison data
