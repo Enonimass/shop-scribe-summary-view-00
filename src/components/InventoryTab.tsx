@@ -211,7 +211,27 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
           <h2 className="text-2xl font-bold text-gray-900">Inventory Management</h2>
           <p className="text-gray-600">Track your products and stock levels</p>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
+          <ExportButtons
+            filename={`inventory-${new Date().toISOString().split('T')[0]}`}
+            getData={() => ({
+              title: 'Inventory Report',
+              headers: ['Product', 'Quantity', 'Unit', 'Threshold', 'Desired Qty', 'To Add', 'Status'],
+              rows: inventory.map(item => [
+                item.product,
+                item.quantity,
+                item.unit,
+                item.threshold,
+                item.desired_quantity,
+                calculateQuantityToAdd(item.quantity, item.desired_quantity),
+                item.quantity <= item.threshold ? 'Low Stock' : 'OK',
+              ]),
+              summary: {
+                'Total Products': inventory.length,
+                'Low Stock Items': lowStockItems.length,
+              },
+            })}
+          />
           <UnitConverter 
             inventory={inventory} 
             onConvert={fetchInventory}

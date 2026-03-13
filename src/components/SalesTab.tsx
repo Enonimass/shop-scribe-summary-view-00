@@ -421,13 +421,37 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h2 className="text-2xl font-bold text-gray-900">Sales Records</h2>
-          <Button 
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="flex items-center space-x-2"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Record Sale</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportButtons
+              filename={`sales-records-${new Date().toISOString().split('T')[0]}`}
+              getData={() => ({
+                title: 'Sales Records Report',
+                headers: ['Date', 'Customer', 'Product', 'Quantity', 'Unit'],
+                rows: filteredAndSortedSales.flatMap(sale => {
+                  const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+                  return items.map((item: any) => [
+                    new Date(sale.date).toLocaleDateString(),
+                    sale.customerName,
+                    item.product,
+                    item.quantity,
+                    item.unit,
+                  ]);
+                }),
+                summary: {
+                  'Total Sales Quantity': totalSales,
+                  'Unique Customers': uniqueCustomersCount,
+                  'Total Records': sales.length,
+                },
+              })}
+            />
+            <Button 
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="flex items-center space-x-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Record Sale</span>
+            </Button>
+          </div>
         </div>
         
         {/* Filters */}
