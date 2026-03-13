@@ -148,13 +148,13 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     const validItems = saleItems.filter(item => item.product && item.quantity > 0);
     if (!customerName || validItems.length === 0) return;
 
-    // Check inventory availability for each item
+    // Check inventory availability for each item - match both product AND unit
     for (const item of validItems) {
-      const inventoryItem = inventory.find(inv => inv.product === item.product);
+      const inventoryItem = inventory.find(inv => inv.product === item.product && inv.unit === item.unit);
       if (!inventoryItem) {
         toast({
           title: "Product Not Available",
-          description: `${item.product} is not in inventory`,
+          description: `${item.product} (${item.unit}) is not in inventory`,
           variant: "destructive",
         });
         return;
