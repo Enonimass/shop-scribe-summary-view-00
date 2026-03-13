@@ -9,6 +9,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLe
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { TrendingUp, Package, BarChart3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import ExportButtons from './ExportButtons';
 
 
 const CHART_COLORS = [
