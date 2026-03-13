@@ -85,12 +85,12 @@ const SellerDashboard = () => {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="inventory" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 max-w-3xl bg-white/80 backdrop-blur-sm">
-            <TabsTrigger value="inventory">Inventory</TabsTrigger>
-            <TabsTrigger value="sales">Sales</TabsTrigger>
-            <TabsTrigger value="customers">Customers</TabsTrigger>
-            <TabsTrigger value="product-analytics">Product Analytics</TabsTrigger>
-            <TabsTrigger value="customer-analytics">Customer Analytics</TabsTrigger>
+          <TabsList className="flex flex-wrap w-full gap-1 h-auto p-1 bg-white/80 backdrop-blur-sm">
+            <TabsTrigger value="inventory" className="text-xs sm:text-sm">Inventory</TabsTrigger>
+            <TabsTrigger value="sales" className="text-xs sm:text-sm">Sales</TabsTrigger>
+            <TabsTrigger value="customers" className="text-xs sm:text-sm">Customers</TabsTrigger>
+            <TabsTrigger value="product-analytics" className="text-xs sm:text-sm">Product Analytics</TabsTrigger>
+            <TabsTrigger value="customer-analytics" className="text-xs sm:text-sm">Customer Analytics</TabsTrigger>
           </TabsList>
 
           <TabsContent value="inventory">
