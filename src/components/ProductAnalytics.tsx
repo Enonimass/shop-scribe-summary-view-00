@@ -482,29 +482,29 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
       </div>
 
       {/* Data Table */}
-      <Card>
-        <CardHeader>
+      <Card className="bg-card border-2 border-border">
+        <CardHeader className="bg-muted/60">
           <CardTitle className="text-lg">Product Sales Summary</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Total Quantity</TableHead>
-                <TableHead>Transactions</TableHead>
-                <TableHead>Avg per Transaction</TableHead>
+              <TableRow className="bg-muted">
+                <TableHead className="font-bold">Product</TableHead>
+                <TableHead className="font-bold">Total Quantity</TableHead>
+                <TableHead className="font-bold">Transactions</TableHead>
+                <TableHead className="font-bold">Avg per Transaction</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {salesByProduct.map(({ product, quantity }) => {
+              {salesByProduct.map(({ product, quantity }, idx) => {
                 const txCount = new Set(
                   filteredItems.filter(i => i.product === product).map(i => i.sale_date + i.customer_name)
                 ).size;
                 return (
-                  <TableRow key={product}>
-                    <TableCell className="font-medium">{product}</TableCell>
-                    <TableCell>{quantity.toLocaleString()}</TableCell>
+                  <TableRow key={product} className={idx % 2 === 0 ? 'bg-muted/30' : ''}>
+                    <TableCell className="font-semibold">{product}</TableCell>
+                    <TableCell className="font-medium">{quantity.toLocaleString()}</TableCell>
                     <TableCell>{txCount}</TableCell>
                     <TableCell>{txCount > 0 ? (quantity / txCount).toFixed(1) : '0'}</TableCell>
                   </TableRow>
