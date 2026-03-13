@@ -437,8 +437,11 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
                     outerRadius={100}
                     dataKey="quantity"
                     nameKey="product"
-                    label={({ product, quantity }) => `${product}: ${quantity}`}
-                    labelLine={false}
+                    label={({ product, quantity }) => {
+                      const pct = ((quantity / totalQuantity) * 100).toFixed(1);
+                      return `${product}: ${pct}%`;
+                    }}
+                    labelLine={true}
                     fontSize={10}
                   >
                     {salesByProduct.map((_, index) => (
