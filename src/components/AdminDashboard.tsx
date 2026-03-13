@@ -348,37 +348,40 @@ const AdminDashboard = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="flex flex-wrap w-full gap-1">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Sales
+          <TabsList className="flex flex-wrap w-full gap-1 h-auto p-1">
+            <TabsTrigger value="overview" className="flex items-center gap-1 text-xs sm:text-sm">
+              <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Sales</span>
+              <span className="sm:hidden">Sales</span>
             </TabsTrigger>
-            <TabsTrigger value="product-analytics" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Product Analytics
+            <TabsTrigger value="product-analytics" className="flex items-center gap-1 text-xs sm:text-sm">
+              <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Product Analytics</span>
+              <span className="sm:hidden">Products</span>
             </TabsTrigger>
-            <TabsTrigger value="customer-analytics" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Customer Analytics
+            <TabsTrigger value="customer-analytics" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Customer Analytics</span>
+              <span className="sm:hidden">Analytics</span>
             </TabsTrigger>
-            <TabsTrigger value="customers" className="flex items-center gap-2">
-              <UserCheck className="h-4 w-4" />
+            <TabsTrigger value="customers" className="flex items-center gap-1 text-xs sm:text-sm">
+              <UserCheck className="h-3 w-3 sm:h-4 sm:w-4" />
               Customers
             </TabsTrigger>
-            <TabsTrigger value="categories" className="flex items-center gap-2">
-              <Tag className="h-4 w-4" />
+            <TabsTrigger value="categories" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Tag className="h-3 w-3 sm:h-4 sm:w-4" />
               Categories
             </TabsTrigger>
-            <TabsTrigger value="inventory" className="flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4" />
+            <TabsTrigger value="inventory" className="flex items-center gap-1 text-xs sm:text-sm">
+              <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4" />
               Inventory
             </TabsTrigger>
-            <TabsTrigger value="users" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
+            <TabsTrigger value="users" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Users className="h-3 w-3 sm:h-4 sm:w-4" />
               Users
             </TabsTrigger>
-            <TabsTrigger value="manage" className="flex items-center gap-2">
-              <Store className="h-4 w-4" />
+            <TabsTrigger value="manage" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Store className="h-3 w-3 sm:h-4 sm:w-4" />
               Tables
             </TabsTrigger>
           </TabsList>
