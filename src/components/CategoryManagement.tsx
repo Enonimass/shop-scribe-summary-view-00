@@ -46,8 +46,11 @@ const CategoryManagement: React.FC = () => {
   };
 
   const fetchAllProducts = async () => {
-    const { data } = await supabase.from('inventory').select('product');
-    const products = [...new Set((data || []).map((d: any) => d.product))].sort();
+    const { data: inventoryData } = await supabase.from('inventory').select('product');
+    const { data: catalogData } = await supabase.from('product_category_items').select('product_name');
+    const inventoryProducts = (inventoryData || []).map((d: any) => d.product);
+    const catalogProducts = (catalogData || []).map((d: any) => d.product_name);
+    const products = [...new Set([...inventoryProducts, ...catalogProducts])].sort();
     setAllProducts(products as string[]);
   };
 
