@@ -846,7 +846,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                           ))}
                         </div>
                       </TableCell>
-                      <TableCell>{totalQuantity}</TableCell>
+                      <TableCell>{formatBagEquivalent(totalQuantity)} bags</TableCell>
                     </TableRow>
                   );
                 })}
