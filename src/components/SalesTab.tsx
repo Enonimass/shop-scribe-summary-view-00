@@ -628,7 +628,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   {filterUnit !== 'all-units' && ` • Unit: ${filterUnit}`}
                   {filterCustomer !== 'all-customers' && ` • Customer: ${filterCustomer}`}
                   {(dateFrom || dateTo) && ` • Date: ${dateFrom || 'Start'} to ${dateTo || 'End'}`}
-                  {(filterProduct !== 'all-products' || filterUnit !== 'all-units') && ` • Total Quantity: ${filteredTotalQuantity}${filterUnit !== 'all-units' ? ` ${filterUnit}` : ''}`}
+                  {(filterProduct !== 'all-products' || filterUnit !== 'all-units') && ` • Total Quantity: ${formatBagEquivalent(filteredTotalQuantity)} bags${filterUnit !== 'all-units' ? ` (filtered by ${filterUnit})` : ''}`}
                 </p>
                 <Button
                   variant="outline"
