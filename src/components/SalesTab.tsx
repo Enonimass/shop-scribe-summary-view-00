@@ -376,13 +376,13 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
           if (sale.items) {
             return sum + sale.items.reduce((itemSum, item) => {
               if (!filterProduct || filterProduct === 'all-products' || item.product === filterProduct) {
-                return itemSum + item.quantity;
+                return itemSum + toBagEquivalent(item.quantity, item.unit);
               }
               return itemSum;
             }, 0);
           }
           if (!filterProduct || filterProduct === 'all-products' || sale.product === filterProduct) {
-            return sum + (sale.quantity || 0);
+            return sum + toBagEquivalent(sale.quantity || 0, sale.unit || '');
           }
           return sum;
         }, 0),
