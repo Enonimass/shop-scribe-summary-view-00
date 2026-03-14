@@ -881,7 +881,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                         <p className="text-sm text-gray-600">
                           {sales.length} transaction{sales.length > 1 ? 's' : ''} • 
                           {customers.length} customer{customers.length > 1 ? 's' : ''} • 
-                          Total: {totalQuantity} items
+                          Total: {formatBagEquivalent(totalQuantity)} bags
                         </p>
                       </div>
                       <div className="bg-green-light/30 text-green-awesome px-3 py-1 rounded-full text-sm font-medium">
