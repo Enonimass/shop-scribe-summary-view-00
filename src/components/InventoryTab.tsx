@@ -21,27 +21,9 @@ interface InventoryItem {
   shop_id: string;
 }
 
-const availableProducts = [
-  'High yield',
-  'Super dairy',
-  'Calf starter',
-  'Young stock',
-  'Sow weaner',
-  'Pig finisher',
-  'Pig grower',
-  'Pig starter',
-  'Chick mash',
-  'Kienyeji mash',
-  'Layer mash',
-  'Layers mix',
-  'Dog meal',
-  'Rabbit',
-  'Maize germ',
-  'Poland wheatbran'
-];
-
 const InventoryTab = ({ shopId }: { shopId: string }) => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [availableProducts, setAvailableProducts] = useState<string[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newProduct, setNewProduct] = useState('');
   const [newQuantity, setNewQuantity] = useState('');
@@ -52,7 +34,20 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
     if (shopId) {
       fetchInventory();
     }
+    fetchAvailableProducts();
   }, [shopId]);
+
+  const fetchAvailableProducts = async () => {
+    const { data, error } = await supabase
+      .from('product_category_items')
+      .select('product_name')
+      .order('product_name');
+
+    if (!error && data) {
+      const productNames = [...new Set(data.map(item => item.product_name))];
+      setAvailableProducts(productNames);
+    }
+  };
 
   useEffect(() => {
     // Set up real-time subscription
