@@ -885,7 +885,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                         </p>
                       </div>
                       <div className="bg-green-light/30 text-green-awesome px-3 py-1 rounded-full text-sm font-medium">
-                        {totalQuantity}
+                        {formatBagEquivalent(totalQuantity)}
                       </div>
                     </div>
                     
