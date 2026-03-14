@@ -13,6 +13,21 @@ import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
+// Convert quantity to bag equivalent for totals
+// 1 x 50kg bag = 5/7 of a regular bag (since a bag = 70kg)
+const toBagEquivalent = (quantity: number, unit: string): number => {
+  if (unit === '50kg' || unit === '50kg Bags') {
+    return quantity * (5 / 7);
+  }
+  return quantity;
+};
+
+const formatBagEquivalent = (value: number): string => {
+  // Show as fraction if it's a clean multiple of 5/7
+  const rounded = Math.round(value * 100) / 100;
+  return rounded % 1 === 0 ? rounded.toString() : rounded.toFixed(2);
+};
+
 interface SaleItem {
   product: string;
   quantity: number;
@@ -313,13 +328,14 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   };
 
   // Calculate filtered totals - only for matching product AND unit
+  // 50kg bags are converted to bag equivalents (5/7 per 50kg bag)
   const filteredTotalQuantity = filteredAndSortedSales.reduce((sum, sale) => {
     if (sale.items) {
       return sum + sale.items.reduce((itemSum, item) => {
         const matchesProduct = !filterProduct || filterProduct === 'all-products' || item.product === filterProduct;
         const matchesUnit = !filterUnit || filterUnit === 'all-units' || item.unit === filterUnit;
         if (matchesProduct && matchesUnit) {
-          return itemSum + item.quantity;
+          return itemSum + toBagEquivalent(item.quantity, item.unit);
         }
         return itemSum;
       }, 0);
@@ -327,16 +343,16 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     const matchesProduct = !filterProduct || filterProduct === 'all-products' || sale.product === filterProduct;
     const matchesUnit = !filterUnit || filterUnit === 'all-units' || sale.unit === filterUnit;
     if (matchesProduct && matchesUnit) {
-      return sum + (sale.quantity || 0);
+      return sum + toBagEquivalent(sale.quantity || 0, sale.unit || '');
     }
     return sum;
   }, 0);
 
   const totalSales = sales.reduce((sum, sale) => {
     if (sale.items) {
-      return sum + sale.items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+      return sum + sale.items.reduce((itemSum, item) => itemSum + toBagEquivalent(item.quantity, item.unit), 0);
     }
-    return sum + (sale.quantity || 0);
+    return sum + toBagEquivalent(sale.quantity || 0, sale.unit || '');
   }, 0);
 
   // Group sales by date for timeline view
@@ -360,13 +376,13 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
           if (sale.items) {
             return sum + sale.items.reduce((itemSum, item) => {
               if (!filterProduct || filterProduct === 'all-products' || item.product === filterProduct) {
-                return itemSum + item.quantity;
+                return itemSum + toBagEquivalent(item.quantity, item.unit);
               }
               return itemSum;
             }, 0);
           }
           if (!filterProduct || filterProduct === 'all-products' || sale.product === filterProduct) {
-            return sum + (sale.quantity || 0);
+            return sum + toBagEquivalent(sale.quantity || 0, sale.unit || '');
           }
           return sum;
         }, 0),
@@ -387,7 +403,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Sales</p>
-                <p className="text-2xl font-bold text-foreground">{totalSales}</p>
+                <p className="text-2xl font-bold text-foreground">{formatBagEquivalent(totalSales)}</p>
               </div>
               <ShoppingCart className="h-8 w-8 text-green-awesome" />
             </div>
@@ -612,7 +628,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   {filterUnit !== 'all-units' && ` • Unit: ${filterUnit}`}
                   {filterCustomer !== 'all-customers' && ` • Customer: ${filterCustomer}`}
                   {(dateFrom || dateTo) && ` • Date: ${dateFrom || 'Start'} to ${dateTo || 'End'}`}
-                  {(filterProduct !== 'all-products' || filterUnit !== 'all-units') && ` • Total Quantity: ${filteredTotalQuantity}${filterUnit !== 'all-units' ? ` ${filterUnit}` : ''}`}
+                  {(filterProduct !== 'all-products' || filterUnit !== 'all-units') && ` • Total Quantity: ${formatBagEquivalent(filteredTotalQuantity)} bags${filterUnit !== 'all-units' ? ` (filtered by ${filterUnit})` : ''}`}
                 </p>
                 <Button
                   variant="outline"
@@ -813,7 +829,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                     const matchesUnit = filterUnit === 'all-units' || item.unit === filterUnit;
                     return matchesProduct && matchesUnit;
                   });
-                  const totalQuantity = displayItems.reduce((sum, item) => sum + item.quantity, 0);
+                  const totalQuantity = displayItems.reduce((sum, item) => sum + toBagEquivalent(item.quantity, item.unit), 0);
                   
                   if (displayItems.length === 0) return null;
                   
@@ -830,7 +846,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                           ))}
                         </div>
                       </TableCell>
-                      <TableCell>{totalQuantity}</TableCell>
+                      <TableCell>{formatBagEquivalent(totalQuantity)} bags</TableCell>
                     </TableRow>
                   );
                 })}
@@ -865,11 +881,11 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                         <p className="text-sm text-gray-600">
                           {sales.length} transaction{sales.length > 1 ? 's' : ''} • 
                           {customers.length} customer{customers.length > 1 ? 's' : ''} • 
-                          Total: {totalQuantity} items
+                          Total: {formatBagEquivalent(totalQuantity)} bags
                         </p>
                       </div>
                       <div className="bg-green-light/30 text-green-awesome px-3 py-1 rounded-full text-sm font-medium">
-                        {totalQuantity}
+                        {formatBagEquivalent(totalQuantity)}
                       </div>
                     </div>
                     
@@ -900,7 +916,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                               </div>
                               <div className="text-right">
                                 <p className="text-sm text-gray-500">
-                                  {displayItems.reduce((sum, item) => sum + item.quantity, 0)} total
+                                  {formatBagEquivalent(displayItems.reduce((sum, item) => sum + toBagEquivalent(item.quantity, item.unit), 0))} bags
                                 </p>
                               </div>
                             </div>
