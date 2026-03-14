@@ -328,13 +328,14 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   };
 
   // Calculate filtered totals - only for matching product AND unit
+  // 50kg bags are converted to bag equivalents (5/7 per 50kg bag)
   const filteredTotalQuantity = filteredAndSortedSales.reduce((sum, sale) => {
     if (sale.items) {
       return sum + sale.items.reduce((itemSum, item) => {
         const matchesProduct = !filterProduct || filterProduct === 'all-products' || item.product === filterProduct;
         const matchesUnit = !filterUnit || filterUnit === 'all-units' || item.unit === filterUnit;
         if (matchesProduct && matchesUnit) {
-          return itemSum + item.quantity;
+          return itemSum + toBagEquivalent(item.quantity, item.unit);
         }
         return itemSum;
       }, 0);
@@ -342,7 +343,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     const matchesProduct = !filterProduct || filterProduct === 'all-products' || sale.product === filterProduct;
     const matchesUnit = !filterUnit || filterUnit === 'all-units' || sale.unit === filterUnit;
     if (matchesProduct && matchesUnit) {
-      return sum + (sale.quantity || 0);
+      return sum + toBagEquivalent(sale.quantity || 0, sale.unit || '');
     }
     return sum;
   }, 0);
