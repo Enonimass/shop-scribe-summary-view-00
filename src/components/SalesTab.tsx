@@ -916,7 +916,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                               </div>
                               <div className="text-right">
                                 <p className="text-sm text-gray-500">
-                                  {displayItems.reduce((sum, item) => sum + item.quantity, 0)} total
+                                  {formatBagEquivalent(displayItems.reduce((sum, item) => sum + toBagEquivalent(item.quantity, item.unit), 0))} bags
                                 </p>
                               </div>
                             </div>
