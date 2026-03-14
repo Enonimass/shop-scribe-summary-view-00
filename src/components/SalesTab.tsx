@@ -829,7 +829,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                     const matchesUnit = filterUnit === 'all-units' || item.unit === filterUnit;
                     return matchesProduct && matchesUnit;
                   });
-                  const totalQuantity = displayItems.reduce((sum, item) => sum + item.quantity, 0);
+                  const totalQuantity = displayItems.reduce((sum, item) => sum + toBagEquivalent(item.quantity, item.unit), 0);
                   
                   if (displayItems.length === 0) return null;
                   
