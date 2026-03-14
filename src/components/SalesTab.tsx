@@ -350,9 +350,9 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
 
   const totalSales = sales.reduce((sum, sale) => {
     if (sale.items) {
-      return sum + sale.items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+      return sum + sale.items.reduce((itemSum, item) => itemSum + toBagEquivalent(item.quantity, item.unit), 0);
     }
-    return sum + (sale.quantity || 0);
+    return sum + toBagEquivalent(sale.quantity || 0, sale.unit || '');
   }, 0);
 
   // Group sales by date for timeline view
