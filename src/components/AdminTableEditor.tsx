@@ -646,20 +646,57 @@ const ProductManagement = () => {
   }, []);
 
   const fetchProducts = async () => {
-    const { data, error } = await supabase
-      .from('inventory')
-      .select('product');
+    const [inventoryRes, catalogRes] = await Promise.all([
+      supabase.from('inventory').select('product'),
+      supabase.from('product_category_items').select('product_name'),
+    ]);
+
+    if (inventoryRes.error || catalogRes.error) {
+      console.error('Error fetching products:', inventoryRes.error || catalogRes.error);
+      return;
+    }
+
+    const uniqueProducts = [
+      ...(inventoryRes.data || []).map(item => item.product),
+      ...(catalogRes.data || []).map(item => item.product_name),
+    ];
+
+    setProducts([...new Set(uniqueProducts)].sort());
+  };
+
+  const getDefaultCategoryId = async () => {
+    const { data: firstCategory, error } = await supabase
+      .from('product_categories')
+      .select('id')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
-      console.error('Error fetching products:', error);
-    } else {
-      const uniqueProducts = [...new Set(data.map(item => item.product))].sort();
-      setProducts(uniqueProducts);
+      throw error;
     }
+
+    if (firstCategory?.id) {
+      return firstCategory.id;
+    }
+
+    const { data: createdCategory, error: createError } = await supabase
+      .from('product_categories')
+      .insert({ name: 'General' })
+      .select('id')
+      .single();
+
+    if (createError) {
+      throw createError;
+    }
+
+    return createdCategory.id;
   };
 
   const addProduct = async () => {
-    if (!newProduct.trim()) {
+    const trimmedProduct = newProduct.trim();
+
+    if (!trimmedProduct) {
       toast({
         title: "Error",
         description: "Product name cannot be empty",
@@ -668,7 +705,11 @@ const ProductManagement = () => {
       return;
     }
 
-    if (products.includes(newProduct.trim())) {
+    const productExists = products.some(
+      product => product.toLowerCase() === trimmedProduct.toLowerCase()
+    );
+
+    if (productExists) {
       toast({
         title: "Error",
         description: "Product already exists",
@@ -677,13 +718,40 @@ const ProductManagement = () => {
       return;
     }
 
-    toast({
-      title: "Success",
-      description: `Product "${newProduct}" added. Create inventory records to use it.`,
-    });
-    
-    setProducts([...products, newProduct.trim()].sort());
-    setNewProduct('');
+    try {
+      const categoryId = await getDefaultCategoryId();
+
+      const { error } = await supabase
+        .from('product_category_items')
+        .insert({
+          category_id: categoryId,
+          product_name: trimmedProduct,
+        });
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to save product",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: `Product "${trimmedProduct}" added and ready for inventory selection.`,
+      });
+
+      setNewProduct('');
+      fetchProducts();
+    } catch (error) {
+      console.error('Error adding product:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save product",
+        variant: "destructive",
+      });
+    }
   };
 
   const startEditing = (product: string) => {
@@ -692,20 +760,31 @@ const ProductManagement = () => {
   };
 
   const saveEdit = async () => {
-    if (!editValue.trim() || !editingProduct) return;
+    const trimmedValue = editValue.trim();
 
-    if (editValue === editingProduct) {
+    if (!trimmedValue || !editingProduct) return;
+
+    if (trimmedValue === editingProduct) {
       setEditingProduct(null);
       return;
     }
 
-    // Update all inventory records with this product
-    const { error } = await supabase
-      .from('inventory')
-      .update({ product: editValue.trim() })
-      .eq('product', editingProduct);
+    const [inventoryUpdate, salesItemsUpdate, catalogUpdate] = await Promise.all([
+      supabase
+        .from('inventory')
+        .update({ product: trimmedValue })
+        .eq('product', editingProduct),
+      supabase
+        .from('sales_items')
+        .update({ product: trimmedValue })
+        .eq('product', editingProduct),
+      supabase
+        .from('product_category_items')
+        .update({ product_name: trimmedValue })
+        .eq('product_name', editingProduct),
+    ]);
 
-    if (error) {
+    if (inventoryUpdate.error || salesItemsUpdate.error || catalogUpdate.error) {
       toast({
         title: "Error",
         description: "Failed to update product name",
@@ -713,12 +792,6 @@ const ProductManagement = () => {
       });
       return;
     }
-
-    // Update sales items
-    await supabase
-      .from('sales_items')
-      .update({ product: editValue.trim() })
-      .eq('product', editingProduct);
 
     toast({
       title: "Success",
@@ -730,7 +803,6 @@ const ProductManagement = () => {
   };
 
   const deleteProduct = async (product: string) => {
-    // Check if product is in use
     const { data: inventoryCheck } = await supabase
       .from('inventory')
       .select('id')
@@ -740,6 +812,20 @@ const ProductManagement = () => {
       toast({
         title: "Cannot Delete",
         description: "This product is in use in inventory records. Remove those first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from('product_category_items')
+      .delete()
+      .eq('product_name', product);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to remove product",
         variant: "destructive",
       });
       return;
