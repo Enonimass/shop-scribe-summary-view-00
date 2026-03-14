@@ -403,7 +403,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Sales</p>
-                <p className="text-2xl font-bold text-foreground">{totalSales}</p>
+                <p className="text-2xl font-bold text-foreground">{formatBagEquivalent(totalSales)}</p>
               </div>
               <ShoppingCart className="h-8 w-8 text-green-awesome" />
             </div>
