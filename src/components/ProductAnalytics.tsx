@@ -208,27 +208,52 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     return allUniqueProducts.filter(p => catProducts.includes(p));
   }, [compareCategoryFilter, allUniqueProducts, dbCategories]);
 
-  // Period-filtered items for comparison (uses same period filters)
-  const comparePeriodItems = useMemo(() => {
-    return allItems.filter(item => {
-      const date = new Date(item.sale_date);
-      if (periodType === 'month') {
-        const itemMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        return itemMonth === selectedMonth;
-      }
-      if (periodType === 'year') {
-        return String(date.getFullYear()) === selectedYear;
-      }
-      if (periodType === 'custom') {
-        if (customFrom && date < new Date(customFrom)) return false;
-        if (customTo && date > new Date(customTo)) return false;
-        return true;
-      }
-      return true;
-    });
-  }, [allItems, periodType, selectedMonth, selectedYear, customFrom, customTo]);
+  // Available months for comparison
+  const availableMonths = useMemo(() => {
+    const months = [...new Set(allItems.map(item => {
+      const d = new Date(item.sale_date);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }))];
+    return months.sort().reverse();
+  }, [allItems]);
 
-  // Build comparison trend data: each line = "Product - Shop" combo
+  // Period-filtered items for comparison (uses comparison period settings)
+  const comparePeriodItems = useMemo(() => {
+    if (comparePeriodType === 'same') {
+      // Use the main filters
+      return allItems.filter(item => {
+        const date = new Date(item.sale_date);
+        if (periodType === 'month') {
+          const itemMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          return itemMonth === selectedMonth;
+        }
+        if (periodType === 'year') {
+          return String(date.getFullYear()) === selectedYear;
+        }
+        if (periodType === 'custom') {
+          if (customFrom && date < new Date(customFrom)) return false;
+          if (customTo && date > new Date(customTo)) return false;
+          return true;
+        }
+        return true;
+      });
+    }
+    if (comparePeriodType === 'months' && compareMonths.length > 0) {
+      return allItems.filter(item => {
+        const d = new Date(item.sale_date);
+        const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        return compareMonths.includes(m);
+      });
+    }
+    if (comparePeriodType === 'years' && compareYears.length > 0) {
+      return allItems.filter(item => {
+        return compareYears.includes(String(new Date(item.sale_date).getFullYear()));
+      });
+    }
+    return [];
+  }, [allItems, comparePeriodType, periodType, selectedMonth, selectedYear, customFrom, customTo, compareMonths, compareYears]);
+
+  // Build comparison trend data: each line = "Product - Shop (- Period)" combo
   const comparisonTrendData = useMemo(() => {
     if (compareProducts.length === 0 && compareShops.length === 0) return { data: [], lines: [], config: {} };
 
@@ -246,47 +271,64 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
       return true;
     });
 
-    // Build line keys
+    const multiPeriod = comparePeriodType === 'months' || comparePeriodType === 'years';
     const lineKeys: string[] = [];
     const multiProduct = activeProducts.length > 1;
     const multiShop = activeShops.length > 1;
 
-    // Group by date, then by line key
+    // Group by normalized date key, then by line key
     const map: Record<string, Record<string, number>> = {};
     items.forEach(item => {
       const date = new Date(item.sale_date);
       let dateKey: string;
-      if (periodType === 'year') {
+      let periodLabel = '';
+
+      if (multiPeriod && comparePeriodType === 'months') {
+        periodLabel = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        // Normalize to day-of-month for overlay
+        dateKey = String(date.getDate());
+      } else if (multiPeriod && comparePeriodType === 'years') {
+        periodLabel = String(date.getFullYear());
+        // Normalize to month for overlay
+        dateKey = new Date(2000, date.getMonth(), 1).toLocaleDateString('en-US', { month: 'short' });
+      } else if (periodType === 'year') {
         dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       } else {
         dateKey = item.sale_date;
       }
 
       const shopName = shops.find(s => s.shop_id === item.shop_id)?.shop_name || item.shop_id;
-      let lineKey: string;
-      if (multiProduct && multiShop) {
-        lineKey = `${item.product} — ${shopName}`;
-      } else if (multiShop) {
-        lineKey = shopName;
-      } else if (multiProduct) {
-        lineKey = item.product;
-      } else {
-        lineKey = `${item.product} — ${shopName}`;
-      }
+      const parts: string[] = [];
+      if (multiProduct || activeProducts.length === 1) parts.push(item.product);
+      if (multiShop) parts.push(shopName);
+      if (multiPeriod) parts.push(periodLabel);
+      const lineKey = parts.join(' — ') || item.product;
 
       if (!lineKeys.includes(lineKey)) lineKeys.push(lineKey);
       if (!map[dateKey]) map[dateKey] = {};
       map[dateKey][lineKey] = (map[dateKey][lineKey] || 0) + Number(item.quantity);
     });
 
-    const data = Object.entries(map)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, values]) => ({
-        date: periodType === 'year'
-          ? new Date(date + '-01').toLocaleDateString('en-US', { month: 'short' })
-          : new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        ...values,
-      }));
+    const sortedEntries = Object.entries(map).sort(([a], [b]) => {
+      // Try numeric sort for day-of-month
+      const na = Number(a), nb = Number(b);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return a.localeCompare(b);
+    });
+
+    const data = sortedEntries.map(([dateKey, values]) => {
+      let label = dateKey;
+      if (!multiPeriod) {
+        if (periodType === 'year') {
+          label = new Date(dateKey + '-01').toLocaleDateString('en-US', { month: 'short' });
+        } else if (!isNaN(Date.parse(dateKey))) {
+          label = new Date(dateKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+      } else if (comparePeriodType === 'months') {
+        label = `Day ${dateKey}`;
+      }
+      return { date: label, ...values };
+    });
 
     const config: Record<string, { label: string; color: string }> = {};
     lineKeys.forEach((key, i) => {
@@ -294,7 +336,14 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     });
 
     return { data, lines: lineKeys, config };
-  }, [comparePeriodItems, compareProducts, compareShops, compareCategoryFilter, shops, periodType, compareAvailableProducts, dbCategories]);
+  }, [comparePeriodItems, compareProducts, compareShops, compareCategoryFilter, shops, periodType, compareAvailableProducts, dbCategories, comparePeriodType]);
+
+  const toggleCompareMonth = (month: string) => {
+    setCompareMonths(prev => prev.includes(month) ? prev.filter(m => m !== month) : [...prev, month]);
+  };
+  const toggleCompareYear = (year: string) => {
+    setCompareYears(prev => prev.includes(year) ? prev.filter(y => y !== year) : [...prev, year]);
+  };
 
   // Total quantity
   const totalQuantity = filteredItems.reduce((sum, item) => sum + Number(item.quantity), 0);
