@@ -56,6 +56,9 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
   const [compareShops, setCompareShops] = useState<string[]>([]);
   const [compareCategoryFilter, setCompareCategoryFilter] = useState('all');
   const [compareUseLog, setCompareUseLog] = useState(false);
+  const [comparePeriodType, setComparePeriodType] = useState<'same' | 'months' | 'years'>('same');
+  const [compareMonths, setCompareMonths] = useState<string[]>([]);
+  const [compareYears, setCompareYears] = useState<string[]>([]);
 
   useEffect(() => {
     const loadCategories = async () => {
