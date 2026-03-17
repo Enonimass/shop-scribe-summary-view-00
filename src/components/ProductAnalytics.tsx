@@ -56,6 +56,9 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
   const [compareShops, setCompareShops] = useState<string[]>([]);
   const [compareCategoryFilter, setCompareCategoryFilter] = useState('all');
   const [compareUseLog, setCompareUseLog] = useState(false);
+  const [comparePeriodType, setComparePeriodType] = useState<'same' | 'months' | 'years'>('same');
+  const [compareMonths, setCompareMonths] = useState<string[]>([]);
+  const [compareYears, setCompareYears] = useState<string[]>([]);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -205,27 +208,52 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     return allUniqueProducts.filter(p => catProducts.includes(p));
   }, [compareCategoryFilter, allUniqueProducts, dbCategories]);
 
-  // Period-filtered items for comparison (uses same period filters)
-  const comparePeriodItems = useMemo(() => {
-    return allItems.filter(item => {
-      const date = new Date(item.sale_date);
-      if (periodType === 'month') {
-        const itemMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        return itemMonth === selectedMonth;
-      }
-      if (periodType === 'year') {
-        return String(date.getFullYear()) === selectedYear;
-      }
-      if (periodType === 'custom') {
-        if (customFrom && date < new Date(customFrom)) return false;
-        if (customTo && date > new Date(customTo)) return false;
-        return true;
-      }
-      return true;
-    });
-  }, [allItems, periodType, selectedMonth, selectedYear, customFrom, customTo]);
+  // Available months for comparison
+  const availableMonths = useMemo(() => {
+    const months = [...new Set(allItems.map(item => {
+      const d = new Date(item.sale_date);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }))];
+    return months.sort().reverse();
+  }, [allItems]);
 
-  // Build comparison trend data: each line = "Product - Shop" combo
+  // Period-filtered items for comparison (uses comparison period settings)
+  const comparePeriodItems = useMemo(() => {
+    if (comparePeriodType === 'same') {
+      // Use the main filters
+      return allItems.filter(item => {
+        const date = new Date(item.sale_date);
+        if (periodType === 'month') {
+          const itemMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          return itemMonth === selectedMonth;
+        }
+        if (periodType === 'year') {
+          return String(date.getFullYear()) === selectedYear;
+        }
+        if (periodType === 'custom') {
+          if (customFrom && date < new Date(customFrom)) return false;
+          if (customTo && date > new Date(customTo)) return false;
+          return true;
+        }
+        return true;
+      });
+    }
+    if (comparePeriodType === 'months' && compareMonths.length > 0) {
+      return allItems.filter(item => {
+        const d = new Date(item.sale_date);
+        const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        return compareMonths.includes(m);
+      });
+    }
+    if (comparePeriodType === 'years' && compareYears.length > 0) {
+      return allItems.filter(item => {
+        return compareYears.includes(String(new Date(item.sale_date).getFullYear()));
+      });
+    }
+    return [];
+  }, [allItems, comparePeriodType, periodType, selectedMonth, selectedYear, customFrom, customTo, compareMonths, compareYears]);
+
+  // Build comparison trend data: each line = "Product - Shop (- Period)" combo
   const comparisonTrendData = useMemo(() => {
     if (compareProducts.length === 0 && compareShops.length === 0) return { data: [], lines: [], config: {} };
 
@@ -243,47 +271,64 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
       return true;
     });
 
-    // Build line keys
+    const multiPeriod = comparePeriodType === 'months' || comparePeriodType === 'years';
     const lineKeys: string[] = [];
     const multiProduct = activeProducts.length > 1;
     const multiShop = activeShops.length > 1;
 
-    // Group by date, then by line key
+    // Group by normalized date key, then by line key
     const map: Record<string, Record<string, number>> = {};
     items.forEach(item => {
       const date = new Date(item.sale_date);
       let dateKey: string;
-      if (periodType === 'year') {
+      let periodLabel = '';
+
+      if (multiPeriod && comparePeriodType === 'months') {
+        periodLabel = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        // Normalize to day-of-month for overlay
+        dateKey = String(date.getDate());
+      } else if (multiPeriod && comparePeriodType === 'years') {
+        periodLabel = String(date.getFullYear());
+        // Normalize to month for overlay
+        dateKey = new Date(2000, date.getMonth(), 1).toLocaleDateString('en-US', { month: 'short' });
+      } else if (periodType === 'year') {
         dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       } else {
         dateKey = item.sale_date;
       }
 
       const shopName = shops.find(s => s.shop_id === item.shop_id)?.shop_name || item.shop_id;
-      let lineKey: string;
-      if (multiProduct && multiShop) {
-        lineKey = `${item.product} — ${shopName}`;
-      } else if (multiShop) {
-        lineKey = shopName;
-      } else if (multiProduct) {
-        lineKey = item.product;
-      } else {
-        lineKey = `${item.product} — ${shopName}`;
-      }
+      const parts: string[] = [];
+      if (multiProduct || activeProducts.length === 1) parts.push(item.product);
+      if (multiShop) parts.push(shopName);
+      if (multiPeriod) parts.push(periodLabel);
+      const lineKey = parts.join(' — ') || item.product;
 
       if (!lineKeys.includes(lineKey)) lineKeys.push(lineKey);
       if (!map[dateKey]) map[dateKey] = {};
       map[dateKey][lineKey] = (map[dateKey][lineKey] || 0) + Number(item.quantity);
     });
 
-    const data = Object.entries(map)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, values]) => ({
-        date: periodType === 'year'
-          ? new Date(date + '-01').toLocaleDateString('en-US', { month: 'short' })
-          : new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        ...values,
-      }));
+    const sortedEntries = Object.entries(map).sort(([a], [b]) => {
+      // Try numeric sort for day-of-month
+      const na = Number(a), nb = Number(b);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return a.localeCompare(b);
+    });
+
+    const data = sortedEntries.map(([dateKey, values]) => {
+      let label = dateKey;
+      if (!multiPeriod) {
+        if (periodType === 'year') {
+          label = new Date(dateKey + '-01').toLocaleDateString('en-US', { month: 'short' });
+        } else if (!isNaN(Date.parse(dateKey))) {
+          label = new Date(dateKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+      } else if (comparePeriodType === 'months') {
+        label = `Day ${dateKey}`;
+      }
+      return { date: label, ...values };
+    });
 
     const config: Record<string, { label: string; color: string }> = {};
     lineKeys.forEach((key, i) => {
@@ -291,7 +336,14 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     });
 
     return { data, lines: lineKeys, config };
-  }, [comparePeriodItems, compareProducts, compareShops, compareCategoryFilter, shops, periodType, compareAvailableProducts, dbCategories]);
+  }, [comparePeriodItems, compareProducts, compareShops, compareCategoryFilter, shops, periodType, compareAvailableProducts, dbCategories, comparePeriodType]);
+
+  const toggleCompareMonth = (month: string) => {
+    setCompareMonths(prev => prev.includes(month) ? prev.filter(m => m !== month) : [...prev, month]);
+  };
+  const toggleCompareYear = (year: string) => {
+    setCompareYears(prev => prev.includes(year) ? prev.filter(y => y !== year) : [...prev, year]);
+  };
 
   // Total quantity
   const totalQuantity = filteredItems.reduce((sum, item) => sum + Number(item.quantity), 0);
@@ -655,7 +707,20 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Comparison filters */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Time period mode */}
+            <div className="space-y-2">
+              <Label>Time Period</Label>
+              <Select value={comparePeriodType} onValueChange={(v) => setComparePeriodType(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="same">Same as filters above</SelectItem>
+                  <SelectItem value="months">Compare Months</SelectItem>
+                  <SelectItem value="years">Compare Years</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Category filter for comparison */}
             <div className="space-y-2">
               <Label>Filter by Category</Label>
@@ -678,11 +743,57 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
 
             {/* Clear selections */}
             <div className="flex items-center gap-2 pt-6">
-              <Button variant="outline" size="sm" onClick={() => { setCompareProducts([]); setCompareShops([]); }}>
+              <Button variant="outline" size="sm" onClick={() => { setCompareProducts([]); setCompareShops([]); setCompareMonths([]); setCompareYears([]); }}>
                 Clear Selections
               </Button>
             </div>
           </div>
+
+          {/* Multi-select months/years for comparison */}
+          {comparePeriodType === 'months' && (
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Select Months to Compare ({compareMonths.length} selected)</Label>
+              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded-md bg-muted/30">
+                {availableMonths.map(month => (
+                  <label
+                    key={month}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer border transition-colors ${
+                      compareMonths.includes(month) ? 'bg-primary text-primary-foreground border-primary' : 'bg-background border-border hover:bg-accent'
+                    }`}
+                  >
+                    <Checkbox
+                      checked={compareMonths.includes(month)}
+                      onCheckedChange={() => toggleCompareMonth(month)}
+                      className="h-3 w-3"
+                    />
+                    {new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          {comparePeriodType === 'years' && (
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Select Years to Compare ({compareYears.length} selected)</Label>
+              <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/30">
+                {availableYears.map(year => (
+                  <label
+                    key={year}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer border transition-colors ${
+                      compareYears.includes(year) ? 'bg-primary text-primary-foreground border-primary' : 'bg-background border-border hover:bg-accent'
+                    }`}
+                  >
+                    <Checkbox
+                      checked={compareYears.includes(year)}
+                      onCheckedChange={() => toggleCompareYear(year)}
+                      className="h-3 w-3"
+                    />
+                    {year}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Multi-select products */}
           <div className="space-y-2">
