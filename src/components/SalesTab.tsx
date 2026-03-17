@@ -662,8 +662,10 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       {/* Add Sale Form */}
