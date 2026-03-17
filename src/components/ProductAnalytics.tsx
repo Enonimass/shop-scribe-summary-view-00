@@ -326,14 +326,28 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
+      <Collapsible>
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" className="w-full flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Filter className="w-4 h-4" />
               Product Analytics Filters
-            </CardTitle>
-            <ExportButtons
+              {(categoryFilter !== 'all' || productFilter !== 'all' || shopFilter !== 'all-combined') && (
+                <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">Active</span>
+              )}
+            </span>
+            <ChevronDown className="w-4 h-4" />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <Card className="mt-2">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Filters
+                </CardTitle>
+                <ExportButtons
               filename={`product-analytics-${new Date().toISOString().split('T')[0]}`}
               getData={() => ({
                 title: 'Product Analytics Report',
