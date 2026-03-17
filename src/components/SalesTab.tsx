@@ -472,9 +472,23 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
         </div>
         
         {/* Filters */}
-        <Card className="bg-white/80 backdrop-blur-sm border-green-200">
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="w-full flex items-center justify-between bg-white/80 backdrop-blur-sm border-green-200">
+              <span className="flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                Filters
+                {(filterProduct !== 'all-products' || filterCustomer !== 'all-customers' || filterUnit !== 'all-units' || dateFrom || dateTo || searchTerm) && (
+                  <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full">Active</span>
+                )}
+              </span>
+              <ChevronDown className="w-4 h-4" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <Card className="bg-white/80 backdrop-blur-sm border-green-200 mt-2 border-t-0 rounded-t-none">
+              <CardContent className="pt-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
               <Popover open={searchTerm.length > 0}>
                 <PopoverTrigger asChild>
                   <div className="relative">
