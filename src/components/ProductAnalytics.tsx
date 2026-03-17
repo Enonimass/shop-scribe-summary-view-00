@@ -707,7 +707,20 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Comparison filters */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Time period mode */}
+            <div className="space-y-2">
+              <Label>Time Period</Label>
+              <Select value={comparePeriodType} onValueChange={(v) => setComparePeriodType(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="same">Same as filters above</SelectItem>
+                  <SelectItem value="months">Compare Months</SelectItem>
+                  <SelectItem value="years">Compare Years</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Category filter for comparison */}
             <div className="space-y-2">
               <Label>Filter by Category</Label>
@@ -730,11 +743,57 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
 
             {/* Clear selections */}
             <div className="flex items-center gap-2 pt-6">
-              <Button variant="outline" size="sm" onClick={() => { setCompareProducts([]); setCompareShops([]); }}>
+              <Button variant="outline" size="sm" onClick={() => { setCompareProducts([]); setCompareShops([]); setCompareMonths([]); setCompareYears([]); }}>
                 Clear Selections
               </Button>
             </div>
           </div>
+
+          {/* Multi-select months/years for comparison */}
+          {comparePeriodType === 'months' && (
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Select Months to Compare ({compareMonths.length} selected)</Label>
+              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded-md bg-muted/30">
+                {availableMonths.map(month => (
+                  <label
+                    key={month}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer border transition-colors ${
+                      compareMonths.includes(month) ? 'bg-primary text-primary-foreground border-primary' : 'bg-background border-border hover:bg-accent'
+                    }`}
+                  >
+                    <Checkbox
+                      checked={compareMonths.includes(month)}
+                      onCheckedChange={() => toggleCompareMonth(month)}
+                      className="h-3 w-3"
+                    />
+                    {new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          {comparePeriodType === 'years' && (
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Select Years to Compare ({compareYears.length} selected)</Label>
+              <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/30">
+                {availableYears.map(year => (
+                  <label
+                    key={year}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer border transition-colors ${
+                      compareYears.includes(year) ? 'bg-primary text-primary-foreground border-primary' : 'bg-background border-border hover:bg-accent'
+                    }`}
+                  >
+                    <Checkbox
+                      checked={compareYears.includes(year)}
+                      onCheckedChange={() => toggleCompareYear(year)}
+                      className="h-3 w-3"
+                    />
+                    {year}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Multi-select products */}
           <div className="space-y-2">
