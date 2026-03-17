@@ -6,11 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { TrendingUp, Package, BarChart3 } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { TrendingUp, Package, BarChart3, GitCompareArrows } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import ExportButtons from './ExportButtons';
-
+import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 
 const CHART_COLORS = [
   'hsl(142, 76%, 36%)',
@@ -21,6 +22,10 @@ const CHART_COLORS = [
   'hsl(0, 70%, 55%)',
   'hsl(180, 60%, 45%)',
   'hsl(330, 60%, 50%)',
+  'hsl(50, 80%, 50%)',
+  'hsl(310, 70%, 45%)',
+  'hsl(160, 60%, 40%)',
+  'hsl(220, 70%, 60%)',
 ];
 
 interface ProductAnalyticsProps {
@@ -43,6 +48,13 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
   const [productFilter, setProductFilter] = useState('all');
   const [shopFilter, setShopFilter] = useState('all-combined');
   const [dbCategories, setDbCategories] = useState<Record<string, string[]>>({});
+  const [useLogScale, setUseLogScale] = useState(false);
+
+  // Comparison chart state
+  const [compareProducts, setCompareProducts] = useState<string[]>([]);
+  const [compareShops, setCompareShops] = useState<string[]>([]);
+  const [compareCategoryFilter, setCompareCategoryFilter] = useState('all');
+  const [compareUseLog, setCompareUseLog] = useState(false);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -56,7 +68,6 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     };
     loadCategories();
   }, []);
-
 
   // Get all items from sales
   const allItems = useMemo(() => {
@@ -170,7 +181,6 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     if (shopFilter !== 'all-separate') return [];
     const map: Record<string, Record<string, number>> = {};
     periodFilteredItems.forEach(item => {
-      let items = [item];
       if (categoryFilter !== 'all') {
         const categoryProducts = dbCategories[categoryFilter] || [];
         if (!categoryProducts.includes(item.product)) return;
@@ -185,6 +195,102 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
       ...shopData,
     }));
   }, [periodFilteredItems, shopFilter, shops, categoryFilter, productFilter]);
+
+  // === COMPARISON CHART DATA ===
+  // Products available for comparison (filtered by compare category)
+  const compareAvailableProducts = useMemo(() => {
+    if (compareCategoryFilter === 'all') return allUniqueProducts;
+    const catProducts = dbCategories[compareCategoryFilter] || [];
+    return allUniqueProducts.filter(p => catProducts.includes(p));
+  }, [compareCategoryFilter, allUniqueProducts, dbCategories]);
+
+  // Period-filtered items for comparison (uses same period filters)
+  const comparePeriodItems = useMemo(() => {
+    return allItems.filter(item => {
+      const date = new Date(item.sale_date);
+      if (periodType === 'month') {
+        const itemMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        return itemMonth === selectedMonth;
+      }
+      if (periodType === 'year') {
+        return String(date.getFullYear()) === selectedYear;
+      }
+      if (periodType === 'custom') {
+        if (customFrom && date < new Date(customFrom)) return false;
+        if (customTo && date > new Date(customTo)) return false;
+        return true;
+      }
+      return true;
+    });
+  }, [allItems, periodType, selectedMonth, selectedYear, customFrom, customTo]);
+
+  // Build comparison trend data: each line = "Product - Shop" combo
+  const comparisonTrendData = useMemo(() => {
+    if (compareProducts.length === 0 && compareShops.length === 0) return { data: [], lines: [], config: {} };
+
+    const activeProducts = compareProducts.length > 0 ? compareProducts : compareAvailableProducts;
+    const activeShops = compareShops.length > 0 ? compareShops : shops.map(s => s.shop_id);
+
+    // Filter items
+    const items = comparePeriodItems.filter(item => {
+      if (!activeProducts.includes(item.product)) return false;
+      if (!activeShops.includes(item.shop_id)) return false;
+      if (compareCategoryFilter !== 'all') {
+        const catProducts = dbCategories[compareCategoryFilter] || [];
+        if (!catProducts.includes(item.product)) return false;
+      }
+      return true;
+    });
+
+    // Build line keys
+    const lineKeys: string[] = [];
+    const multiProduct = activeProducts.length > 1;
+    const multiShop = activeShops.length > 1;
+
+    // Group by date, then by line key
+    const map: Record<string, Record<string, number>> = {};
+    items.forEach(item => {
+      const date = new Date(item.sale_date);
+      let dateKey: string;
+      if (periodType === 'year') {
+        dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      } else {
+        dateKey = item.sale_date;
+      }
+
+      const shopName = shops.find(s => s.shop_id === item.shop_id)?.shop_name || item.shop_id;
+      let lineKey: string;
+      if (multiProduct && multiShop) {
+        lineKey = `${item.product} — ${shopName}`;
+      } else if (multiShop) {
+        lineKey = shopName;
+      } else if (multiProduct) {
+        lineKey = item.product;
+      } else {
+        lineKey = `${item.product} — ${shopName}`;
+      }
+
+      if (!lineKeys.includes(lineKey)) lineKeys.push(lineKey);
+      if (!map[dateKey]) map[dateKey] = {};
+      map[dateKey][lineKey] = (map[dateKey][lineKey] || 0) + Number(item.quantity);
+    });
+
+    const data = Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, values]) => ({
+        date: periodType === 'year'
+          ? new Date(date + '-01').toLocaleDateString('en-US', { month: 'short' })
+          : new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        ...values,
+      }));
+
+    const config: Record<string, { label: string; color: string }> = {};
+    lineKeys.forEach((key, i) => {
+      config[key] = { label: key, color: CHART_COLORS[i % CHART_COLORS.length] };
+    });
+
+    return { data, lines: lineKeys, config };
+  }, [comparePeriodItems, compareProducts, compareShops, compareCategoryFilter, shops, periodType, compareAvailableProducts, dbCategories]);
 
   // Total quantity
   const totalQuantity = filteredItems.reduce((sum, item) => sum + Number(item.quantity), 0);
@@ -208,6 +314,13 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     });
     return config;
   }, [shopNames]);
+
+  const toggleCompareProduct = (product: string) => {
+    setCompareProducts(prev => prev.includes(product) ? prev.filter(p => p !== product) : [...prev, product]);
+  };
+  const toggleCompareShop = (shopId: string) => {
+    setCompareShops(prev => prev.includes(shopId) ? prev.filter(s => s !== shopId) : [...prev, shopId]);
+  };
 
   return (
     <div className="space-y-6">
@@ -399,10 +512,16 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
           </CardContent>
         </Card>
 
-        {/* Sales Trend - Line Chart */}
+        {/* Sales Trend - Line Chart with log scale toggle */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Sales Trend Over Time</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">Sales Trend Over Time</CardTitle>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="log-scale" className="text-xs text-muted-foreground">Log Scale</Label>
+                <Switch id="log-scale" checked={useLogScale} onCheckedChange={setUseLogScale} />
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {salesTrend.length > 0 ? (
@@ -410,7 +529,12 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
                 <LineChart data={salesTrend}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" fontSize={11} />
-                  <YAxis />
+                  <YAxis
+                    scale={useLogScale ? 'log' : 'auto'}
+                    domain={useLogScale ? ['auto', 'auto'] : [0, 'auto']}
+                    allowDataOverflow={useLogScale}
+                    tickFormatter={(v) => typeof v === 'number' ? v.toLocaleString() : v}
+                  />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <ChartLegend content={<ChartLegendContent />} />
                   {uniqueProducts.map((product, i) => (
@@ -502,6 +626,125 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
           </Card>
         )}
       </div>
+
+      {/* === COMPARISON CHART === */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <GitCompareArrows className="h-5 w-5" />
+            Comparison Chart — Products & Shops
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">Select products and shops below to compare them side by side on the same graph.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Comparison filters */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Category filter for comparison */}
+            <div className="space-y-2">
+              <Label>Filter by Category</Label>
+              <Select value={compareCategoryFilter} onValueChange={(v) => { setCompareCategoryFilter(v); setCompareProducts([]); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {Object.keys(dbCategories).map(cat => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Log scale for comparison */}
+            <div className="flex items-center gap-2 pt-6">
+              <Label htmlFor="compare-log" className="text-sm">Log Scale</Label>
+              <Switch id="compare-log" checked={compareUseLog} onCheckedChange={setCompareUseLog} />
+            </div>
+
+            {/* Clear selections */}
+            <div className="flex items-center gap-2 pt-6">
+              <Button variant="outline" size="sm" onClick={() => { setCompareProducts([]); setCompareShops([]); }}>
+                Clear Selections
+              </Button>
+            </div>
+          </div>
+
+          {/* Multi-select products */}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold">Select Products ({compareProducts.length} selected)</Label>
+            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded-md bg-muted/30">
+              {compareAvailableProducts.map(product => (
+                <label
+                  key={product}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer border transition-colors ${
+                    compareProducts.includes(product) ? 'bg-primary text-primary-foreground border-primary' : 'bg-background border-border hover:bg-accent'
+                  }`}
+                >
+                  <Checkbox
+                    checked={compareProducts.includes(product)}
+                    onCheckedChange={() => toggleCompareProduct(product)}
+                    className="h-3 w-3"
+                  />
+                  {product}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Multi-select shops */}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold">Select Shops ({compareShops.length} selected)</Label>
+            <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/30">
+              {shops.map(shop => (
+                <label
+                  key={shop.shop_id}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer border transition-colors ${
+                    compareShops.includes(shop.shop_id) ? 'bg-primary text-primary-foreground border-primary' : 'bg-background border-border hover:bg-accent'
+                  }`}
+                >
+                  <Checkbox
+                    checked={compareShops.includes(shop.shop_id)}
+                    onCheckedChange={() => toggleCompareShop(shop.shop_id)}
+                    className="h-3 w-3"
+                  />
+                  {shop.shop_name}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Comparison line chart */}
+          {comparisonTrendData.lines.length > 0 && comparisonTrendData.data.length > 0 ? (
+            <ChartContainer config={comparisonTrendData.config} className="h-[400px] w-full">
+              <LineChart data={comparisonTrendData.data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" fontSize={11} />
+                <YAxis
+                  scale={compareUseLog ? 'log' : 'auto'}
+                  domain={compareUseLog ? ['auto', 'auto'] : [0, 'auto']}
+                  allowDataOverflow={compareUseLog}
+                  tickFormatter={(v) => typeof v === 'number' ? v.toLocaleString() : v}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <ChartLegend content={<ChartLegendContent />} />
+                {comparisonTrendData.lines.map((lineKey, i) => (
+                  <Line
+                    key={lineKey}
+                    type="monotone"
+                    dataKey={lineKey}
+                    stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls
+                  />
+                ))}
+              </LineChart>
+            </ChartContainer>
+          ) : (
+            <div className="h-[200px] flex items-center justify-center text-muted-foreground border rounded-md">
+              Select products and/or shops above to see comparison lines
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Data Table */}
       <Card className="bg-card border-2 border-border">
