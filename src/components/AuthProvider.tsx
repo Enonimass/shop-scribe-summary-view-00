@@ -3,7 +3,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 interface UserProfile {
   id: string;
   username: string;
-  password: string;
   role: 'seller' | 'admin';
   display_name: string;
   shop_id?: string;

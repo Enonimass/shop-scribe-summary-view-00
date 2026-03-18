@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus, KeyRound, Trash2, Eye, EyeOff, Edit } from 'lucide-react';
+import { UserPlus, KeyRound, Trash2, Edit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -22,7 +22,7 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
   const [passwordResetOpen, setPasswordResetOpen] = useState(false);
   const [editUserOpen, setEditUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [showPasswords, setShowPasswords] = useState<{[key: string]: boolean}>({});
+  
 
   // Create user form state
   const [username, setUsername] = useState('');
@@ -203,12 +203,6 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
     setLoading(false);
   };
 
-  const togglePasswordVisibility = (profileId: string) => {
-    setShowPasswords(prev => ({
-      ...prev,
-      [profileId]: !prev[profileId]
-    }));
-  };
 
   return (
     <Card>
@@ -310,7 +304,7 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
               <TableHead>Display Name</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Shop</TableHead>
-              <TableHead>Password</TableHead>
+              
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -321,25 +315,6 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
                 <TableCell>{profile.display_name}</TableCell>
                 <TableCell className="capitalize">{profile.role}</TableCell>
                 <TableCell>{profile.shop_name || 'All Shops'}</TableCell>
-                <TableCell>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-mono text-sm">
-                      {showPasswords[profile.id] ? profile.password : '••••••••'}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => togglePasswordVisibility(profile.id)}
-                      className="p-1"
-                    >
-                      {showPasswords[profile.id] ? (
-                        <EyeOff className="w-3 h-3" />
-                      ) : (
-                        <Eye className="w-3 h-3" />
-                      )}
-                    </Button>
-                  </div>
-                </TableCell>
                 <TableCell>
                   <div className="flex items-center space-x-2">
                     <Button
