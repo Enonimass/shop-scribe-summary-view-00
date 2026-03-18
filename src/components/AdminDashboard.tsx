@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart, TrendingUp, Tag, UserCheck } from 'lucide-react';
+import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart, TrendingUp, Tag, UserCheck, BrainCircuit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import UserManagement from './UserManagement';
 import AdminTableEditor from './AdminTableEditor';
@@ -300,6 +300,15 @@ const AdminDashboard = () => {
             </div>
             <div className="flex items-center gap-3">
               <span className="hidden sm:inline text-sm text-muted-foreground">Welcome, {profile.display_name}</span>
+              <Button
+                onClick={() => window.location.href = '/ai-insights'}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <BrainCircuit className="h-4 w-4" />
+                <span className="hidden sm:inline">AI Insights</span>
+              </Button>
               <Button 
                 onClick={logout} 
                 variant="outline" 
