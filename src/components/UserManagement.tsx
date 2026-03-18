@@ -310,7 +310,7 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
               <TableHead>Display Name</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Shop</TableHead>
-              <TableHead>Password</TableHead>
+              
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
