@@ -203,12 +203,6 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
     setLoading(false);
   };
 
-  const togglePasswordVisibility = (profileId: string) => {
-    setShowPasswords(prev => ({
-      ...prev,
-      [profileId]: !prev[profileId]
-    }));
-  };
 
   return (
     <Card>
