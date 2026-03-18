@@ -22,27 +22,24 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      // Query the profiles table for matching credentials
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('username', username)
-        .eq('password', password)
-        .single();
+      // Use edge function for server-side password verification
+      const { data, error } = await supabase.functions.invoke('login', {
+        body: { username, password },
+      });
 
-      if (error || !profile) {
+      if (error || !data?.profile) {
         toast({
           title: "Login failed",
           description: "Invalid username or password.",
           variant: "destructive",
         });
       } else {
-        // Store profile in localStorage for session management
-        localStorage.setItem('currentUser', JSON.stringify(profile));
+        // Store profile WITHOUT password in localStorage
+        localStorage.setItem('currentUser', JSON.stringify(data.profile));
         
         toast({
           title: "Welcome back!",
-          description: `Logged in as ${profile.display_name}`,
+          description: `Logged in as ${data.profile.display_name}`,
         });
         navigate('/');
       }

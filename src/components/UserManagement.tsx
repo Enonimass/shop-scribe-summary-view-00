@@ -323,25 +323,6 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
                 <TableCell>{profile.shop_name || 'All Shops'}</TableCell>
                 <TableCell>
                   <div className="flex items-center space-x-2">
-                    <span className="font-mono text-sm">
-                      {showPasswords[profile.id] ? profile.password : '••••••••'}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => togglePasswordVisibility(profile.id)}
-                      className="p-1"
-                    >
-                      {showPasswords[profile.id] ? (
-                        <EyeOff className="w-3 h-3" />
-                      ) : (
-                        <Eye className="w-3 h-3" />
-                      )}
-                    </Button>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center space-x-2">
                     <Button
                       variant="outline"
                       size="sm"
