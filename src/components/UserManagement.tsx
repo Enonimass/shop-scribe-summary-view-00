@@ -22,7 +22,7 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
   const [passwordResetOpen, setPasswordResetOpen] = useState(false);
   const [editUserOpen, setEditUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [showPasswords, setShowPasswords] = useState<{[key: string]: boolean}>({});
+  
 
   // Create user form state
   const [username, setUsername] = useState('');
