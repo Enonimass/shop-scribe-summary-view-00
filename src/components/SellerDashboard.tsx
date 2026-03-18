@@ -68,6 +68,15 @@ const SellerDashboard = () => {
                 <User className="w-5 h-5 text-gray-500" />
                 <span className="text-sm font-medium text-gray-700">{profile?.username}</span>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.location.href = '/ai-insights'}
+                className="flex items-center space-x-2"
+              >
+                <BrainCircuit className="w-4 h-4" />
+                <span className="hidden sm:inline">AI Insights</span>
+              </Button>
               <Button 
                 variant="yellow-green" 
                 size="sm" 

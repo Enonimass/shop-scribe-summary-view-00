@@ -300,6 +300,15 @@ const AdminDashboard = () => {
             </div>
             <div className="flex items-center gap-3">
               <span className="hidden sm:inline text-sm text-muted-foreground">Welcome, {profile.display_name}</span>
+              <Button
+                onClick={() => window.location.href = '/ai-insights'}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <BrainCircuit className="h-4 w-4" />
+                <span className="hidden sm:inline">AI Insights</span>
+              </Button>
               <Button 
                 onClick={logout} 
                 variant="outline" 
