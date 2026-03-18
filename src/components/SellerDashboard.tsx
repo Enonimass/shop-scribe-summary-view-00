@@ -8,7 +8,7 @@ import SalesTab from './SalesTab';
 import ProductAnalytics from './ProductAnalytics';
 import CustomerAnalytics from './CustomerAnalytics';
 import CustomerManagement from './CustomerManagement';
-import { LogOut, Store, User, UserCheck } from 'lucide-react';
+import { LogOut, Store, User, UserCheck, BrainCircuit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const SellerDashboard = () => {
