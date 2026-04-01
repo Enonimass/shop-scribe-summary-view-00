@@ -62,7 +62,7 @@ const Auth = () => {
           <div className="mx-auto mb-4 w-16 h-16">
             <img src="/src/assets/kimp-feeds-logo.jpeg" alt="Kimp Feeds Logo" className="w-full h-full object-contain rounded-full" />
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">Kimp Feeds</CardTitle>
+          <CardTitle className="text-2xl font-bold text-gray-900">Kimp Feeds Limited</CardTitle>
           <CardDescription>Welcome to your livestock nutrition system</CardDescription>
         </CardHeader>
         <CardContent>
