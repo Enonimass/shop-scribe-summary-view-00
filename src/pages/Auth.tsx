@@ -60,7 +60,7 @@ const Auth = () => {
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 w-16 h-16">
-            <img src="src/assets/kimp-feeds-logo.jpeg" alt="Kimp Feeds Log" className="w-full h-full object-contain rounded-full" />
+            <img src="/assets/kimp-feeds-logo.jpeg" alt="Kimp Feeds Log" className="w-full h-full object-contain rounded-full" />
           </div>
           <CardTitle className="text-2xl font-bold text-gray-900"><p>Kimp Feeds Limited </p>
             <p>Your Partner In Livestock Production </p>
