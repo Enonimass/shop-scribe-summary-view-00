@@ -17,6 +17,7 @@ export type Database = {
       customers: {
         Row: {
           created_at: string
+          feeds: string | null
           first_purchase_date: string | null
           id: string
           last_purchase_date: string | null
@@ -28,6 +29,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          feeds?: string | null
           first_purchase_date?: string | null
           id?: string
           last_purchase_date?: string | null
@@ -39,6 +41,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          feeds?: string | null
           first_purchase_date?: string | null
           id?: string
           last_purchase_date?: string | null
