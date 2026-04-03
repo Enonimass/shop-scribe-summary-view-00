@@ -118,10 +118,22 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       return;
     }
 
-    // Fetch all sales items
-    const { data: allItems, error: itemsError } = await supabase
-      .from('sales_items')
-      .select('*');
+    // Fetch sales items for these transactions (batch in chunks to avoid URL length limits)
+    const txIds = (transactions || []).map(t => t.id);
+    let allItems: any[] = [];
+    const chunkSize = 200;
+    for (let i = 0; i < txIds.length; i += chunkSize) {
+      const chunk = txIds.slice(i, i + chunkSize);
+      const { data: itemsChunk, error: itemsError } = await supabase
+        .from('sales_items')
+        .select('*')
+        .in('transaction_id', chunk);
+      if (itemsError) {
+        console.error('Error fetching sales items:', itemsError);
+        return;
+      }
+      allItems = allItems.concat(itemsChunk || []);
+    }
 
     if (itemsError) {
       console.error('Error fetching sales items:', itemsError);
