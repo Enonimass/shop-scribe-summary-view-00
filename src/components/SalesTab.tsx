@@ -135,10 +135,6 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       allItems = allItems.concat(itemsChunk || []);
     }
 
-    if (itemsError) {
-      console.error('Error fetching sales items:', itemsError);
-      return;
-    }
 
     // Combine transactions with their items
     const salesWithItems = (transactions || []).map(transaction => ({
