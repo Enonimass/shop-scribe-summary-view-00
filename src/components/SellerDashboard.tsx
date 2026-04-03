@@ -44,8 +44,10 @@ const SellerDashboard = () => {
         .in('transaction_id', chunk);
       allItems = allItems.concat(itemsChunk || []);
     }
+
+    const salesWithItems = (transactions || []).map(transaction => ({
       id: transaction.id,
-      items: (allItems || []).filter(item => item.transaction_id === transaction.id),
+      items: allItems.filter(item => item.transaction_id === transaction.id),
       customerName: transaction.customer_name,
       date: transaction.sale_date,
       shop_id: transaction.shop_id
