@@ -33,11 +33,17 @@ const SellerDashboard = () => {
       .eq('shop_id', shopId)
       .order('sale_date', { ascending: false });
 
-    const { data: allItems } = await supabase
-      .from('sales_items')
-      .select('*');
-
-    const salesWithItems = (transactions || []).map(transaction => ({
+    const txIds = (transactions || []).map(t => t.id);
+    let allItems: any[] = [];
+    const chunkSize = 200;
+    for (let i = 0; i < txIds.length; i += chunkSize) {
+      const chunk = txIds.slice(i, i + chunkSize);
+      const { data: itemsChunk } = await supabase
+        .from('sales_items')
+        .select('*')
+        .in('transaction_id', chunk);
+      allItems = allItems.concat(itemsChunk || []);
+    }
       id: transaction.id,
       items: (allItems || []).filter(item => item.transaction_id === transaction.id),
       customerName: transaction.customer_name,
