@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { Users, Search, Edit, Phone, MapPin, Calendar, UserCheck, UserX, Filter } from 'lucide-react';
+import { Users, Search, Edit, Phone, MapPin, Calendar, UserCheck, UserX, Skull } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -19,6 +19,7 @@ interface Customer {
   shop_id: string;
   first_purchase_date: string | null;
   last_purchase_date: string | null;
+  status: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +38,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [editPhone, setEditPhone] = useState('');
   const [editPlace, setEditPlace] = useState('');
+  const [editStatus, setEditStatus] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -45,28 +47,18 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
 
   const fetchCustomers = async () => {
     setLoading(true);
-    // Fetch customers
     let query = supabase.from('customers').select('*');
-    if (!isAdmin) {
-      query = query.eq('shop_id', shopId);
-    }
+    if (!isAdmin) query = query.eq('shop_id', shopId);
     const { data: existingCustomers, error } = await query;
-    
-    if (error) {
-      console.error('Error fetching customers:', error);
-      setLoading(false);
-      return;
-    }
 
-    // Also sync from sales_transactions to auto-create missing customers
+    if (error) { console.error('Error fetching customers:', error); setLoading(false); return; }
+
+    // Sync from sales_transactions
     let salesQuery = supabase.from('sales_transactions').select('customer_name, shop_id, sale_date');
-    if (!isAdmin) {
-      salesQuery = salesQuery.eq('shop_id', shopId);
-    }
+    if (!isAdmin) salesQuery = salesQuery.eq('shop_id', shopId);
     const { data: salesData } = await salesQuery;
 
     if (salesData && salesData.length > 0) {
-      // Group by customer_name + shop_id to find first/last purchase
       const customerMap: Record<string, { name: string; shop_id: string; first: string; last: string }> = {};
       salesData.forEach(sale => {
         const key = `${sale.customer_name?.toLowerCase()}_${sale.shop_id}`;
@@ -81,42 +73,27 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
       const existing = existingCustomers || [];
       const existingKeys = new Set(existing.map(c => `${c.name.toLowerCase()}_${c.shop_id}`));
 
-      // Insert missing customers
       const toInsert = Object.entries(customerMap)
         .filter(([key]) => !existingKeys.has(key))
-        .map(([_, val]) => ({
-          name: val.name,
-          shop_id: val.shop_id,
-          first_purchase_date: val.first,
-          last_purchase_date: val.last,
-        }));
+        .map(([_, val]) => ({ name: val.name, shop_id: val.shop_id, first_purchase_date: val.first, last_purchase_date: val.last }));
 
-      if (toInsert.length > 0) {
-        await supabase.from('customers').insert(toInsert as any);
-      }
+      if (toInsert.length > 0) await supabase.from('customers').insert(toInsert as any);
 
-      // Update first/last purchase dates for existing customers
       for (const customer of existing) {
         const key = `${customer.name.toLowerCase()}_${customer.shop_id}`;
         const salesInfo = customerMap[key];
         if (salesInfo) {
-          const needsUpdate = 
-            customer.first_purchase_date !== salesInfo.first || 
-            customer.last_purchase_date !== salesInfo.last;
+          const needsUpdate = customer.first_purchase_date !== salesInfo.first || customer.last_purchase_date !== salesInfo.last;
           if (needsUpdate) {
             await supabase.from('customers').update({
-              first_purchase_date: salesInfo.first,
-              last_purchase_date: salesInfo.last,
+              first_purchase_date: salesInfo.first, last_purchase_date: salesInfo.last,
             } as any).eq('id', customer.id);
           }
         }
       }
 
-      // Re-fetch after sync
       let refetchQuery = supabase.from('customers').select('*');
-      if (!isAdmin) {
-        refetchQuery = refetchQuery.eq('shop_id', shopId);
-      }
+      if (!isAdmin) refetchQuery = refetchQuery.eq('shop_id', shopId);
       const { data: refreshed } = await refetchQuery;
       setCustomers((refreshed as any) || []);
     } else {
@@ -125,16 +102,22 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
     setLoading(false);
   };
 
-  const getCustomerStatus = (customer: Customer): 'active' | 'inactive' | 'new' => {
+  const getCustomerStatus = (customer: Customer): 'active' | 'inactive' | 'new' | 'dead' => {
+    // Manual dead status takes priority
+    if (customer.status === 'dead') return 'dead';
+    
     if (!customer.last_purchase_date) return 'inactive';
     const lastPurchase = new Date(customer.last_purchase_date);
     const now = new Date();
     const daysSinceLast = Math.floor((now.getTime() - lastPurchase.getTime()) / (1000 * 60 * 60 * 24));
-    
+
+    // Auto-dead: 90+ days inactive
+    if (daysSinceLast > 90) return 'dead';
+
     if (!customer.first_purchase_date) return 'inactive';
     const firstPurchase = new Date(customer.first_purchase_date);
     const daysSinceFirst = Math.floor((now.getTime() - firstPurchase.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (daysSinceFirst <= 30 && daysSinceLast <= 30) return 'new';
     if (daysSinceLast <= 30) return 'active';
     return 'inactive';
@@ -142,24 +125,21 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => {
-      const matchesSearch = !searchTerm || 
+      const matchesSearch = !searchTerm ||
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.place?.toLowerCase().includes(searchTerm.toLowerCase());
-      
       const matchesShop = shopFilter === 'all' || c.shop_id === shopFilter;
-      
       const status = getCustomerStatus(c);
       const matchesStatus = statusFilter === 'all' || statusFilter === status ||
         (statusFilter === 'current' && (status === 'active' || status === 'new'));
-
       return matchesSearch && matchesShop && matchesStatus;
     });
   }, [customers, searchTerm, shopFilter, statusFilter]);
 
   const statusCounts = useMemo(() => {
     const shopFiltered = customers.filter(c => shopFilter === 'all' || c.shop_id === shopFilter);
-    const counts = { total: shopFiltered.length, active: 0, inactive: 0, new: 0, current: 0 };
+    const counts = { total: shopFiltered.length, active: 0, inactive: 0, new: 0, current: 0, dead: 0 };
     shopFiltered.forEach(c => {
       const status = getCustomerStatus(c);
       counts[status]++;
@@ -172,6 +152,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
     setEditingCustomer(customer);
     setEditPhone(customer.phone || '');
     setEditPlace(customer.place || '');
+    setEditStatus(customer.status || getCustomerStatus(customer));
   };
 
   const handleSaveEdit = async () => {
@@ -179,6 +160,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
     const { error } = await supabase.from('customers').update({
       phone: editPhone || null,
       place: editPlace || null,
+      status: editStatus === 'dead' ? 'dead' : 'active',
     } as any).eq('id', editingCustomer.id);
 
     if (error) {
@@ -190,9 +172,14 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
     }
   };
 
-  const getShopName = (sid: string) => {
-    return shops.find(s => s.shop_id === sid)?.shop_name || sid;
+  const handleMarkDead = async (customer: Customer) => {
+    const newStatus = getCustomerStatus(customer) === 'dead' ? 'active' : 'dead';
+    await supabase.from('customers').update({ status: newStatus } as any).eq('id', customer.id);
+    toast({ title: 'Updated', description: `${customer.name} marked as ${newStatus}` });
+    fetchCustomers();
   };
+
+  const getShopName = (sid: string) => shops.find(s => s.shop_id === sid)?.shop_name || sid;
 
   const getStatusBadge = (customer: Customer) => {
     const status = getCustomerStatus(customer);
@@ -200,22 +187,24 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
       case 'active': return <Badge className="bg-green-600 text-white">Active</Badge>;
       case 'new': return <Badge className="bg-blue-600 text-white">New</Badge>;
       case 'inactive': return <Badge variant="destructive">Inactive</Badge>;
+      case 'dead': return <Badge className="bg-gray-600 text-white">Dead</Badge>;
     }
   };
 
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         {[
-          { label: 'Total', count: statusCounts.total, filter: 'all', icon: Users },
-          { label: 'Active', count: statusCounts.active, filter: 'active', icon: UserCheck },
-          { label: 'New', count: statusCounts.new, filter: 'new', icon: UserCheck },
-          { label: 'Current', count: statusCounts.current, filter: 'current', icon: UserCheck },
-          { label: 'Inactive', count: statusCounts.inactive, filter: 'inactive', icon: UserX },
+          { label: 'Total', count: statusCounts.total, filter: 'all', icon: Users, color: '' },
+          { label: 'Active', count: statusCounts.active, filter: 'active', icon: UserCheck, color: 'text-green-600' },
+          { label: 'New', count: statusCounts.new, filter: 'new', icon: UserCheck, color: 'text-blue-600' },
+          { label: 'Current', count: statusCounts.current, filter: 'current', icon: UserCheck, color: 'text-green-600' },
+          { label: 'Inactive', count: statusCounts.inactive, filter: 'inactive', icon: UserX, color: 'text-destructive' },
+          { label: 'Dead', count: statusCounts.dead, filter: 'dead', icon: Skull, color: 'text-gray-500' },
         ].map(item => (
-          <Card 
-            key={item.label} 
+          <Card
+            key={item.label}
             className={`cursor-pointer transition-all ${statusFilter === item.filter ? 'ring-2 ring-primary' : 'hover:shadow-md'}`}
             onClick={() => setStatusFilter(item.filter)}
           >
@@ -225,7 +214,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
                   <p className="text-xs text-muted-foreground">{item.label}</p>
                   <p className="text-2xl font-bold text-foreground">{item.count}</p>
                 </div>
-                <item.icon className={`h-5 w-5 ${item.label === 'Inactive' ? 'text-destructive' : 'text-green-awesome'}`} />
+                <item.icon className={`h-5 w-5 ${item.color || 'text-muted-foreground'}`} />
               </div>
             </CardContent>
           </Card>
@@ -250,9 +239,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Shops</SelectItem>
-                    {shops.map(s => (
-                      <SelectItem key={s.shop_id} value={s.shop_id}>{s.shop_name}</SelectItem>
-                    ))}
+                    {shops.map(s => <SelectItem key={s.shop_id} value={s.shop_id}>{s.shop_name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -267,6 +254,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
                   <SelectItem value="new">New</SelectItem>
                   <SelectItem value="current">Current (Active + New)</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="dead">Dead</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -304,21 +292,17 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
                 </TableHeader>
                 <TableBody>
                   {filteredCustomers.map(customer => (
-                    <TableRow key={customer.id}>
+                    <TableRow key={customer.id} className={getCustomerStatus(customer) === 'dead' ? 'opacity-60' : ''}>
                       <TableCell className="font-medium">{customer.name}</TableCell>
                       <TableCell>
                         {customer.phone ? (
                           <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{customer.phone}</span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">Not set</span>
-                        )}
+                        ) : <span className="text-muted-foreground text-xs">Not set</span>}
                       </TableCell>
                       <TableCell>
                         {customer.place ? (
                           <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{customer.place}</span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">Not set</span>
-                        )}
+                        ) : <span className="text-muted-foreground text-xs">Not set</span>}
                       </TableCell>
                       {isAdmin && <TableCell>{getShopName(customer.shop_id)}</TableCell>}
                       <TableCell>
@@ -339,9 +323,19 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
                       </TableCell>
                       <TableCell>{getStatusBadge(customer)}</TableCell>
                       <TableCell>
-                        <Button size="sm" variant="outline" onClick={() => handleEditCustomer(customer)}>
-                          <Edit className="h-3 w-3 mr-1" /> Edit
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="outline" onClick={() => handleEditCustomer(customer)}>
+                            <Edit className="h-3 w-3 mr-1" /> Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={getCustomerStatus(customer) === 'dead' ? 'secondary' : 'ghost'}
+                            onClick={() => handleMarkDead(customer)}
+                            title={getCustomerStatus(customer) === 'dead' ? 'Revive customer' : 'Mark as dead'}
+                          >
+                            <Skull className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -366,6 +360,16 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
             <div className="space-y-2">
               <Label>Place / Location</Label>
               <Input value={editPlace} onChange={e => setEditPlace(e.target.value)} placeholder="e.g. Nakuru" />
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={editStatus} onValueChange={setEditStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="dead">Dead (Can't sell to anymore)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {editingCustomer && (
               <div className="text-sm text-muted-foreground space-y-1">
