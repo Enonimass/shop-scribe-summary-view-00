@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Plus, ShoppingCart, TrendingUp, ArrowUpDown, Minus, X, Search, Check, ChevronsUpDown, Download, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import ExportButtons from './ExportButtons';
+import BulkSalesUpload from './BulkSalesUpload';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -493,6 +494,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 },
               })}
             />
+            <BulkSalesUpload shopId={shopId} onUploadComplete={fetchSales} />
             <Button 
               onClick={() => setShowAddForm(!showAddForm)}
               className="flex items-center space-x-2"
