@@ -88,6 +88,30 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     }
   }, [shopId]);
 
+  // Real-time subscription for inventory changes
+  useEffect(() => {
+    if (!shopId) return;
+    const channel = supabase
+      .channel('sales-inventory-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'inventory',
+          filter: `shop_id=eq.${shopId}`,
+        },
+        () => {
+          fetchInventory();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [shopId]);
+
   const fetchInventory = async () => {
     if (!shopId) return;
     
