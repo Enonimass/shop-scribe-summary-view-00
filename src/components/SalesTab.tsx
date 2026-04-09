@@ -199,7 +199,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
 
     // Check inventory availability for each item - match both product AND unit
     for (const item of validItems) {
-      const inventoryItem = inventory.find(inv => inv.product === item.product && inv.unit === item.unit);
+      const inventoryItem = inventory.find(inv => inv.product.toLowerCase() === item.product.toLowerCase() && inv.unit === item.unit);
       if (!inventoryItem) {
         toast({
           title: "Product Not Available",
@@ -262,7 +262,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
 
       // Update inventory for each item - match both product AND unit
       for (const item of validItems) {
-        const inventoryItem = inventory.find(inv => inv.product === item.product && inv.unit === item.unit);
+        const inventoryItem = inventory.find(inv => inv.product.toLowerCase() === item.product.toLowerCase() && inv.unit === item.unit);
         if (inventoryItem) {
           await supabase
             .from('inventory')
