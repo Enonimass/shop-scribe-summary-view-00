@@ -118,10 +118,20 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
           dateStr = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
         } else {
           dateStr = String(rawDate).trim();
-          // Try to parse various date formats
-          const parsed = new Date(dateStr);
-          if (!isNaN(parsed.getTime())) {
-            dateStr = parsed.toISOString().split('T')[0];
+          // Parse dd/mm/yyyy or mm/dd/yyyy formats manually to avoid timezone issues
+          const slashMatch = dateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if (slashMatch) {
+            const [, a, b, y] = slashMatch;
+            // Assume dd/mm/yyyy format (common in Kenya)
+            const day = a.padStart(2, '0');
+            const month = b.padStart(2, '0');
+            dateStr = `${y}-${month}-${day}`;
+          } else {
+            // Fallback: try parsing but use local date parts to avoid timezone shift
+            const parsed = new Date(dateStr);
+            if (!isNaN(parsed.getTime())) {
+              dateStr = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+            }
           }
         }
 
