@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Plus, ShoppingCart, TrendingUp, ArrowUpDown, Minus, X, Search, Check, ChevronsUpDown, Download, Filter, ChevronDown, ChevronUp } from 'lucide-react';
@@ -45,6 +46,7 @@ interface Sale {
   product?: string;
   quantity?: number;
   unit?: string;
+  saleType?: string;
 }
 
 const availableProducts = [
@@ -73,6 +75,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
+  const [filterSaleType, setFilterSaleType] = useState('all-types');
 
   // Get unique customers from existing sales
   const getUniqueCustomers = () => {
@@ -166,7 +169,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       id: transaction.id,
       items: (allItems || []).filter(item => item.transaction_id === transaction.id),
       customerName: transaction.customer_name,
-      date: transaction.sale_date
+      date: transaction.sale_date,
+      saleType: (transaction as any).sale_type || 'local'
     }));
 
     setSales(salesWithItems);
@@ -328,6 +332,10 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       if (dateFrom && sale.date < dateFrom) return false;
       if (dateTo && sale.date > dateTo) return false;
       
+      // Filter by sale type (local/away)
+      if (filterSaleType && filterSaleType !== 'all-types') {
+        if (sale.saleType !== filterSaleType) return false;
+      }
       return true;
     })
     .sort((a, b) => {
@@ -389,6 +397,15 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     return sum + toBagEquivalent(sale.quantity || 0, sale.unit || '');
   }, 0);
 
+  const awaySales = sales.filter(s => s.saleType === 'away').reduce((sum, sale) => {
+    if (sale.items) {
+      return sum + sale.items.reduce((itemSum, item) => itemSum + toBagEquivalent(item.quantity, item.unit), 0);
+    }
+    return sum + toBagEquivalent(sale.quantity || 0, sale.unit || '');
+  }, 0);
+
+  const localSales = totalSales - awaySales;
+
   // Group sales by date for timeline view
   const groupSalesByDate = () => {
     const grouped: { [date: string]: Sale[] } = {};
@@ -431,7 +448,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   return (
     <div className="space-y-6">
       {/* Header with Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-white/80 backdrop-blur-sm border-green-200">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -440,6 +457,28 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 <p className="text-2xl font-bold text-foreground">{formatBagEquivalent(totalSales)}</p>
               </div>
               <ShoppingCart className="h-8 w-8 text-green-awesome" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-green-200">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Local Sales</p>
+                <p className="text-2xl font-bold text-foreground">{formatBagEquivalent(localSales)}</p>
+              </div>
+              <ShoppingCart className="h-8 w-8 text-green-awesome" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-orange-200 border-2">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-orange-600">Away Sales</p>
+                <p className="text-2xl font-bold text-orange-600">{formatBagEquivalent(awaySales)}</p>
+              </div>
+              <ShoppingCart className="h-8 w-8 text-orange-500" />
             </div>
           </CardContent>
         </Card>
@@ -625,6 +664,17 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   {getUniqueUnits().map(unit => (
                     <SelectItem key={unit} value={unit}>{unit}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={filterSaleType} onValueChange={setFilterSaleType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sale Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all-types">All Types</SelectItem>
+                  <SelectItem value="local">Local</SelectItem>
+                  <SelectItem value="away">Away</SelectItem>
                 </SelectContent>
               </Select>
               
@@ -885,9 +935,14 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   if (displayItems.length === 0) return null;
                   
                   return (
-                    <TableRow key={sale.id}>
+                    <TableRow key={sale.id} className={sale.saleType === 'away' ? 'bg-orange-50' : ''}>
                       <TableCell>{new Date(sale.date).toLocaleDateString()}</TableCell>
-                      <TableCell>{sale.customerName}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {sale.customerName}
+                          {sale.saleType === 'away' && <Badge className="bg-orange-500 text-white text-xs">Away</Badge>}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="space-y-1">
                           {displayItems.map((item, index) => (

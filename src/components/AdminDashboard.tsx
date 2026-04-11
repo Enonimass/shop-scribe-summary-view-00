@@ -119,6 +119,7 @@ const AdminDashboard = () => {
           customer_name: transaction.customer_name,
           sale_date: transaction.sale_date,
           shop_id: transaction.shop_id,
+          sale_type: (transaction as any).sale_type || 'local',
           items: transaction.sales_items || []
         }));
         setSales(transformedSales);
@@ -144,6 +145,7 @@ const AdminDashboard = () => {
         customer_name: transaction.customer_name,
         sale_date: transaction.sale_date,
         shop_id: transaction.shop_id,
+        sale_type: (transaction as any).sale_type || 'local',
         items: transaction.sales_items || []
       }));
       setAllSales(transformed);

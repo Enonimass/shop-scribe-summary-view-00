@@ -50,7 +50,8 @@ const SellerDashboard = () => {
       items: allItems.filter(item => item.transaction_id === transaction.id),
       customerName: transaction.customer_name,
       date: transaction.sale_date,
-      shop_id: transaction.shop_id
+      shop_id: transaction.shop_id,
+      saleType: (transaction as any).sale_type || 'local'
     }));
 
     setAllSales(salesWithItems);
