@@ -934,9 +934,14 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   if (displayItems.length === 0) return null;
                   
                   return (
-                    <TableRow key={sale.id}>
+                    <TableRow key={sale.id} className={sale.saleType === 'away' ? 'bg-orange-50' : ''}>
                       <TableCell>{new Date(sale.date).toLocaleDateString()}</TableCell>
-                      <TableCell>{sale.customerName}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {sale.customerName}
+                          {sale.saleType === 'away' && <Badge className="bg-orange-500 text-white text-xs">Away</Badge>}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="space-y-1">
                           {displayItems.map((item, index) => (
