@@ -74,6 +74,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
+  const [filterSaleType, setFilterSaleType] = useState('all-types');
 
   // Get unique customers from existing sales
   const getUniqueCustomers = () => {
@@ -330,6 +331,10 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       if (dateFrom && sale.date < dateFrom) return false;
       if (dateTo && sale.date > dateTo) return false;
       
+      // Filter by sale type (local/away)
+      if (filterSaleType && filterSaleType !== 'all-types') {
+        if (sale.saleType !== filterSaleType) return false;
+      }
       return true;
     })
     .sort((a, b) => {
