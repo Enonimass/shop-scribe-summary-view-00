@@ -252,6 +252,7 @@ export type Database = {
           customer_name: string
           id: string
           sale_date: string
+          sale_type: string
           shop_id: string
           updated_at: string
         }
@@ -260,6 +261,7 @@ export type Database = {
           customer_name: string
           id?: string
           sale_date?: string
+          sale_type?: string
           shop_id: string
           updated_at?: string
         }
@@ -268,6 +270,7 @@ export type Database = {
           customer_name?: string
           id?: string
           sale_date?: string
+          sale_type?: string
           shop_id?: string
           updated_at?: string
         }

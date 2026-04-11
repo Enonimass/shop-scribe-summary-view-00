@@ -1,0 +1,1 @@
+ALTER TABLE public.sales_transactions ADD COLUMN sale_type text NOT NULL DEFAULT 'local';
