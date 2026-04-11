@@ -45,6 +45,7 @@ interface Sale {
   product?: string;
   quantity?: number;
   unit?: string;
+  saleType?: string;
 }
 
 const availableProducts = [
@@ -166,7 +167,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       id: transaction.id,
       items: (allItems || []).filter(item => item.transaction_id === transaction.id),
       customerName: transaction.customer_name,
-      date: transaction.sale_date
+      date: transaction.sale_date,
+      saleType: (transaction as any).sale_type || 'local'
     }));
 
     setSales(salesWithItems);
@@ -389,6 +391,15 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     return sum + toBagEquivalent(sale.quantity || 0, sale.unit || '');
   }, 0);
 
+  const awaySales = sales.filter(s => s.saleType === 'away').reduce((sum, sale) => {
+    if (sale.items) {
+      return sum + sale.items.reduce((itemSum, item) => itemSum + toBagEquivalent(item.quantity, item.unit), 0);
+    }
+    return sum + toBagEquivalent(sale.quantity || 0, sale.unit || '');
+  }, 0);
+
+  const localSales = totalSales - awaySales;
+
   // Group sales by date for timeline view
   const groupSalesByDate = () => {
     const grouped: { [date: string]: Sale[] } = {};
@@ -431,7 +442,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   return (
     <div className="space-y-6">
       {/* Header with Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-white/80 backdrop-blur-sm border-green-200">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -440,6 +451,28 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 <p className="text-2xl font-bold text-foreground">{formatBagEquivalent(totalSales)}</p>
               </div>
               <ShoppingCart className="h-8 w-8 text-green-awesome" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-green-200">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Local Sales</p>
+                <p className="text-2xl font-bold text-foreground">{formatBagEquivalent(localSales)}</p>
+              </div>
+              <ShoppingCart className="h-8 w-8 text-green-awesome" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-orange-200 border-2">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-orange-600">Away Sales</p>
+                <p className="text-2xl font-bold text-orange-600">{formatBagEquivalent(awaySales)}</p>
+              </div>
+              <ShoppingCart className="h-8 w-8 text-orange-500" />
             </div>
           </CardContent>
         </Card>
