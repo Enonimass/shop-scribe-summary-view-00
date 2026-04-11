@@ -665,6 +665,17 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   ))}
                 </SelectContent>
               </Select>
+
+              <Select value={filterSaleType} onValueChange={setFilterSaleType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sale Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all-types">All Types</SelectItem>
+                  <SelectItem value="local">Local</SelectItem>
+                  <SelectItem value="away">Away</SelectItem>
+                </SelectContent>
+              </Select>
               
               <Input
                 type="date"
