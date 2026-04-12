@@ -50,6 +50,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
   const [shopFilter, setShopFilter] = useState('all-combined');
   const [dbCategories, setDbCategories] = useState<Record<string, string[]>>({});
   const [useLogScale, setUseLogScale] = useState(false);
+  const [viewByCategory, setViewByCategory] = useState(false);
 
   // Comparison chart state
   const [compareProducts, setCompareProducts] = useState<string[]>([]);
@@ -125,10 +126,30 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     return items;
   }, [periodFilteredItems, categoryFilter, productFilter]);
 
-  // Unique products in filtered data
+  // Product to category mapping
+  const productToCategory = useMemo(() => {
+    const map: Record<string, string> = {};
+    Object.entries(dbCategories).forEach(([cat, products]) => {
+      products.forEach(p => { map[p] = cat; });
+    });
+    return map;
+  }, [dbCategories]);
+
+  // Get display key for an item (product name or category name)
+  const getDisplayKey = (product: string) => {
+    if (viewByCategory) {
+      return productToCategory[product] || 'Uncategorized';
+    }
+    return product;
+  };
+
+  // Unique products/categories in filtered data
   const uniqueProducts = useMemo(() => {
+    if (viewByCategory) {
+      return [...new Set(filteredItems.map(item => getDisplayKey(item.product)))].sort();
+    }
     return [...new Set(filteredItems.map(item => item.product))].sort();
-  }, [filteredItems]);
+  }, [filteredItems, viewByCategory, productToCategory]);
 
   // All unique products for filter dropdown
   const allUniqueProducts = useMemo(() => {
@@ -141,16 +162,17 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     return years.sort().reverse();
   }, [allItems]);
 
-  // Sales by product (bar chart)
+  // Sales by product/category (bar chart)
   const salesByProduct = useMemo(() => {
     const map: Record<string, number> = {};
     filteredItems.forEach(item => {
-      map[item.product] = (map[item.product] || 0) + Number(item.quantity);
+      const key = getDisplayKey(item.product);
+      map[key] = (map[key] || 0) + Number(item.quantity);
     });
     return Object.entries(map)
       .map(([product, quantity]) => ({ product, quantity }))
       .sort((a, b) => b.quantity - a.quantity);
-  }, [filteredItems]);
+  }, [filteredItems, viewByCategory, productToCategory]);
 
   // Sales trend over time (line chart) - with combined total
   const salesTrend = useMemo(() => {
@@ -164,7 +186,8 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
         key = item.sale_date;
       }
       if (!map[key]) map[key] = {};
-      map[key][item.product] = (map[key][item.product] || 0) + Number(item.quantity);
+      const displayKey = getDisplayKey(item.product);
+      map[key][displayKey] = (map[key][displayKey] || 0) + Number(item.quantity);
     });
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -178,7 +201,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
           Total: total,
         };
       });
-  }, [filteredItems, periodType]);
+  }, [filteredItems, periodType, viewByCategory, productToCategory]);
 
   // Per-shop comparison data
   const shopComparisonData = useMemo(() => {
@@ -509,6 +532,11 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            {/* View by Category toggle */}
+            <div className="flex items-center gap-2 pt-6">
+              <Label htmlFor="view-category" className="text-sm">View by Category</Label>
+              <Switch id="view-category" checked={viewByCategory} onCheckedChange={setViewByCategory} />
             </div>
               </div>
             </CardContent>
@@ -877,13 +905,13 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
       {/* Data Table */}
       <Card className="bg-card border-2 border-border">
         <CardHeader className="bg-muted/60">
-          <CardTitle className="text-lg">Product Sales Summary</CardTitle>
+          <CardTitle className="text-lg">{viewByCategory ? 'Category Sales Summary' : 'Product Sales Summary'}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted">
-                <TableHead className="font-bold">Product</TableHead>
+                <TableHead className="font-bold">{viewByCategory ? 'Category' : 'Product'}</TableHead>
                 <TableHead className="font-bold">Total Quantity</TableHead>
                 <TableHead className="font-bold">Transactions</TableHead>
                 <TableHead className="font-bold">Avg per Transaction</TableHead>
@@ -892,7 +920,9 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
             <TableBody>
               {salesByProduct.map(({ product, quantity }, idx) => {
                 const txCount = new Set(
-                  filteredItems.filter(i => i.product === product).map(i => i.sale_date + i.customer_name)
+                  filteredItems
+                    .filter(i => getDisplayKey(i.product) === product)
+                    .map(i => i.sale_date + i.customer_name)
                 ).size;
                 return (
                   <TableRow key={product} className={idx % 2 === 0 ? 'bg-muted/30' : ''}>
