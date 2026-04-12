@@ -186,7 +186,8 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
         key = item.sale_date;
       }
       if (!map[key]) map[key] = {};
-      map[key][item.product] = (map[key][item.product] || 0) + Number(item.quantity);
+      const displayKey = getDisplayKey(item.product);
+      map[key][displayKey] = (map[key][displayKey] || 0) + Number(item.quantity);
     });
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -200,7 +201,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
           Total: total,
         };
       });
-  }, [filteredItems, periodType]);
+  }, [filteredItems, periodType, viewByCategory, productToCategory]);
 
   // Per-shop comparison data
   const shopComparisonData = useMemo(() => {
