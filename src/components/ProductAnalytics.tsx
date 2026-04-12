@@ -126,10 +126,30 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     return items;
   }, [periodFilteredItems, categoryFilter, productFilter]);
 
-  // Unique products in filtered data
+  // Product to category mapping
+  const productToCategory = useMemo(() => {
+    const map: Record<string, string> = {};
+    Object.entries(dbCategories).forEach(([cat, products]) => {
+      products.forEach(p => { map[p] = cat; });
+    });
+    return map;
+  }, [dbCategories]);
+
+  // Get display key for an item (product name or category name)
+  const getDisplayKey = (product: string) => {
+    if (viewByCategory) {
+      return productToCategory[product] || 'Uncategorized';
+    }
+    return product;
+  };
+
+  // Unique products/categories in filtered data
   const uniqueProducts = useMemo(() => {
+    if (viewByCategory) {
+      return [...new Set(filteredItems.map(item => getDisplayKey(item.product)))].sort();
+    }
     return [...new Set(filteredItems.map(item => item.product))].sort();
-  }, [filteredItems]);
+  }, [filteredItems, viewByCategory, productToCategory]);
 
   // All unique products for filter dropdown
   const allUniqueProducts = useMemo(() => {
@@ -142,16 +162,17 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
     return years.sort().reverse();
   }, [allItems]);
 
-  // Sales by product (bar chart)
+  // Sales by product/category (bar chart)
   const salesByProduct = useMemo(() => {
     const map: Record<string, number> = {};
     filteredItems.forEach(item => {
-      map[item.product] = (map[item.product] || 0) + Number(item.quantity);
+      const key = getDisplayKey(item.product);
+      map[key] = (map[key] || 0) + Number(item.quantity);
     });
     return Object.entries(map)
       .map(([product, quantity]) => ({ product, quantity }))
       .sort((a, b) => b.quantity - a.quantity);
-  }, [filteredItems]);
+  }, [filteredItems, viewByCategory, productToCategory]);
 
   // Sales trend over time (line chart) - with combined total
   const salesTrend = useMemo(() => {
