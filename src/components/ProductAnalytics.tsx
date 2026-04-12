@@ -937,19 +937,6 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
           </Table>
         </CardContent>
       </Card>
-                return (
-                  <TableRow key={product} className={idx % 2 === 0 ? 'bg-muted/30' : ''}>
-                    <TableCell className="font-semibold">{product}</TableCell>
-                    <TableCell className="font-medium">{quantity.toLocaleString()}</TableCell>
-                    <TableCell>{txCount}</TableCell>
-                    <TableCell>{txCount > 0 ? (quantity / txCount).toFixed(1) : '0'}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
     </div>
   );
 };
