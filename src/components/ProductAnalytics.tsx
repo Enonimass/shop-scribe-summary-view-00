@@ -50,6 +50,7 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
   const [shopFilter, setShopFilter] = useState('all-combined');
   const [dbCategories, setDbCategories] = useState<Record<string, string[]>>({});
   const [useLogScale, setUseLogScale] = useState(false);
+  const [viewByCategory, setViewByCategory] = useState(false);
 
   // Comparison chart state
   const [compareProducts, setCompareProducts] = useState<string[]>([]);
