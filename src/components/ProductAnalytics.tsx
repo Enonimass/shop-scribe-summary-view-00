@@ -533,6 +533,11 @@ const ProductAnalytics: React.FC<ProductAnalyticsProps> = ({ sales, shops, selec
                 </SelectContent>
               </Select>
             </div>
+            {/* View by Category toggle */}
+            <div className="flex items-center gap-2 pt-6">
+              <Label htmlFor="view-category" className="text-sm">View by Category</Label>
+              <Switch id="view-category" checked={viewByCategory} onCheckedChange={setViewByCategory} />
+            </div>
               </div>
             </CardContent>
           </Card>
