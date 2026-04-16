@@ -12,6 +12,8 @@ import ExportButtons from './ExportButtons';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PeriodComparison from './PeriodComparison';
 
 const CHART_COLORS = [
   'hsl(142, 76%, 36%)', 'hsl(79, 81%, 56%)', 'hsl(200, 70%, 50%)',
@@ -208,6 +210,15 @@ const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({ sales, shops }) =
   customerDistribution.forEach(d => { pieConfig[d.name] = { label: d.name, color: d.color }; });
 
   return (
+    <Tabs defaultValue="analytics" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="analytics">Customer Analytics</TabsTrigger>
+        <TabsTrigger value="comparison">Period Comparison</TabsTrigger>
+      </TabsList>
+      <TabsContent value="comparison">
+        <PeriodComparison sales={sales} shops={shops} />
+      </TabsContent>
+      <TabsContent value="analytics">
     <div className="space-y-6">
       {/* Filters */}
       <Card>
@@ -506,6 +517,8 @@ const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({ sales, shops }) =
         </CardContent>
       </Card>
     </div>
+      </TabsContent>
+    </Tabs>
   );
 };
 
