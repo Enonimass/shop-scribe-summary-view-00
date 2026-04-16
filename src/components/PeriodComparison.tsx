@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, GitCompareArrows, ArrowLeftRight } from 'lucide-react';
+import { Plus, Trash2, GitCompareArrows, ArrowLeftRight, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import ExportButtons from './ExportButtons';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
@@ -41,8 +41,6 @@ const PeriodComparison: React.FC<PeriodComparisonProps> = ({ sales, shops }) => 
     { id: '2', label: 'Period 2', from: '', to: '' },
   ]);
   const [shopFilter, setShopFilter] = useState('all');
-  const [quickMonth, setQuickMonth] = useState('');
-  const [quickYear, setQuickYear] = useState(String(new Date().getFullYear()));
   const [quickWeekCount, setQuickWeekCount] = useState('2');
   const [quickMonthCount, setQuickMonthCount] = useState('3');
 
@@ -130,7 +128,6 @@ const PeriodComparison: React.FC<PeriodComparisonProps> = ({ sales, shops }) => 
 
   const validPeriods = periods.filter(p => p.from && p.to);
 
-  // Compute per-period customer data
   const comparisonData = useMemo(() => {
     if (validPeriods.length < 2) return null;
 
@@ -163,45 +160,76 @@ const PeriodComparison: React.FC<PeriodComparisonProps> = ({ sales, shops }) => 
       });
     });
 
-    // Build customer rows
+    // Build customer rows with difference columns
     const customerRows = [...allCustomerNames].map(name => {
       const row: any = { name };
       let totalBags = 0;
       let appearedIn = 0;
-      validPeriods.forEach(period => {
+
+      validPeriods.forEach((period, idx) => {
         const data = periodCustomers[period.id][name];
-        row[`bags_${period.id}`] = data ? Math.round(data.bags * 100) / 100 : 0;
+        const bags = data ? Math.round(data.bags * 100) / 100 : 0;
+        row[`bags_${period.id}`] = bags;
         row[`txn_${period.id}`] = data ? data.transactions : 0;
+
+        // Compute difference from previous period
+        if (idx > 0) {
+          const prevPeriod = validPeriods[idx - 1];
+          const prevBags = row[`bags_${prevPeriod.id}`] || 0;
+          const diff = Math.round((bags - prevBags) * 100) / 100;
+          row[`diff_${period.id}`] = diff;
+        }
+
         if (data) {
           totalBags += data.bags;
           appearedIn++;
         }
       });
+
       row.totalBags = Math.round(totalBags * 100) / 100;
       row.appearedIn = appearedIn;
-      row.isConsistent = appearedIn === validPeriods.length;
+
+      // Overall change: last period - first period
+      const firstBags = row[`bags_${validPeriods[0].id}`] || 0;
+      const lastBags = row[`bags_${validPeriods[validPeriods.length - 1].id}`] || 0;
+      row.overallChange = Math.round((lastBags - firstBags) * 100) / 100;
+
+      // Status based on last two periods
+      const lastP = validPeriods[validPeriods.length - 1];
+      const prevP = validPeriods[validPeriods.length - 2];
+      const inLast = (row[`bags_${lastP.id}`] || 0) > 0;
+      const inPrev = (row[`bags_${prevP.id}`] || 0) > 0;
+
+      if (inLast && inPrev) row.status = 'retained';
+      else if (!inLast && inPrev) row.status = 'lost';
+      else if (inLast && !inPrev) row.status = 'new';
+      else row.status = 'inactive';
+
       return row;
     }).sort((a, b) => b.totalBags - a.totalBags);
 
-    // Retention: who was in previous period but not latest
-    const lastPeriod = validPeriods[validPeriods.length - 1];
-    const prevPeriod = validPeriods[validPeriods.length - 2];
-    const lastCustomers = new Set(Object.keys(periodCustomers[lastPeriod.id]));
-    const prevCustomers = new Set(Object.keys(periodCustomers[prevPeriod.id]));
+    // Retention stats
+    const retained = customerRows.filter(r => r.status === 'retained');
+    const lost = customerRows.filter(r => r.status === 'lost');
+    const gained = customerRows.filter(r => r.status === 'new');
 
-    const retained = [...prevCustomers].filter(c => lastCustomers.has(c));
-    const lost = [...prevCustomers].filter(c => !lastCustomers.has(c));
-    const gained = [...lastCustomers].filter(c => !prevCustomers.has(c));
-
-    // Period totals
-    const periodTotals = validPeriods.map(period => {
+    // Period totals with differences
+    const periodTotals = validPeriods.map((period, idx) => {
       const customers = Object.keys(periodCustomers[period.id]);
       const totalBags = customers.reduce((sum, c) => sum + periodCustomers[period.id][c].bags, 0);
+      const roundedBags = Math.round(totalBags * 100) / 100;
+      let diff: number | null = null;
+      if (idx > 0) {
+        const prevCustomers = Object.keys(periodCustomers[validPeriods[idx - 1].id]);
+        const prevTotal = prevCustomers.reduce((sum, c) => sum + periodCustomers[validPeriods[idx - 1].id][c].bags, 0);
+        diff = Math.round((totalBags - prevTotal) * 100) / 100;
+      }
       return {
         label: period.label,
         customers: customers.length,
-        totalBags: Math.round(totalBags * 100) / 100,
-        color: PERIOD_COLORS[validPeriods.indexOf(period) % PERIOD_COLORS.length],
+        totalBags: roundedBags,
+        diff,
+        color: PERIOD_COLORS[idx % PERIOD_COLORS.length],
       };
     });
 
@@ -215,23 +243,40 @@ const PeriodComparison: React.FC<PeriodComparisonProps> = ({ sales, shops }) => 
 
   const getExportData = () => {
     if (!comparisonData) return { title: 'Period Comparison', headers: [], rows: [] };
-    const headers = ['Customer', ...validPeriods.map(p => `${p.label} (Bags)`), 'Total Bags', 'Periods Active', 'Consistent'];
-    const rows = comparisonData.customerRows.map((r: any) => [
-      r.name,
-      ...validPeriods.map(p => r[`bags_${p.id}`]),
-      r.totalBags,
-      r.appearedIn,
-      r.isConsistent ? 'Yes' : 'No',
-    ]);
-    const summary: Record<string, string | number> = {};
-    comparisonData.periodTotals.forEach(pt => {
-      summary[`${pt.label} Customers`] = pt.customers;
-      summary[`${pt.label} Total Bags`] = pt.totalBags;
+    // Build headers: Customer | P1 Bags | Δ P1→P2 | P2 Bags | Δ P2→P3 | ... | Total | Change | Status
+    const headers: string[] = ['Customer'];
+    validPeriods.forEach((p, idx) => {
+      headers.push(`${p.label} (Bags)`);
+      if (idx > 0) headers.push(`Δ ${validPeriods[idx - 1].label}→${p.label}`);
     });
-    summary['Retained (last 2)'] = comparisonData.retained.length;
-    summary['Lost (last 2)'] = comparisonData.lost.length;
-    summary['Gained (last 2)'] = comparisonData.gained.length;
+    headers.push('Total Bags', 'Overall Change', 'Status');
+
+    const rows = comparisonData.customerRows.map((r: any) => {
+      const row: (string | number)[] = [r.name];
+      validPeriods.forEach((p, idx) => {
+        row.push(r[`bags_${p.id}`]);
+        if (idx > 0) row.push(r[`diff_${p.id}`]);
+      });
+      row.push(r.totalBags, r.overallChange, r.status);
+      return row;
+    });
+
+    const summary: Record<string, string | number> = {};
+    comparisonData.periodTotals.forEach((pt, idx) => {
+      summary[`${pt.label} Total Bags`] = pt.totalBags;
+      summary[`${pt.label} Customers`] = pt.customers;
+      if (pt.diff !== null) summary[`Δ to ${pt.label}`] = pt.diff;
+    });
+    summary['Retained'] = comparisonData.retained.length;
+    summary['Lost'] = comparisonData.lost.length;
+    summary['New'] = comparisonData.gained.length;
     return { title: 'Period Comparison Report', headers, rows, summary };
+  };
+
+  const DiffBadge = ({ value }: { value: number }) => {
+    if (value > 0) return <span className="text-green-awesome font-semibold flex items-center gap-0.5 text-xs"><TrendingUp className="h-3 w-3" />+{value}</span>;
+    if (value < 0) return <span className="text-destructive font-semibold flex items-center gap-0.5 text-xs"><TrendingDown className="h-3 w-3" />{value}</span>;
+    return <span className="text-muted-foreground flex items-center gap-0.5 text-xs"><Minus className="h-3 w-3" />0</span>;
   };
 
   return (
@@ -326,7 +371,7 @@ const PeriodComparison: React.FC<PeriodComparisonProps> = ({ sales, shops }) => 
 
       {comparisonData && (
         <>
-          {/* Summary cards */}
+          {/* Summary cards with differences */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {comparisonData.periodTotals.map((pt, i) => (
               <Card key={i} style={{ borderTopColor: pt.color, borderTopWidth: '3px' }}>
@@ -334,6 +379,11 @@ const PeriodComparison: React.FC<PeriodComparisonProps> = ({ sales, shops }) => 
                   <p className="text-xs font-medium text-muted-foreground truncate">{pt.label}</p>
                   <p className="text-xl font-bold">{pt.totalBags} <span className="text-xs font-normal text-muted-foreground">bags</span></p>
                   <p className="text-xs text-muted-foreground">{pt.customers} customers</p>
+                  {pt.diff !== null && (
+                    <div className="mt-1">
+                      <DiffBadge value={pt.diff} />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -351,9 +401,16 @@ const PeriodComparison: React.FC<PeriodComparisonProps> = ({ sales, shops }) => 
                 <p className="text-xs text-muted-foreground">didn't return</p>
               </CardContent>
             </Card>
+            <Card className="border-blue-500/30">
+              <CardContent className="pt-4 pb-3 px-3">
+                <p className="text-xs font-medium text-muted-foreground">New</p>
+                <p className="text-xl font-bold text-blue-500">{comparisonData.gained.length}</p>
+                <p className="text-xs text-muted-foreground">first appeared</p>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Bar chart comparing period totals */}
+          {/* Bar chart */}
           <Card>
             <CardHeader><CardTitle className="text-lg">Period Totals</CardTitle></CardHeader>
             <CardContent>
@@ -373,9 +430,9 @@ const PeriodComparison: React.FC<PeriodComparisonProps> = ({ sales, shops }) => 
             </CardContent>
           </Card>
 
-          {/* Comparison table */}
+          {/* Comparison table with difference columns */}
           <Card>
-            <CardHeader><CardTitle className="text-lg">Customer Comparison</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-lg">Customer Comparison — Differences Between Periods</CardTitle></CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <Table>
@@ -383,34 +440,47 @@ const PeriodComparison: React.FC<PeriodComparisonProps> = ({ sales, shops }) => 
                     <TableRow>
                       <TableHead>Customer</TableHead>
                       {validPeriods.map((p, i) => (
-                        <TableHead key={p.id} style={{ color: PERIOD_COLORS[i % PERIOD_COLORS.length] }}>{p.label}</TableHead>
+                        <React.Fragment key={p.id}>
+                          <TableHead style={{ color: PERIOD_COLORS[i % PERIOD_COLORS.length] }}>{p.label}</TableHead>
+                          {i > 0 && (
+                            <TableHead className="text-center text-xs">Δ</TableHead>
+                          )}
+                        </React.Fragment>
                       ))}
                       <TableHead>Total</TableHead>
+                      <TableHead>Overall Δ</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {comparisonData.customerRows.map((row: any) => (
-                      <TableRow key={row.name}>
+                      <TableRow key={row.name} className={row.status === 'lost' ? 'bg-destructive/5' : row.status === 'new' ? 'bg-blue-500/5' : ''}>
                         <TableCell className="font-medium">{row.name}</TableCell>
-                        {validPeriods.map(p => (
-                          <TableCell key={p.id}>
-                            {row[`bags_${p.id}`] > 0 ? (
-                              <span>{row[`bags_${p.id}`]} <span className="text-xs text-muted-foreground">({row[`txn_${p.id}`]})</span></span>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
+                        {validPeriods.map((p, idx) => (
+                          <React.Fragment key={p.id}>
+                            <TableCell>
+                              {row[`bags_${p.id}`] > 0 ? (
+                                <span>{row[`bags_${p.id}`]} <span className="text-xs text-muted-foreground">({row[`txn_${p.id}`]})</span></span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            {idx > 0 && (
+                              <TableCell className="text-center">
+                                <DiffBadge value={row[`diff_${p.id}`]} />
+                              </TableCell>
                             )}
-                          </TableCell>
+                          </React.Fragment>
                         ))}
                         <TableCell className="font-bold">{row.totalBags}</TableCell>
                         <TableCell>
-                          {row.isConsistent ? (
-                            <Badge className="bg-green-awesome text-green-awesome-foreground">Consistent</Badge>
-                          ) : row.appearedIn === 1 ? (
-                            <Badge variant="outline">Single period</Badge>
-                          ) : (
-                            <Badge variant="secondary">{row.appearedIn}/{validPeriods.length} periods</Badge>
-                          )}
+                          <DiffBadge value={row.overallChange} />
+                        </TableCell>
+                        <TableCell>
+                          {row.status === 'retained' && <Badge className="bg-green-awesome text-green-awesome-foreground">Retained</Badge>}
+                          {row.status === 'lost' && <Badge variant="destructive">Lost</Badge>}
+                          {row.status === 'new' && <Badge className="bg-blue-500 text-white">New</Badge>}
+                          {row.status === 'inactive' && <Badge variant="outline">Inactive</Badge>}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -423,28 +493,28 @@ const PeriodComparison: React.FC<PeriodComparisonProps> = ({ sales, shops }) => 
           {/* Retention details */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-green-awesome">Retained Customers ({comparisonData.retained.length})</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm text-green-awesome">Retained ({comparisonData.retained.length})</CardTitle></CardHeader>
               <CardContent>
                 <div className="max-h-[200px] overflow-y-auto space-y-1">
-                  {comparisonData.retained.map(c => <p key={c} className="text-sm">{c}</p>)}
+                  {comparisonData.retained.map((r: any) => <p key={r.name} className="text-sm">{r.name}</p>)}
                   {comparisonData.retained.length === 0 && <p className="text-sm text-muted-foreground">None</p>}
                 </div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-destructive">Lost Customers ({comparisonData.lost.length})</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm text-destructive">Lost ({comparisonData.lost.length})</CardTitle></CardHeader>
               <CardContent>
                 <div className="max-h-[200px] overflow-y-auto space-y-1">
-                  {comparisonData.lost.map(c => <p key={c} className="text-sm">{c}</p>)}
+                  {comparisonData.lost.map((r: any) => <p key={r.name} className="text-sm">{r.name}</p>)}
                   {comparisonData.lost.length === 0 && <p className="text-sm text-muted-foreground">None</p>}
                 </div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-blue-600">New Customers ({comparisonData.gained.length})</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm text-blue-500">New ({comparisonData.gained.length})</CardTitle></CardHeader>
               <CardContent>
                 <div className="max-h-[200px] overflow-y-auto space-y-1">
-                  {comparisonData.gained.map(c => <p key={c} className="text-sm">{c}</p>)}
+                  {comparisonData.gained.map((r: any) => <p key={r.name} className="text-sm">{r.name}</p>)}
                   {comparisonData.gained.length === 0 && <p className="text-sm text-muted-foreground">None</p>}
                 </div>
               </CardContent>
@@ -458,7 +528,7 @@ const PeriodComparison: React.FC<PeriodComparisonProps> = ({ sales, shops }) => 
           <CardContent className="py-12 text-center text-muted-foreground">
             <ArrowLeftRight className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p className="text-lg font-medium">Set at least 2 periods with dates to compare</p>
-            <p className="text-sm">Use the quick setup options or manually enter date ranges above</p>
+            <p className="text-sm">Use the quick setup or manually enter date ranges — add unlimited periods</p>
           </CardContent>
         </Card>
       )}
