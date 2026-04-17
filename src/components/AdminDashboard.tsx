@@ -405,7 +405,36 @@ const AdminDashboard = () => {
                   <CardHeader>
                     <div className="flex justify-between items-center">
                       <CardTitle>Sales Data</CardTitle>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap items-center">
+                        <ExportButtons
+                          filename={`admin-sales-${selectedShop}-${new Date().toISOString().split('T')[0]}`}
+                          getData={() => ({
+                            title: 'Sales Report',
+                            headers: ['Date', 'Customer', 'Shop', 'Type', 'Product', 'Quantity', 'Unit'],
+                            rows: filteredAndSortedSales.flatMap((sale: any) =>
+                              (sale.items || [])
+                                .filter((item: any) => {
+                                  const okP = filterProduct === 'all-products' || item.product === filterProduct;
+                                  const okU = filterUnit === 'all-units' || item.unit === filterUnit;
+                                  return okP && okU;
+                                })
+                                .map((item: any) => [
+                                  new Date(sale.sale_date).toLocaleDateString(),
+                                  sale.customer_name || '',
+                                  sale.shop_id,
+                                  sale.sale_type || 'local',
+                                  item.product,
+                                  item.quantity,
+                                  item.unit,
+                                ])
+                            ),
+                            summary: {
+                              'Total Transactions': filteredAndSortedSales.length,
+                              'Total Quantity (filtered)': filteredTotalQuantity,
+                              'Shop': selectedShop,
+                            },
+                          })}
+                        />
                         <Button
                           variant={viewMode === 'table' ? 'default' : 'outline'}
                           size="sm"
