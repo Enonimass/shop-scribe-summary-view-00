@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { Users, Search, Edit, Phone, MapPin, Calendar, UserCheck, UserX, Skull } from 'lucide-react';
+import { Users, Search, Edit, Phone, MapPin, Calendar, UserCheck, UserX, Moon } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -102,17 +102,17 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
     setLoading(false);
   };
 
-  const getCustomerStatus = (customer: Customer): 'active' | 'inactive' | 'new' | 'dead' => {
-    // Manual dead status takes priority
-    if (customer.status === 'dead') return 'dead';
-    
+  const getCustomerStatus = (customer: Customer): 'active' | 'inactive' | 'new' | 'dormant' => {
+    // Manual dormant status takes priority (back-compat: 'dead' value is treated as 'dormant')
+    if (customer.status === 'dormant' || customer.status === 'dead') return 'dormant';
+
     if (!customer.last_purchase_date) return 'inactive';
     const lastPurchase = new Date(customer.last_purchase_date);
     const now = new Date();
     const daysSinceLast = Math.floor((now.getTime() - lastPurchase.getTime()) / (1000 * 60 * 60 * 24));
 
-    // Auto-dead: 90+ days inactive
-    if (daysSinceLast > 90) return 'dead';
+    // Auto-dormant: 90+ days inactive
+    if (daysSinceLast > 90) return 'dormant';
 
     if (!customer.first_purchase_date) return 'inactive';
     const firstPurchase = new Date(customer.first_purchase_date);
@@ -139,7 +139,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
 
   const statusCounts = useMemo(() => {
     const shopFiltered = customers.filter(c => shopFilter === 'all' || c.shop_id === shopFilter);
-    const counts = { total: shopFiltered.length, active: 0, inactive: 0, new: 0, current: 0, dead: 0 };
+    const counts = { total: shopFiltered.length, active: 0, inactive: 0, new: 0, current: 0, dormant: 0 };
     shopFiltered.forEach(c => {
       const status = getCustomerStatus(c);
       counts[status]++;
@@ -160,7 +160,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
     const { error } = await supabase.from('customers').update({
       phone: editPhone || null,
       place: editPlace || null,
-      status: editStatus === 'dead' ? 'dead' : 'active',
+      status: editStatus === 'dormant' ? 'dormant' : 'active',
     } as any).eq('id', editingCustomer.id);
 
     if (error) {
@@ -172,8 +172,8 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
     }
   };
 
-  const handleMarkDead = async (customer: Customer) => {
-    const newStatus = getCustomerStatus(customer) === 'dead' ? 'active' : 'dead';
+  const handleMarkDormant = async (customer: Customer) => {
+    const newStatus = getCustomerStatus(customer) === 'dormant' ? 'active' : 'dormant';
     await supabase.from('customers').update({ status: newStatus } as any).eq('id', customer.id);
     toast({ title: 'Updated', description: `${customer.name} marked as ${newStatus}` });
     fetchCustomers();
@@ -187,7 +187,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
       case 'active': return <Badge className="bg-green-600 text-white">Active</Badge>;
       case 'new': return <Badge className="bg-blue-600 text-white">New</Badge>;
       case 'inactive': return <Badge variant="destructive">Inactive</Badge>;
-      case 'dead': return <Badge className="bg-gray-600 text-white">Dead</Badge>;
+      case 'dormant': return <Badge className="bg-gray-600 text-white">Dormant</Badge>;
     }
   };
 
@@ -201,7 +201,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
           { label: 'New', count: statusCounts.new, filter: 'new', icon: UserCheck, color: 'text-blue-600' },
           { label: 'Current', count: statusCounts.current, filter: 'current', icon: UserCheck, color: 'text-green-600' },
           { label: 'Inactive', count: statusCounts.inactive, filter: 'inactive', icon: UserX, color: 'text-destructive' },
-          { label: 'Dead', count: statusCounts.dead, filter: 'dead', icon: Skull, color: 'text-gray-500' },
+          { label: 'Dormant', count: statusCounts.dormant, filter: 'dormant', icon: Moon, color: 'text-gray-500' },
         ].map(item => (
           <Card
             key={item.label}
@@ -254,7 +254,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
                   <SelectItem value="new">New</SelectItem>
                   <SelectItem value="current">Current (Active + New)</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="dead">Dead</SelectItem>
+                  <SelectItem value="dormant">Dormant</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -292,7 +292,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
                 </TableHeader>
                 <TableBody>
                   {filteredCustomers.map(customer => (
-                    <TableRow key={customer.id} className={getCustomerStatus(customer) === 'dead' ? 'opacity-60' : ''}>
+                    <TableRow key={customer.id} className={getCustomerStatus(customer) === 'dormant' ? 'opacity-60' : ''}>
                       <TableCell className="font-medium">{customer.name}</TableCell>
                       <TableCell>
                         {customer.phone ? (
@@ -329,11 +329,11 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
                           </Button>
                           <Button
                             size="sm"
-                            variant={getCustomerStatus(customer) === 'dead' ? 'secondary' : 'ghost'}
-                            onClick={() => handleMarkDead(customer)}
-                            title={getCustomerStatus(customer) === 'dead' ? 'Revive customer' : 'Mark as dead'}
+                            variant={getCustomerStatus(customer) === 'dormant' ? 'secondary' : 'ghost'}
+                            onClick={() => handleMarkDormant(customer)}
+                            title={getCustomerStatus(customer) === 'dormant' ? 'Reactivate customer' : 'Mark as dormant'}
                           >
-                            <Skull className="h-3 w-3" />
+                            <Moon className="h-3 w-3" />
                           </Button>
                         </div>
                       </TableCell>
@@ -367,7 +367,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="dead">Dead (Can't sell to anymore)</SelectItem>
+                  <SelectItem value="dormant">Dormant (Inactive long-term)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
