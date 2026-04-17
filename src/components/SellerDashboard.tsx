@@ -8,7 +8,8 @@ import SalesTab from './SalesTab';
 import ProductAnalytics from './ProductAnalytics';
 import CustomerAnalytics from './CustomerAnalytics';
 import CustomerManagement from './CustomerManagement';
-import { LogOut, Store, User, UserCheck, BrainCircuit } from 'lucide-react';
+import DeliveryNoteManager from './logistics/DeliveryNoteManager';
+import { LogOut, Store, User, UserCheck, BrainCircuit, Truck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const SellerDashboard = () => {
@@ -105,6 +106,9 @@ const SellerDashboard = () => {
         <Tabs defaultValue="inventory" className="space-y-6">
           <TabsList className="flex flex-wrap w-full gap-1 h-auto p-1 bg-white/80 backdrop-blur-sm">
             <TabsTrigger value="inventory" className="text-xs sm:text-sm">Inventory</TabsTrigger>
+            <TabsTrigger value="deliveries" className="text-xs sm:text-sm flex items-center gap-1">
+              <Truck className="h-3 w-3" /> Deliveries
+            </TabsTrigger>
             <TabsTrigger value="sales" className="text-xs sm:text-sm">Sales</TabsTrigger>
             <TabsTrigger value="customers" className="text-xs sm:text-sm">Customers</TabsTrigger>
             <TabsTrigger value="product-analytics" className="text-xs sm:text-sm">Product Analytics</TabsTrigger>
