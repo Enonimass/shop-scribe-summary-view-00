@@ -56,6 +56,98 @@ export type Database = {
         }
         Relationships: []
       }
+      delivery_note_items: {
+        Row: {
+          created_at: string
+          delivery_note_id: string
+          id: string
+          product: string
+          quantity: number
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_note_id: string
+          id?: string
+          product: string
+          quantity: number
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          delivery_note_id?: string
+          id?: string
+          product?: string
+          quantity?: number
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_note_items_delivery_note_id_fkey"
+            columns: ["delivery_note_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_notes: {
+        Row: {
+          added_to_inventory_at: string | null
+          created_at: string
+          created_by: string | null
+          delivered_by: string
+          delivery_date: string
+          delivery_note_no: string
+          id: string
+          logistics_confirmed_at: string | null
+          logistics_confirmed_by: string | null
+          notes: string | null
+          seller_confirmed_at: string | null
+          seller_confirmed_by: string | null
+          shop_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          added_to_inventory_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          delivered_by: string
+          delivery_date?: string
+          delivery_note_no: string
+          id?: string
+          logistics_confirmed_at?: string | null
+          logistics_confirmed_by?: string | null
+          notes?: string | null
+          seller_confirmed_at?: string | null
+          seller_confirmed_by?: string | null
+          shop_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          added_to_inventory_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          delivered_by?: string
+          delivery_date?: string
+          delivery_note_no?: string
+          id?: string
+          logistics_confirmed_at?: string | null
+          logistics_confirmed_by?: string | null
+          notes?: string | null
+          seller_confirmed_at?: string | null
+          seller_confirmed_by?: string | null
+          shop_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       inventory: {
         Row: {
           created_at: string
