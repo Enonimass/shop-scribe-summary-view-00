@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 interface UserProfile {
   id: string;
   username: string;
-  role: 'seller' | 'admin';
+  role: 'seller' | 'admin' | 'logistics';
   display_name: string;
   shop_id?: string;
   shop_name?: string;
