@@ -119,6 +119,14 @@ const SellerDashboard = () => {
             <InventoryTab shopId={shopId} />
           </TabsContent>
 
+          <TabsContent value="deliveries">
+            <DeliveryNoteManager
+              shops={[{ shop_id: shopId, shop_name: profile?.shop_name || '' }]}
+              scopedShopId={shopId}
+              canCreate={false}
+            />
+          </TabsContent>
+
           <TabsContent value="sales">
             <SalesTab shopId={shopId} />
           </TabsContent>

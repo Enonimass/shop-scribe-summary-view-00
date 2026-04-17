@@ -232,13 +232,7 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
             onConvert={fetchInventory}
             shopId={shopId}
           />
-          <Button 
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="flex items-center space-x-2"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Stock</span>
-          </Button>
+          {/* Manual stock add disabled for sellers — use Delivery Notes instead */}
         </div>
       </div>
 
