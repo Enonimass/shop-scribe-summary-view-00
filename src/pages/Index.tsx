@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from '../components/AuthProvider';
 import LoginForm from '../components/LoginForm';
 import SellerDashboard from '../components/SellerDashboard';
 import AdminDashboard from '../components/AdminDashboard';
+import LogisticsDashboard from '../components/LogisticsDashboard';
 
 const AppContent = () => {
   const { profile, isAuthenticated, loading } = useAuth();
@@ -18,6 +19,10 @@ const AppContent = () => {
 
   if (profile?.role === 'admin') {
     return <AdminDashboard />;
+  }
+
+  if (profile?.role === 'logistics') {
+    return <LogisticsDashboard />;
   }
 
   return <SellerDashboard />;

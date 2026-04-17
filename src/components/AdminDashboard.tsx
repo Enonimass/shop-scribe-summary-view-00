@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart, TrendingUp, Tag, UserCheck, BrainCircuit } from 'lucide-react';
+import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart, TrendingUp, Tag, UserCheck, BrainCircuit, Truck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import UserManagement from './UserManagement';
 import AdminTableEditor from './AdminTableEditor';
@@ -14,6 +14,7 @@ import ProductAnalytics from './ProductAnalytics';
 import CustomerAnalytics from './CustomerAnalytics';
 import CustomerManagement from './CustomerManagement';
 import CategoryManagement from './CategoryManagement';
+import ExportButtons from './ExportButtons';
 import { Label } from '@/components/ui/label';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
 
@@ -73,57 +74,69 @@ const AdminDashboard = () => {
     }
   };
 
+  // Chunked fetch helper to bypass Supabase 1000-row limit on join queries.
+  // We page through sales_transactions, then fetch sales_items in chunks of 200 transaction IDs.
+  const fetchSalesTransactionsAll = async (shopFilter?: string) => {
+    const pageSize = 1000;
+    let from = 0;
+    const allTx: any[] = [];
+    while (true) {
+      let q = supabase
+        .from('sales_transactions')
+        .select('*')
+        .order('sale_date', { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (shopFilter && shopFilter !== 'all') q = q.eq('shop_id', shopFilter);
+      const { data, error } = await q;
+      if (error) { console.error('tx fetch error', error); break; }
+      const batch = data || [];
+      allTx.push(...batch);
+      if (batch.length < pageSize) break;
+      from += pageSize;
+    }
+
+    const txIds = allTx.map(t => t.id);
+    const itemsMap: Record<string, any[]> = {};
+    const chunkSize = 200;
+    for (let i = 0; i < txIds.length; i += chunkSize) {
+      const chunk = txIds.slice(i, i + chunkSize);
+      const { data: items, error } = await supabase
+        .from('sales_items')
+        .select('*')
+        .in('transaction_id', chunk);
+      if (error) { console.error('items fetch error', error); continue; }
+      (items || []).forEach(it => {
+        if (!itemsMap[it.transaction_id]) itemsMap[it.transaction_id] = [];
+        itemsMap[it.transaction_id].push(it);
+      });
+    }
+
+    return allTx.map(transaction => ({
+      id: transaction.id,
+      customer_name: transaction.customer_name,
+      sale_date: transaction.sale_date,
+      shop_id: transaction.shop_id,
+      sale_type: (transaction as any).sale_type || 'local',
+      items: itemsMap[transaction.id] || [],
+    }));
+  };
+
   const fetchShopData = async () => {
     if (!selectedShop) return;
-
     try {
       let inventoryQuery;
-      let salesTransactionsQuery;
-
       if (selectedShop === 'all') {
-        // Fetch all data across all shops
         inventoryQuery = supabase.from('inventory').select('*');
-        salesTransactionsQuery = supabase
-          .from('sales_transactions')
-          .select('*, sales_items(*)');
       } else {
-        // Fetch data for specific shop
-        inventoryQuery = supabase
-          .from('inventory')
-          .select('*')
-          .eq('shop_id', selectedShop);
-        
-        salesTransactionsQuery = supabase
-          .from('sales_transactions')
-          .select('*, sales_items(*)')
-          .eq('shop_id', selectedShop);
+        inventoryQuery = supabase.from('inventory').select('*').eq('shop_id', selectedShop);
       }
-
-      const [inventoryResult, salesResult] = await Promise.all([
+      const [inventoryResult, transformedSales] = await Promise.all([
         inventoryQuery,
-        salesTransactionsQuery
+        fetchSalesTransactionsAll(selectedShop),
       ]);
-
-      if (inventoryResult.error) {
-        console.error('Error fetching inventory:', inventoryResult.error);
-      } else {
-        setInventory(inventoryResult.data || []);
-      }
-
-      if (salesResult.error) {
-        console.error('Error fetching sales:', salesResult.error);
-      } else {
-        // Transform the data to match the expected format
-        const transformedSales = (salesResult.data || []).map(transaction => ({
-          id: transaction.id,
-          customer_name: transaction.customer_name,
-          sale_date: transaction.sale_date,
-          shop_id: transaction.shop_id,
-          sale_type: (transaction as any).sale_type || 'local',
-          items: transaction.sales_items || []
-        }));
-        setSales(transformedSales);
-      }
+      if (inventoryResult.error) console.error('Error fetching inventory:', inventoryResult.error);
+      else setInventory(inventoryResult.data || []);
+      setSales(transformedSales);
     } catch (error) {
       console.error('Error fetching shop data:', error);
     }
@@ -131,23 +144,7 @@ const AdminDashboard = () => {
 
   const fetchAllSales = async () => {
     try {
-      const { data, error } = await supabase
-        .from('sales_transactions')
-        .select('*, sales_items(*)');
-      
-      if (error) {
-        console.error('Error fetching all sales:', error);
-        return;
-      }
-      
-      const transformed = (data || []).map(transaction => ({
-        id: transaction.id,
-        customer_name: transaction.customer_name,
-        sale_date: transaction.sale_date,
-        shop_id: transaction.shop_id,
-        sale_type: (transaction as any).sale_type || 'local',
-        items: transaction.sales_items || []
-      }));
+      const transformed = await fetchSalesTransactionsAll();
       setAllSales(transformed);
     } catch (error) {
       console.error('Error fetching all sales:', error);
@@ -408,7 +405,36 @@ const AdminDashboard = () => {
                   <CardHeader>
                     <div className="flex justify-between items-center">
                       <CardTitle>Sales Data</CardTitle>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap items-center">
+                        <ExportButtons
+                          filename={`admin-sales-${selectedShop}-${new Date().toISOString().split('T')[0]}`}
+                          getData={() => ({
+                            title: 'Sales Report',
+                            headers: ['Date', 'Customer', 'Shop', 'Type', 'Product', 'Quantity', 'Unit'],
+                            rows: filteredAndSortedSales.flatMap((sale: any) =>
+                              (sale.items || [])
+                                .filter((item: any) => {
+                                  const okP = filterProduct === 'all-products' || item.product === filterProduct;
+                                  const okU = filterUnit === 'all-units' || item.unit === filterUnit;
+                                  return okP && okU;
+                                })
+                                .map((item: any) => [
+                                  new Date(sale.sale_date).toLocaleDateString(),
+                                  sale.customer_name || '',
+                                  sale.shop_id,
+                                  sale.sale_type || 'local',
+                                  item.product,
+                                  item.quantity,
+                                  item.unit,
+                                ])
+                            ),
+                            summary: {
+                              'Total Transactions': filteredAndSortedSales.length,
+                              'Total Quantity (filtered)': filteredTotalQuantity,
+                              'Shop': selectedShop,
+                            },
+                          })}
+                        />
                         <Button
                           variant={viewMode === 'table' ? 'default' : 'outline'}
                           size="sm"
