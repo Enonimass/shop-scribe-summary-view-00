@@ -894,8 +894,9 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                         value={item.product && item.unit ? `${item.product}|${item.unit}` : ''} 
                         onValueChange={(value) => {
                           const [product, unit] = value.split('|');
+                          const price = lookupPrice(product, unit);
                           setSaleItems(saleItems.map((sItem, i) => 
-                            i === index ? { ...sItem, product, unit } : sItem
+                            i === index ? { ...sItem, product, unit, unit_price: price, original_price: price, price_overridden: false } : sItem
                           ));
                         }}
                       >
@@ -922,6 +923,28 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                         step="0.1"
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label>Unit Price</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={item.unit_price ?? ''}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value) || 0;
+                          setSaleItems(saleItems.map((s, i) => i === index ? { ...s, unit_price: v, price_overridden: v !== (s.original_price ?? lookupPrice(s.product, s.unit)) } : s));
+                        }}
+                        placeholder="Price"
+                      />
+                      {item.price_overridden && (
+                        <p className="text-xs text-orange-600">Special price (default {item.original_price ?? lookupPrice(item.product, item.unit)})</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Line Total</Label>
+                      <div className="h-10 flex items-center px-3 rounded-md border bg-muted/30 text-sm font-medium">
+                        {(Number(item.unit_price ?? 0) * Number(item.quantity || 0)).toLocaleString()}
+                      </div>
+                    </div>
                     <div className="flex items-end">
                       {saleItems.length > 1 && (
                         <Button 
@@ -936,6 +959,30 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/20">
+                <div className="space-y-2">
+                  <Label>Payment Method</Label>
+                  <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
+                    <SelectTrigger><SelectValue placeholder="Method" /></SelectTrigger>
+                    <SelectContent>
+                      {paymentMethods.map(m => (
+                        <SelectItem key={m.id} value={m.id}>{m.name}{m.kind === 'credit' ? ' (Credit)' : ''}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Amount Paid {(() => { const m = paymentMethods.find(x => x.id === paymentMethodId); return m?.kind === 'credit' ? '(optional, for partial)' : '(blank = full)'; })()}</Label>
+                  <Input type="number" step="0.01" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} placeholder="Amount received" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total</Label>
+                  <div className="h-10 flex items-center px-3 rounded-md border bg-background text-sm font-bold">
+                    {saleItems.reduce((s, it) => s + Number(it.unit_price ?? 0) * Number(it.quantity || 0), 0).toLocaleString()}
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end space-x-2">
