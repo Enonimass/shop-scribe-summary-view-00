@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart, TrendingUp, Tag, UserCheck, BrainCircuit, Truck } from 'lucide-react';
+import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart, TrendingUp, Tag, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart, DollarSign } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import UserManagement from './UserManagement';
 import AdminTableEditor from './AdminTableEditor';
@@ -15,6 +15,9 @@ import CustomerAnalytics from './CustomerAnalytics';
 import CustomerManagement from './CustomerManagement';
 import CategoryManagement from './CategoryManagement';
 import ExportButtons from './ExportButtons';
+import PaymentMethodManager from './money/PaymentMethodManager';
+import PriceManager from './money/PriceManager';
+import DailyReport from './money/DailyReport';
 import { Label } from '@/components/ui/label';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
 
@@ -395,6 +398,18 @@ const AdminDashboard = () => {
             <TabsTrigger value="manage" className="flex items-center gap-1 text-xs sm:text-sm">
               <Store className="h-3 w-3 sm:h-4 sm:w-4" />
               Tables
+            </TabsTrigger>
+            <TabsTrigger value="pricing" className="flex items-center gap-1 text-xs sm:text-sm">
+              <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
+              Pricing
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
+              Payments
+            </TabsTrigger>
+            <TabsTrigger value="daily-report" className="flex items-center gap-1 text-xs sm:text-sm">
+              <FileBarChart className="h-3 w-3 sm:h-4 sm:w-4" />
+              Daily
             </TabsTrigger>
           </TabsList>
 
@@ -799,6 +814,18 @@ const AdminDashboard = () => {
 
           <TabsContent value="manage">
             <AdminTableEditor />
+          </TabsContent>
+
+          <TabsContent value="pricing">
+            <PriceManager shops={shops} />
+          </TabsContent>
+
+          <TabsContent value="payments">
+            <PaymentMethodManager />
+          </TabsContent>
+
+          <TabsContent value="daily-report">
+            <DailyReport shops={shops} allowAll defaultShop={selectedShop || 'all'} />
           </TabsContent>
         </Tabs>
       </div>
