@@ -9,7 +9,9 @@ import ProductAnalytics from './ProductAnalytics';
 import CustomerAnalytics from './CustomerAnalytics';
 import CustomerManagement from './CustomerManagement';
 import DeliveryNoteManager from './logistics/DeliveryNoteManager';
-import { LogOut, Store, User, UserCheck, BrainCircuit, Truck } from 'lucide-react';
+import DebtPaymentForm from './money/DebtPaymentForm';
+import DailyReport from './money/DailyReport';
+import { LogOut, Store, User, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const SellerDashboard = () => {
@@ -113,6 +115,8 @@ const SellerDashboard = () => {
             <TabsTrigger value="customers" className="text-xs sm:text-sm">Customers</TabsTrigger>
             <TabsTrigger value="product-analytics" className="text-xs sm:text-sm">Product Analytics</TabsTrigger>
             <TabsTrigger value="customer-analytics" className="text-xs sm:text-sm">Customer Analytics</TabsTrigger>
+            <TabsTrigger value="debts" className="text-xs sm:text-sm flex items-center gap-1"><Wallet className="h-3 w-3" /> Debts</TabsTrigger>
+            <TabsTrigger value="daily-report" className="text-xs sm:text-sm flex items-center gap-1"><FileBarChart className="h-3 w-3" /> Daily Report</TabsTrigger>
           </TabsList>
 
           <TabsContent value="inventory">
@@ -148,6 +152,17 @@ const SellerDashboard = () => {
             <CustomerAnalytics 
               sales={allSales} 
               shops={[{ shop_id: shopId, shop_name: profile?.shop_name || '' }]}
+            />
+          </TabsContent>
+
+          <TabsContent value="debts">
+            <DebtPaymentForm shopId={shopId} />
+          </TabsContent>
+
+          <TabsContent value="daily-report">
+            <DailyReport
+              shops={[{ shop_id: shopId, shop_name: profile?.shop_name || '' }]}
+              defaultShop={shopId}
             />
           </TabsContent>
         </Tabs>

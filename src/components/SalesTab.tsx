@@ -35,6 +35,9 @@ interface SaleItem {
   product: string;
   quantity: number;
   unit: string;
+  unit_price?: number;
+  original_price?: number;
+  price_overridden?: boolean;
 }
 
 interface Sale {
@@ -67,6 +70,10 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([{ product: '', quantity: 0, unit: 'bags' }]);
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [paymentMethodId, setPaymentMethodId] = useState<string>('');
+  const [amountPaid, setAmountPaid] = useState<string>('');
+  const [productPrices, setProductPrices] = useState<any[]>([]);
   const [sortBy, setSortBy] = useState<'product' | 'customer' | 'date'>('date');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProduct, setFilterProduct] = useState('all-products');
@@ -89,6 +96,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     if (shopId) {
       fetchSales();
       fetchInventory();
+      fetchPaymentMethods();
+      fetchPrices();
     }
   }, [shopId]);
 
@@ -130,6 +139,21 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       setInventory(data || []);
     }
   };
+
+  const fetchPaymentMethods = async () => {
+    const { data } = await supabase.from('payment_methods').select('*').eq('is_active', true).order('name');
+    setPaymentMethods(data || []);
+    if (data && data.length && !paymentMethodId) setPaymentMethodId(data[0].id);
+  };
+
+  const fetchPrices = async () => {
+    if (!shopId) return;
+    const { data } = await supabase.from('product_prices').select('*').eq('shop_id', shopId);
+    setProductPrices(data || []);
+  };
+
+  const lookupPrice = (product: string, unit: string) =>
+    productPrices.find(p => p.product === product && p.unit === unit)?.price ?? 0;
 
   const fetchSales = async () => {
     if (!shopId) return;
@@ -201,6 +225,12 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     
     const validItems = saleItems.filter(item => item.product && item.quantity > 0);
     if (!customerName || validItems.length === 0) return;
+    if (!paymentMethodId) {
+      toast({ title: 'Select payment method', variant: 'destructive' });
+      return;
+    }
+    const method = paymentMethods.find(m => m.id === paymentMethodId);
+    const isCredit = method?.kind === 'credit';
 
     // Check inventory availability for each item - match both product AND unit
     for (const item of validItems) {
@@ -224,13 +254,20 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     }
 
     try {
+      const totalAmount = validItems.reduce((s, it) => s + (Number(it.unit_price ?? lookupPrice(it.product, it.unit)) * Number(it.quantity)), 0);
+      const paid = isCredit ? Number(amountPaid || 0) : (amountPaid ? Number(amountPaid) : totalAmount);
       // Create transaction
       const { data: transaction, error: transError } = await supabase
         .from('sales_transactions')
         .insert({
           shop_id: shopId,
           customer_name: customerName,
-          sale_date: saleDate
+          sale_date: saleDate,
+          payment_method_id: paymentMethodId,
+          payment_method_name: method?.name,
+          is_credit: isCredit,
+          total_amount: totalAmount,
+          amount_paid: paid,
         })
         .select()
         .single();
@@ -248,12 +285,20 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       // Save sale items to database
       const { error: itemsError } = await supabase
         .from('sales_items')
-        .insert(validItems.map(item => ({
-          transaction_id: transaction.id,
-          product: item.product,
-          quantity: item.quantity,
-          unit: item.unit
-        })));
+        .insert(validItems.map(item => {
+          const original = lookupPrice(item.product, item.unit);
+          const unitPrice = Number(item.unit_price ?? original);
+          return {
+            transaction_id: transaction.id,
+            product: item.product,
+            quantity: item.quantity,
+            unit: item.unit,
+            unit_price: unitPrice,
+            original_price: original,
+            price_overridden: Number(unitPrice) !== Number(original),
+            line_total: unitPrice * Number(item.quantity),
+          };
+        }));
 
       if (itemsError) {
         console.error('Error saving sale items:', itemsError);
@@ -285,6 +330,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       setCustomerName('');
       setSaleItems([{ product: '', quantity: 0, unit: 'bags' }]);
       setSaleDate(new Date().toISOString().split('T')[0]);
+      setAmountPaid('');
       setShowAddForm(false);
       fetchSales();
       fetchInventory();
@@ -848,8 +894,9 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                         value={item.product && item.unit ? `${item.product}|${item.unit}` : ''} 
                         onValueChange={(value) => {
                           const [product, unit] = value.split('|');
+                          const price = lookupPrice(product, unit);
                           setSaleItems(saleItems.map((sItem, i) => 
-                            i === index ? { ...sItem, product, unit } : sItem
+                            i === index ? { ...sItem, product, unit, unit_price: price, original_price: price, price_overridden: false } : sItem
                           ));
                         }}
                       >
@@ -876,6 +923,28 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                         step="0.1"
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label>Unit Price</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={item.unit_price ?? ''}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value) || 0;
+                          setSaleItems(saleItems.map((s, i) => i === index ? { ...s, unit_price: v, price_overridden: v !== (s.original_price ?? lookupPrice(s.product, s.unit)) } : s));
+                        }}
+                        placeholder="Price"
+                      />
+                      {item.price_overridden && (
+                        <p className="text-xs text-orange-600">Special price (default {item.original_price ?? lookupPrice(item.product, item.unit)})</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Line Total</Label>
+                      <div className="h-10 flex items-center px-3 rounded-md border bg-muted/30 text-sm font-medium">
+                        {(Number(item.unit_price ?? 0) * Number(item.quantity || 0)).toLocaleString()}
+                      </div>
+                    </div>
                     <div className="flex items-end">
                       {saleItems.length > 1 && (
                         <Button 
@@ -890,6 +959,30 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/20">
+                <div className="space-y-2">
+                  <Label>Payment Method</Label>
+                  <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
+                    <SelectTrigger><SelectValue placeholder="Method" /></SelectTrigger>
+                    <SelectContent>
+                      {paymentMethods.map(m => (
+                        <SelectItem key={m.id} value={m.id}>{m.name}{m.kind === 'credit' ? ' (Credit)' : ''}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Amount Paid {(() => { const m = paymentMethods.find(x => x.id === paymentMethodId); return m?.kind === 'credit' ? '(optional, for partial)' : '(blank = full)'; })()}</Label>
+                  <Input type="number" step="0.01" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} placeholder="Amount received" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Total</Label>
+                  <div className="h-10 flex items-center px-3 rounded-md border bg-background text-sm font-bold">
+                    {saleItems.reduce((s, it) => s + Number(it.unit_price ?? 0) * Number(it.quantity || 0), 0).toLocaleString()}
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end space-x-2">

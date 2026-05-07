@@ -56,6 +56,48 @@ export type Database = {
         }
         Relationships: []
       }
+      debt_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_name: string
+          id: string
+          notes: string | null
+          payment_date: string
+          payment_method_id: string | null
+          payment_method_name: string | null
+          recorded_by: string | null
+          shop_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_name: string
+          id?: string
+          notes?: string | null
+          payment_date?: string
+          payment_method_id?: string | null
+          payment_method_name?: string | null
+          recorded_by?: string | null
+          shop_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_name?: string
+          id?: string
+          notes?: string | null
+          payment_date?: string
+          payment_method_id?: string | null
+          payment_method_name?: string | null
+          recorded_by?: string | null
+          shop_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       delivery_note_items: {
         Row: {
           created_at: string
@@ -184,6 +226,33 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_methods: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          kind: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       product_categories: {
         Row: {
           created_at: string
@@ -230,6 +299,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      product_prices: {
+        Row: {
+          created_at: string
+          id: string
+          price: number
+          product: string
+          shop_id: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          price?: number
+          product: string
+          shop_id: string
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          price?: number
+          product?: string
+          shop_id?: string
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -307,26 +406,38 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          line_total: number
+          original_price: number | null
+          price_overridden: boolean
           product: string
           quantity: number
           transaction_id: string
           unit: string
+          unit_price: number
         }
         Insert: {
           created_at?: string
           id?: string
+          line_total?: number
+          original_price?: number | null
+          price_overridden?: boolean
           product: string
           quantity: number
           transaction_id: string
           unit: string
+          unit_price?: number
         }
         Update: {
           created_at?: string
           id?: string
+          line_total?: number
+          original_price?: number | null
+          price_overridden?: boolean
           product?: string
           quantity?: number
           transaction_id?: string
           unit?: string
+          unit_price?: number
         }
         Relationships: [
           {
@@ -340,30 +451,45 @@ export type Database = {
       }
       sales_transactions: {
         Row: {
+          amount_paid: number
           created_at: string
           customer_name: string
           id: string
+          is_credit: boolean
+          payment_method_id: string | null
+          payment_method_name: string | null
           sale_date: string
           sale_type: string
           shop_id: string
+          total_amount: number
           updated_at: string
         }
         Insert: {
+          amount_paid?: number
           created_at?: string
           customer_name: string
           id?: string
+          is_credit?: boolean
+          payment_method_id?: string | null
+          payment_method_name?: string | null
           sale_date?: string
           sale_type?: string
           shop_id: string
+          total_amount?: number
           updated_at?: string
         }
         Update: {
+          amount_paid?: number
           created_at?: string
           customer_name?: string
           id?: string
+          is_credit?: boolean
+          payment_method_id?: string | null
+          payment_method_name?: string | null
           sale_date?: string
           sale_type?: string
           shop_id?: string
+          total_amount?: number
           updated_at?: string
         }
         Relationships: []
