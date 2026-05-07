@@ -35,6 +35,9 @@ interface SaleItem {
   product: string;
   quantity: number;
   unit: string;
+  unit_price?: number;
+  original_price?: number;
+  price_overridden?: boolean;
 }
 
 interface Sale {
@@ -67,6 +70,10 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([{ product: '', quantity: 0, unit: 'bags' }]);
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [paymentMethodId, setPaymentMethodId] = useState<string>('');
+  const [amountPaid, setAmountPaid] = useState<string>('');
+  const [productPrices, setProductPrices] = useState<any[]>([]);
   const [sortBy, setSortBy] = useState<'product' | 'customer' | 'date'>('date');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProduct, setFilterProduct] = useState('all-products');
@@ -89,6 +96,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     if (shopId) {
       fetchSales();
       fetchInventory();
+      fetchPaymentMethods();
+      fetchPrices();
     }
   }, [shopId]);
 
@@ -130,6 +139,21 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       setInventory(data || []);
     }
   };
+
+  const fetchPaymentMethods = async () => {
+    const { data } = await supabase.from('payment_methods').select('*').eq('is_active', true).order('name');
+    setPaymentMethods(data || []);
+    if (data && data.length && !paymentMethodId) setPaymentMethodId(data[0].id);
+  };
+
+  const fetchPrices = async () => {
+    if (!shopId) return;
+    const { data } = await supabase.from('product_prices').select('*').eq('shop_id', shopId);
+    setProductPrices(data || []);
+  };
+
+  const lookupPrice = (product: string, unit: string) =>
+    productPrices.find(p => p.product === product && p.unit === unit)?.price ?? 0;
 
   const fetchSales = async () => {
     if (!shopId) return;
@@ -201,6 +225,12 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     
     const validItems = saleItems.filter(item => item.product && item.quantity > 0);
     if (!customerName || validItems.length === 0) return;
+    if (!paymentMethodId) {
+      toast({ title: 'Select payment method', variant: 'destructive' });
+      return;
+    }
+    const method = paymentMethods.find(m => m.id === paymentMethodId);
+    const isCredit = method?.kind === 'credit';
 
     // Check inventory availability for each item - match both product AND unit
     for (const item of validItems) {
@@ -224,13 +254,20 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     }
 
     try {
+      const totalAmount = validItems.reduce((s, it) => s + (Number(it.unit_price ?? lookupPrice(it.product, it.unit)) * Number(it.quantity)), 0);
+      const paid = isCredit ? Number(amountPaid || 0) : (amountPaid ? Number(amountPaid) : totalAmount);
       // Create transaction
       const { data: transaction, error: transError } = await supabase
         .from('sales_transactions')
         .insert({
           shop_id: shopId,
           customer_name: customerName,
-          sale_date: saleDate
+          sale_date: saleDate,
+          payment_method_id: paymentMethodId,
+          payment_method_name: method?.name,
+          is_credit: isCredit,
+          total_amount: totalAmount,
+          amount_paid: paid,
         })
         .select()
         .single();
@@ -248,12 +285,20 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       // Save sale items to database
       const { error: itemsError } = await supabase
         .from('sales_items')
-        .insert(validItems.map(item => ({
-          transaction_id: transaction.id,
-          product: item.product,
-          quantity: item.quantity,
-          unit: item.unit
-        })));
+        .insert(validItems.map(item => {
+          const original = lookupPrice(item.product, item.unit);
+          const unitPrice = Number(item.unit_price ?? original);
+          return {
+            transaction_id: transaction.id,
+            product: item.product,
+            quantity: item.quantity,
+            unit: item.unit,
+            unit_price: unitPrice,
+            original_price: original,
+            price_overridden: Number(unitPrice) !== Number(original),
+            line_total: unitPrice * Number(item.quantity),
+          };
+        }));
 
       if (itemsError) {
         console.error('Error saving sale items:', itemsError);
@@ -285,6 +330,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       setCustomerName('');
       setSaleItems([{ product: '', quantity: 0, unit: 'bags' }]);
       setSaleDate(new Date().toISOString().split('T')[0]);
+      setAmountPaid('');
       setShowAddForm(false);
       fetchSales();
       fetchInventory();
