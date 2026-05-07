@@ -28,7 +28,7 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [role, setRole] = useState<'seller' | 'admin'>('seller');
+  const [role, setRole] = useState<'seller' | 'admin' | 'logistics'>('seller');
   const [shopId, setShopId] = useState('');
   const [shopName, setShopName] = useState('');
 
@@ -254,13 +254,14 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
-                  <Select value={role} onValueChange={(value: 'seller' | 'admin') => setRole(value)}>
+                  <Select value={role} onValueChange={(value: 'seller' | 'admin' | 'logistics') => setRole(value)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="seller">Seller</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="logistics">Logistics</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
