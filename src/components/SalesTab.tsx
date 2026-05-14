@@ -259,13 +259,17 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     const method = paymentMethods.find(m => m.id === paymentMethodId);
     const isCredit = method?.kind === 'credit';
 
-    // Check inventory availability for each item - match both product AND unit
+    const effectiveFulfillShopId = fulfillShopId || shopId;
+    const fulfillShop = shops.find(s => s.shop_id === effectiveFulfillShopId);
+    const stockSource = effectiveFulfillShopId === shopId ? inventory : fulfillInventory;
+
+    // Check inventory availability for each item against the FULFILLING shop
     for (const item of validItems) {
-      const inventoryItem = inventory.find(inv => inv.product.toLowerCase() === item.product.toLowerCase() && inv.unit === item.unit);
+      const inventoryItem = stockSource.find(inv => inv.product.toLowerCase() === item.product.toLowerCase() && inv.unit === item.unit);
       if (!inventoryItem) {
         toast({
           title: "Product Not Available",
-          description: `${item.product} (${item.unit}) is not in inventory`,
+          description: `${item.product} (${item.unit}) is not in inventory at ${fulfillShop?.shop_name || effectiveFulfillShopId}`,
           variant: "destructive",
         });
         return;
@@ -273,7 +277,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       if (inventoryItem.quantity < item.quantity) {
         toast({
           title: "Insufficient Stock",
-          description: `Only ${inventoryItem.quantity} ${inventoryItem.unit} of ${item.product} available`,
+          description: `Only ${inventoryItem.quantity} ${inventoryItem.unit} of ${item.product} available at ${fulfillShop?.shop_name || effectiveFulfillShopId}`,
           variant: "destructive",
         });
         return;
@@ -295,6 +299,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
           is_credit: isCredit,
           total_amount: totalAmount,
           amount_paid: paid,
+          fulfilled_by_shop_id: effectiveFulfillShopId,
+          fulfilled_by_shop_name: fulfillShop?.shop_name || effectiveFulfillShopId,
         })
         .select()
         .single();
@@ -337,9 +343,9 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
         return;
       }
 
-      // Update inventory for each item - match both product AND unit
+      // Deduct inventory from the FULFILLING shop
       for (const item of validItems) {
-        const inventoryItem = inventory.find(inv => inv.product.toLowerCase() === item.product.toLowerCase() && inv.unit === item.unit);
+        const inventoryItem = stockSource.find(inv => inv.product.toLowerCase() === item.product.toLowerCase() && inv.unit === item.unit);
         if (inventoryItem) {
           await supabase
             .from('inventory')
@@ -359,6 +365,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       setSaleDate(new Date().toISOString().split('T')[0]);
       setAmountPaid('');
       setShowAddForm(false);
+      setFulfillShopId(shopId);
       fetchSales();
       fetchInventory();
     } catch (error) {
