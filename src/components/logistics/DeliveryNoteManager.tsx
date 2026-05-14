@@ -7,10 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Trash2, Truck, CheckCircle2, Clock, Package } from 'lucide-react';
+import { Plus, Trash2, Truck, CheckCircle2, Clock, Package, Printer } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/components/AuthProvider';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
 
 interface Shop { shop_id: string; shop_name: string }
 interface LineItem { product: string; quantity: string; unit: string }
@@ -208,6 +211,68 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
     fetchNotes();
   };
 
+  const totalsByUnit = (note: any): Record<string, number> => {
+    const totals: Record<string, number> = {};
+    (note?.delivery_note_items || []).forEach((it: any) => {
+      const u = it.unit || 'unit';
+      totals[u] = (totals[u] || 0) + Number(it.quantity || 0);
+    });
+    return totals;
+  };
+
+  const formatTotals = (note: any) =>
+    Object.entries(totalsByUnit(note))
+      .map(([u, q]) => `${q} ${u}`)
+      .join('  •  ');
+
+  const printNotePDF = (note: any) => {
+    const doc = new jsPDF();
+    const shopName = shops.find(s => s.shop_id === note.shop_id)?.shop_name || note.shop_id;
+    // Logo
+    try { doc.addImage(kimpFeedsLogo, 'JPEG', 14, 10, 22, 22); } catch {}
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('KIMP FEEDS', 40, 18);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Delivery Note', 40, 25);
+
+    doc.setFontSize(10);
+    const metaY = 40;
+    doc.text(`DN No.: ${note.delivery_note_no}`, 14, metaY);
+    doc.text(`Date: ${new Date(note.delivery_date).toLocaleDateString()}`, 110, metaY);
+    doc.text(`Shop: ${shopName}`, 14, metaY + 6);
+    doc.text(`Delivered By: ${note.delivered_by}`, 110, metaY + 6);
+    doc.text(`Status: ${STATUS_LABELS[note.status]?.label || note.status}`, 14, metaY + 12);
+    if (note.notes) doc.text(`Notes: ${note.notes}`, 14, metaY + 18);
+
+    autoTable(doc, {
+      startY: metaY + (note.notes ? 24 : 18),
+      head: [['Product', 'Quantity', 'Unit']],
+      body: (note.delivery_note_items || []).map((it: any) => [it.product, String(it.quantity), it.unit]),
+      headStyles: { fillColor: [22, 101, 52] },
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY || metaY + 30;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Totals per unit:', 14, finalY + 10);
+    doc.setFont('helvetica', 'normal');
+    const totals = totalsByUnit(note);
+    let ty = finalY + 16;
+    Object.entries(totals).forEach(([u, q]) => {
+      doc.text(`• ${q} ${u}`, 18, ty);
+      ty += 6;
+    });
+
+    const sigY = ty + 16;
+    doc.text('Delivered By: ____________________________', 14, sigY);
+    doc.text('Received By: ____________________________', 110, sigY);
+    doc.setFontSize(8);
+    doc.text(`Generated ${new Date().toLocaleString()}`, 14, 290);
+
+    doc.save(`DeliveryNote-${note.delivery_note_no}.pdf`);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center flex-wrap gap-2">
@@ -257,6 +322,9 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
                       <TableCell>
                         <div className="flex gap-1 flex-wrap">
                           <Button size="sm" variant="outline" onClick={() => setOpenNote(n)}>View</Button>
+                          <Button size="sm" variant="outline" onClick={() => printNotePDF(n)}>
+                            <Printer className="h-3 w-3 mr-1" /> PDF
+                          </Button>
                           {profile?.role === 'logistics' && !n.logistics_confirmed_at && (
                             <Button size="sm" variant="default" onClick={() => confirmAsLogistics(n)}>
                               <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm (Logistics)
@@ -394,6 +462,12 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
                     Seller: {openNote.seller_confirmed_at ? `${openNote.seller_confirmed_by} · ${new Date(openNote.seller_confirmed_at).toLocaleString()}` : 'pending'}
                   </div>
                   {openNote.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {openNote.notes}</div>}
+                </div>
+                <div className="flex items-center justify-between flex-wrap gap-2 p-2 rounded-md bg-muted/50 text-sm">
+                  <div><span className="font-semibold">Totals per unit:</span> {formatTotals(openNote) || '—'}</div>
+                  <Button size="sm" variant="outline" onClick={() => printNotePDF(openNote)}>
+                    <Printer className="h-3 w-3 mr-1" /> Print PDF
+                  </Button>
                 </div>
                 <Table>
                   <TableHeader>

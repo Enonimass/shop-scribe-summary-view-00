@@ -74,6 +74,9 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [paymentMethodId, setPaymentMethodId] = useState<string>('');
   const [amountPaid, setAmountPaid] = useState<string>('');
   const [productPrices, setProductPrices] = useState<any[]>([]);
+  const [shops, setShops] = useState<{ shop_id: string; shop_name: string }[]>([]);
+  const [fulfillShopId, setFulfillShopId] = useState<string>('');
+  const [fulfillInventory, setFulfillInventory] = useState<any[]>([]);
   const [sortBy, setSortBy] = useState<'product' | 'customer' | 'date'>('date');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProduct, setFilterProduct] = useState('all-products');
@@ -98,6 +101,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       fetchInventory();
       fetchPaymentMethods();
       fetchPrices();
+      fetchShops();
+      setFulfillShopId(shopId);
     }
   }, [shopId]);
 
@@ -139,6 +144,28 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       setInventory(data || []);
     }
   };
+
+  const fetchShops = async () => {
+    const { data } = await supabase.from('profiles').select('shop_id, shop_name').eq('role', 'seller');
+    const unique: { shop_id: string; shop_name: string }[] = [];
+    (data || []).forEach((p: any) => {
+      if (p.shop_id && !unique.find(u => u.shop_id === p.shop_id)) {
+        unique.push({ shop_id: p.shop_id, shop_name: p.shop_name || p.shop_id });
+      }
+    });
+    setShops(unique);
+  };
+
+  // Load inventory for the fulfilling shop (may differ from selling shop)
+  useEffect(() => {
+    const loadFulfill = async () => {
+      if (!fulfillShopId) { setFulfillInventory([]); return; }
+      if (fulfillShopId === shopId) { setFulfillInventory(inventory); return; }
+      const { data } = await supabase.from('inventory').select('*').eq('shop_id', fulfillShopId);
+      setFulfillInventory(data || []);
+    };
+    loadFulfill();
+  }, [fulfillShopId, shopId, inventory]);
 
   const fetchPaymentMethods = async () => {
     const { data } = await supabase.from('payment_methods').select('*').eq('is_active', true).order('name');
@@ -232,13 +259,17 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     const method = paymentMethods.find(m => m.id === paymentMethodId);
     const isCredit = method?.kind === 'credit';
 
-    // Check inventory availability for each item - match both product AND unit
+    const effectiveFulfillShopId = fulfillShopId || shopId;
+    const fulfillShop = shops.find(s => s.shop_id === effectiveFulfillShopId);
+    const stockSource = effectiveFulfillShopId === shopId ? inventory : fulfillInventory;
+
+    // Check inventory availability for each item against the FULFILLING shop
     for (const item of validItems) {
-      const inventoryItem = inventory.find(inv => inv.product.toLowerCase() === item.product.toLowerCase() && inv.unit === item.unit);
+      const inventoryItem = stockSource.find(inv => inv.product.toLowerCase() === item.product.toLowerCase() && inv.unit === item.unit);
       if (!inventoryItem) {
         toast({
           title: "Product Not Available",
-          description: `${item.product} (${item.unit}) is not in inventory`,
+          description: `${item.product} (${item.unit}) is not in inventory at ${fulfillShop?.shop_name || effectiveFulfillShopId}`,
           variant: "destructive",
         });
         return;
@@ -246,7 +277,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       if (inventoryItem.quantity < item.quantity) {
         toast({
           title: "Insufficient Stock",
-          description: `Only ${inventoryItem.quantity} ${inventoryItem.unit} of ${item.product} available`,
+          description: `Only ${inventoryItem.quantity} ${inventoryItem.unit} of ${item.product} available at ${fulfillShop?.shop_name || effectiveFulfillShopId}`,
           variant: "destructive",
         });
         return;
@@ -268,6 +299,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
           is_credit: isCredit,
           total_amount: totalAmount,
           amount_paid: paid,
+          fulfilled_by_shop_id: effectiveFulfillShopId,
+          fulfilled_by_shop_name: fulfillShop?.shop_name || effectiveFulfillShopId,
         })
         .select()
         .single();
@@ -310,9 +343,9 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
         return;
       }
 
-      // Update inventory for each item - match both product AND unit
+      // Deduct inventory from the FULFILLING shop
       for (const item of validItems) {
-        const inventoryItem = inventory.find(inv => inv.product.toLowerCase() === item.product.toLowerCase() && inv.unit === item.unit);
+        const inventoryItem = stockSource.find(inv => inv.product.toLowerCase() === item.product.toLowerCase() && inv.unit === item.unit);
         if (inventoryItem) {
           await supabase
             .from('inventory')
@@ -332,6 +365,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       setSaleDate(new Date().toISOString().split('T')[0]);
       setAmountPaid('');
       setShowAddForm(false);
+      setFulfillShopId(shopId);
       fetchSales();
       fetchInventory();
     } catch (error) {
@@ -876,6 +910,25 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   </Popover>
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <Label>Fulfilled at (stock source)</Label>
+                <Select value={fulfillShopId} onValueChange={setFulfillShopId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select fulfilling shop" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shops.map(s => (
+                      <SelectItem key={s.shop_id} value={s.shop_id}>
+                        {s.shop_name}{s.shop_id === shopId ? ' (this shop)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Choose another shop only if the customer collected the goods from there. The sale stays on this shop; stock is deducted from the chosen shop.
+                </p>
+              </div>
               
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -904,7 +957,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                           <SelectValue placeholder="Select product & unit" />
                         </SelectTrigger>
                         <SelectContent>
-                          {inventory.map(invItem => (
+                          {fulfillInventory.map(invItem => (
                             <SelectItem key={invItem.id} value={`${invItem.product}|${invItem.unit}`}>
                               {invItem.product} - {invItem.unit} ({invItem.quantity} available)
                             </SelectItem>

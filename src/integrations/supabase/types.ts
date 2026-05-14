@@ -454,6 +454,8 @@ export type Database = {
           amount_paid: number
           created_at: string
           customer_name: string
+          fulfilled_by_shop_id: string | null
+          fulfilled_by_shop_name: string | null
           id: string
           is_credit: boolean
           payment_method_id: string | null
@@ -468,6 +470,8 @@ export type Database = {
           amount_paid?: number
           created_at?: string
           customer_name: string
+          fulfilled_by_shop_id?: string | null
+          fulfilled_by_shop_name?: string | null
           id?: string
           is_credit?: boolean
           payment_method_id?: string | null
@@ -482,6 +486,8 @@ export type Database = {
           amount_paid?: number
           created_at?: string
           customer_name?: string
+          fulfilled_by_shop_id?: string | null
+          fulfilled_by_shop_name?: string | null
           id?: string
           is_credit?: boolean
           payment_method_id?: string | null
