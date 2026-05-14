@@ -910,6 +910,25 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   </Popover>
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <Label>Fulfilled at (stock source)</Label>
+                <Select value={fulfillShopId} onValueChange={setFulfillShopId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select fulfilling shop" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shops.map(s => (
+                      <SelectItem key={s.shop_id} value={s.shop_id}>
+                        {s.shop_name}{s.shop_id === shopId ? ' (this shop)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Choose another shop only if the customer collected the goods from there. The sale stays on this shop; stock is deducted from the chosen shop.
+                </p>
+              </div>
               
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -938,7 +957,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                           <SelectValue placeholder="Select product & unit" />
                         </SelectTrigger>
                         <SelectContent>
-                          {inventory.map(invItem => (
+                          {fulfillInventory.map(invItem => (
                             <SelectItem key={invItem.id} value={`${invItem.product}|${invItem.unit}`}>
                               {invItem.product} - {invItem.unit} ({invItem.quantity} available)
                             </SelectItem>
