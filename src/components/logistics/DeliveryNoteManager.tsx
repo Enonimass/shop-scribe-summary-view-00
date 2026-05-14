@@ -463,6 +463,12 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
                   </div>
                   {openNote.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {openNote.notes}</div>}
                 </div>
+                <div className="flex items-center justify-between flex-wrap gap-2 p-2 rounded-md bg-muted/50 text-sm">
+                  <div><span className="font-semibold">Totals per unit:</span> {formatTotals(openNote) || '—'}</div>
+                  <Button size="sm" variant="outline" onClick={() => printNotePDF(openNote)}>
+                    <Printer className="h-3 w-3 mr-1" /> Print PDF
+                  </Button>
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
