@@ -74,6 +74,9 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [paymentMethodId, setPaymentMethodId] = useState<string>('');
   const [amountPaid, setAmountPaid] = useState<string>('');
   const [productPrices, setProductPrices] = useState<any[]>([]);
+  const [shops, setShops] = useState<{ shop_id: string; shop_name: string }[]>([]);
+  const [fulfillShopId, setFulfillShopId] = useState<string>('');
+  const [fulfillInventory, setFulfillInventory] = useState<any[]>([]);
   const [sortBy, setSortBy] = useState<'product' | 'customer' | 'date'>('date');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProduct, setFilterProduct] = useState('all-products');
@@ -98,6 +101,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       fetchInventory();
       fetchPaymentMethods();
       fetchPrices();
+      fetchShops();
+      setFulfillShopId(shopId);
     }
   }, [shopId]);
 
@@ -139,6 +144,28 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       setInventory(data || []);
     }
   };
+
+  const fetchShops = async () => {
+    const { data } = await supabase.from('profiles').select('shop_id, shop_name').eq('role', 'seller');
+    const unique: { shop_id: string; shop_name: string }[] = [];
+    (data || []).forEach((p: any) => {
+      if (p.shop_id && !unique.find(u => u.shop_id === p.shop_id)) {
+        unique.push({ shop_id: p.shop_id, shop_name: p.shop_name || p.shop_id });
+      }
+    });
+    setShops(unique);
+  };
+
+  // Load inventory for the fulfilling shop (may differ from selling shop)
+  useEffect(() => {
+    const loadFulfill = async () => {
+      if (!fulfillShopId) { setFulfillInventory([]); return; }
+      if (fulfillShopId === shopId) { setFulfillInventory(inventory); return; }
+      const { data } = await supabase.from('inventory').select('*').eq('shop_id', fulfillShopId);
+      setFulfillInventory(data || []);
+    };
+    loadFulfill();
+  }, [fulfillShopId, shopId, inventory]);
 
   const fetchPaymentMethods = async () => {
     const { data } = await supabase.from('payment_methods').select('*').eq('is_active', true).order('name');
