@@ -322,6 +322,9 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
                       <TableCell>
                         <div className="flex gap-1 flex-wrap">
                           <Button size="sm" variant="outline" onClick={() => setOpenNote(n)}>View</Button>
+                          <Button size="sm" variant="outline" onClick={() => printNotePDF(n)}>
+                            <Printer className="h-3 w-3 mr-1" /> PDF
+                          </Button>
                           {profile?.role === 'logistics' && !n.logistics_confirmed_at && (
                             <Button size="sm" variant="default" onClick={() => confirmAsLogistics(n)}>
                               <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm (Logistics)
