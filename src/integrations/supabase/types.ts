@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          actor: string | null
+          actor_role: string | null
+          after: Json | null
+          before: Json | null
+          created_at: string
+          entity: string
+          entity_id: string | null
+          id: string
+          notes: string | null
+          shop_id: string | null
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          actor_role?: string | null
+          after?: Json | null
+          before?: Json | null
+          created_at?: string
+          entity: string
+          entity_id?: string | null
+          id?: string
+          notes?: string | null
+          shop_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          actor_role?: string | null
+          after?: Json | null
+          before?: Json | null
+          created_at?: string
+          entity?: string
+          entity_id?: string | null
+          id?: string
+          notes?: string | null
+          shop_id?: string | null
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           created_at: string
@@ -500,18 +542,46 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       verify_password: {
         Args: { _hash: string; _password: string }
         Returns: boolean
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "super_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -638,6 +708,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["super_admin"],
+    },
   },
 } as const
