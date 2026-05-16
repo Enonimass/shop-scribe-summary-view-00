@@ -1,64 +1,69 @@
-## Goals
+# Super Admin + Company Dashboard
 
-1. Cross-shop fulfillment on sales — sale recorded at Shop A, but inventory deducted at fulfilling Shop B.
-2. Printable PDF delivery notes (with Kimp Feeds logo).
-3. Delivery note shows total bags per unit (summary line).
+## Goal
+Add a Super Admin role authenticated by email/password (Supabase Auth) with a company-wide dashboard covering sales, money, customers, and inventory across all shops. Existing admin/seller users keep their current username login.
 
----
+## Auth & roles
+- Enable Supabase Auth (email + password) for super admins only.
+- New tables:
+  - `app_role` enum: `super_admin`
+  - `user_roles (user_id uuid, role app_role)` linked to `auth.users`
+  - `has_role(user_id, role)` security-definer function
+- Super admin signs in at `/super-admin/login` using email + password.
+- A bootstrap edge function `create-super-admin` (callable once, guarded by a one-time setup token stored as a secret) creates the first super admin account. After that, additional super admins are invited from within the dashboard.
+- Existing username-based login for admins/sellers stays unchanged.
 
-## 1. Cross-shop fulfillment
+## Super admin capabilities
+- Company-wide dashboard across every shop
+- Manage admin and seller accounts (create, edit, disable, reset password)
+- Audit log of sensitive edits (sales edits/deletes, inventory adjustments, user edits, price overrides, find-and-replace runs)
 
-**DB change** (`sales_transactions`):
-- Add `fulfilled_by_shop_id text` (nullable; defaults to NULL = same as `shop_id`).
-- Add `fulfilled_by_shop_name text` for display.
+## Audit log
+- New table `audit_logs (actor, actor_role, action, entity, entity_id, shop_id, before jsonb, after jsonb, created_at)`
+- Wire app code to write audit rows on: sales edit/delete, inventory manual adjust, user create/edit/disable, price override on sale, find-and-replace, debt payment edits.
+- Super admin dashboard has an "Activity" tab with filters by actor, entity, shop, date.
 
-**Sales form (`SalesTab.tsx`)**:
-- Add a "Fulfilled at" shop selector inside the new-sale dialog, defaulting to the current shop. Loaded from the same shop list used elsewhere.
-- A small note below: *"Choose another shop only if the customer collects the goods from there."*
-- On save:
-  - Insert the transaction with `shop_id` = current shop (sale credit) and `fulfilled_by_shop_id` = chosen shop.
-  - **Stock validation** runs against the fulfilling shop's inventory.
-  - **Inventory deduction** happens on the fulfilling shop, not the selling shop.
+## Company dashboard layout
 
-**Reporting impact**:
-- Sales totals / money report continue to attribute the sale to `shop_id` (selling shop) — no change.
-- Inventory views automatically reflect the deduction at the fulfilling shop.
-- Daily report adds a small badge "Fulfilled by: Shop B" on transactions where `fulfilled_by_shop_id` differs.
-- Optional: a simple "Cross-shop transfers" line in the daily report listing such sales.
-
----
-
-## 2. Printable PDF delivery note
-
-**Library**: `jspdf` + `jspdf-autotable` (already in the project per existing exports).
-
-In `DeliveryNoteManager.tsx` detail dialog, add a **"Print PDF"** button.
-
-PDF layout:
-- Header: Kimp Feeds logo (top-left, from `@/assets/kimp-feeds-logo.jpeg` embedded as base64) + company name + "DELIVERY NOTE" title.
-- Meta block: DN No, Date, Shop, Delivered by, Status.
-- Items table: Product | Quantity | Unit.
-- **Totals section** (per unit): e.g. *"Total: 25 bags, 10 × 50kg, 35 kg"* — sum quantities grouped by unit.
-- Footer: signature lines for "Delivered By" and "Received By" + timestamp.
-- File name: `DeliveryNote-{DN-No}.pdf`.
-
----
-
-## 3. Delivery note totals per unit (in-app + PDF)
-
-In the detail dialog (above the items table) and in the PDF, render a totals strip:
+```text
++--------------------------------------------------------------+
+| Period: [Today] [This month] [Custom range]   Shop: [All v]  |
++--------------------------------------------------------------+
+| KPI cards: Bags sold | Tonnage (kg) | Revenue | Cash in     |
+|            Credit issued | Debt outstanding | Debt paid     |
+|            New customers | Active customers | Low-stock     |
++--------------------------------------------------------------+
+| Sales trend chart (per shop, stacked)                        |
+| Top products (bags + tonnage)                                |
+| Money mix by payment method (donut)                          |
++--------------------------------------------------------------+
+| Per-shop table: bags | tonnage | revenue | cash | debt      |
+| Top debtors | Top buyers | Low stock list                    |
+| Recent sensitive activity (last 20 audit entries)            |
++--------------------------------------------------------------+
 ```
-Totals  •  bags: 25  •  50kg: 10  •  kg: 35
-```
-Computed by grouping `delivery_note_items` by `unit` and summing `quantity`.
 
----
+- Tonnage rule: bags = quantity * 70kg; raw materials use their unit weight (40kg or 50kg bags); reuse existing bag-equivalent helper.
+- Defaults: Today + This month cards, plus date-range picker.
+- All data scoped by selected shop filter (default: All shops).
 
-## Files to touch
+## Admin dashboard (existing role)
+- Add a summary header to the existing admin view showing the same KPIs but scoped to that admin's shop only: bags, tonnage, money received, credit issued, debt outstanding, low stock count, today vs month.
 
-- `supabase/migrations/...` — add `fulfilled_by_shop_id`, `fulfilled_by_shop_name` to `sales_transactions`.
-- `src/components/SalesTab.tsx` — fulfilling shop selector, stock check + deduction against fulfilling shop, save fields.
-- `src/components/logistics/DeliveryNoteManager.tsx` — totals-per-unit strip + Print PDF button + PDF generator.
-- `src/components/money/DailyReport.tsx` — show "Fulfilled by" badge for cross-shop sales (small addition).
+## Technical details
+- Files to add:
+  - `supabase/migrations/...` — `app_role` enum, `user_roles`, `has_role`, `audit_logs`, RLS (super admin via `has_role(auth.uid(),'super_admin')`)
+  - `supabase/functions/create-super-admin/index.ts` — bootstrap
+  - `src/pages/SuperAdminLogin.tsx`, `src/pages/SuperAdminDashboard.tsx`
+  - `src/components/super-admin/KpiCards.tsx`, `SalesTrend.tsx`, `PaymentMix.tsx`, `PerShopTable.tsx`, `DebtorsList.tsx`, `LowStockList.tsx`, `AuditLog.tsx`, `UserManager.tsx`
+  - `src/components/admin/AdminSummary.tsx`
+  - `src/hooks/useSuperAdminAuth.ts`
+  - `src/lib/audit.ts` — helper to write audit rows
+- Routes: `/super-admin/login`, `/super-admin` (guarded by Supabase session + `super_admin` role).
+- RLS: `audit_logs`, `user_roles` readable only when `has_role(auth.uid(),'super_admin')`. Existing tables stay permissive (no change to current app behavior).
+- Reuse existing batching strategy (chunks of 200) when aggregating across all shops.
+- Charts via existing `recharts` setup; KPI cards follow Kimp Feeds green theme.
 
-No changes to roles, auth, or existing reporting math.
+## Out of scope
+- Migrating existing admins/sellers to Supabase Auth
+- Tightening RLS on the rest of the schema (tracked separately)
