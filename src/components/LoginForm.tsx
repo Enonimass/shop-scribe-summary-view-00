@@ -26,6 +26,13 @@ const LoginForm = () => {
           >
             Go to Login/Sign Up
           </Button>
+          <Button
+            onClick={() => navigate('/super-admin/login')}
+            variant="outline"
+            className="w-full mt-2"
+          >
+            Super Admin Sign In
+          </Button>
         </CardContent>
       </Card>
     </div>

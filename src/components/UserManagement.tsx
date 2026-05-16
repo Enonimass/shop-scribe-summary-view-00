@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserPlus, KeyRound, Trash2, Edit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { logAudit } from '@/lib/audit';
 
 interface UserManagementProps {
   profiles: any[];
@@ -67,7 +68,12 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
           title: "User created successfully",
           description: `${displayName} has been added to the system.`,
         });
-        
+        logAudit({
+          action: 'user.create',
+          entity: 'profiles',
+          shop_id: role === 'seller' ? shopId : null,
+          after: { username, display_name: displayName, role, shop_id: shopId, shop_name: shopName },
+        });
         // Reset form
         setUsername('');
         setPassword('');
@@ -110,6 +116,12 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
           title: "Password updated",
           description: `Password for ${selectedUser.display_name} has been updated.`,
         });
+        logAudit({
+          action: 'user.password_reset',
+          entity: 'profiles',
+          entity_id: selectedUser.id,
+          notes: `Reset password for ${selectedUser.username}`,
+        });
         setNewPassword('');
         setPasswordResetOpen(false);
         setSelectedUser(null);
@@ -151,6 +163,13 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
           title: "User updated",
           description: `${editDisplayName} has been updated.`,
         });
+        logAudit({
+          action: 'user.edit',
+          entity: 'profiles',
+          entity_id: selectedUser.id,
+          before: { username: selectedUser.username, display_name: selectedUser.display_name, shop_name: selectedUser.shop_name },
+          after: { username: editUsername, display_name: editDisplayName, shop_name: editShopName },
+        });
         setEditUserOpen(false);
         setSelectedUser(null);
         onProfilesUpdate();
@@ -189,6 +208,12 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
         toast({
           title: "User deleted",
           description: `${profile.display_name} has been removed from the system.`,
+        });
+        logAudit({
+          action: 'user.delete',
+          entity: 'profiles',
+          entity_id: profile.id,
+          before: { username: profile.username, role: profile.role, shop_id: profile.shop_id },
         });
         onProfilesUpdate();
       }
