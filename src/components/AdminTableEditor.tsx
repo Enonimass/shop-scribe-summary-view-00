@@ -188,21 +188,25 @@ const AdminTableEditor = () => {
   };
 
   const deleteInventoryItem = async (id: string) => {
+    const { data: before } = await supabase.from('inventory').select('*').eq('id', id).maybeSingle();
     const { error } = await supabase.from('inventory').delete().eq('id', id);
     if (error) {
       toast({ title: "Error", description: "Failed to delete inventory item", variant: "destructive" });
     } else {
       toast({ title: "Success", description: "Inventory item deleted successfully" });
+      logAudit({ action: 'inventory.delete', entity: 'inventory', entity_id: id, shop_id: (before as any)?.shop_id, before });
       fetchInventory();
     }
   };
 
   const deleteTransaction = async (id: string) => {
+    const { data: before } = await supabase.from('sales_transactions').select('*').eq('id', id).maybeSingle();
     const { error } = await supabase.from('sales_transactions').delete().eq('id', id);
     if (error) {
       toast({ title: "Error", description: "Failed to delete transaction", variant: "destructive" });
     } else {
       toast({ title: "Success", description: "Transaction deleted successfully" });
+      logAudit({ action: 'sale.delete', entity: 'sales_transactions', entity_id: id, shop_id: (before as any)?.shop_id, before });
       fetchSalesTransactions();
     }
   };
@@ -249,6 +253,13 @@ const AdminTableEditor = () => {
       } else {
         const total = findResults.reduce((s, r) => s + r.count, 0);
         toast({ title: "Success", description: `Replaced "${findText}" with "${replaceText}" in ${total} records` });
+        logAudit({
+          action: 'product.find_replace',
+          entity: 'multiple',
+          notes: `Replaced "${findText}" with "${replaceText}" in ${total} records`,
+          before: { find: findText },
+          after: { replace: replaceText },
+        });
         setFindText('');
         setReplaceText('');
         setFindResults([]);
