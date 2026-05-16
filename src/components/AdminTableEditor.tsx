@@ -13,6 +13,7 @@ import { Edit, Trash2, Save, X, Search, Replace } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
+import { logAudit } from '@/lib/audit';
 
 interface InventoryItem {
   id: string;
