@@ -1,69 +1,63 @@
-# Super Admin + Company Dashboard
+# Trips, Factory Stock, Dashboards, Editable Sale Product
 
-## Goal
-Add a Super Admin role authenticated by email/password (Supabase Auth) with a company-wide dashboard covering sales, money, customers, and inventory across all shops. Existing admin/seller users keep their current username login.
+## 1. Factory inventory
+- New table `factory_inventory (product, unit, quantity, threshold)`, unique per (product, unit).
+- Managed via a new "Factory" tab in Admin and Super Admin dashboards: receive stock, adjust, view low-stock.
+- Every outbound trip deducts factory stock; every confirmed return increases it.
 
-## Auth & roles
-- Enable Supabase Auth (email + password) for super admins only.
-- New tables:
-  - `app_role` enum: `super_admin`
-  - `user_roles (user_id uuid, role app_role)` linked to `auth.users`
-  - `has_role(user_id, role)` security-definer function
-- Super admin signs in at `/super-admin/login` using email + password.
-- A bootstrap edge function `create-super-admin` (callable once, guarded by a one-time setup token stored as a secret) creates the first super admin account. After that, additional super admins are invited from within the dashboard.
-- Existing username-based login for admins/sellers stays unchanged.
+## 2. Trips (one big delivery, many stops)
+A trip is the truck leaving the factory. It contains many stops; each stop is either an outlet (shop) or a customer.
 
-## Super admin capabilities
-- Company-wide dashboard across every shop
-- Manage admin and seller accounts (create, edit, disable, reset password)
-- Audit log of sensitive edits (sales edits/deletes, inventory adjustments, user edits, price overrides, find-and-replace runs)
+New tables:
+- `trips (trip_no, trip_date, vehicle, driver, status: draft/dispatched/completed/cancelled, notes)`
+- `trip_stops (trip_id, stop_type: outlet|customer, shop_id, customer_name, place, status: pending/confirmed, dispatched_qty_total, received_qty_total, notes)`
+- `trip_stop_items (stop_id, product, unit, dispatched_qty, received_qty, discrepancy_qty)` — `discrepancy = received - dispatched`
+- `trip_returns (trip_id, product, unit, quantity, reason, status: pending/confirmed)` — goods coming back to factory (not a sale)
 
-## Audit log
-- New table `audit_logs (actor, actor_role, action, entity, entity_id, shop_id, before jsonb, after jsonb, created_at)`
-- Wire app code to write audit rows on: sales edit/delete, inventory manual adjust, user create/edit/disable, price override on sale, find-and-replace, debt payment edits.
-- Super admin dashboard has an "Activity" tab with filters by actor, entity, shop, date.
+Workflow:
+1. Admin/logistics creates a trip, adds stops (outlets and/or customers), adds items per stop.
+2. Dispatch: factory inventory is deducted by total dispatched quantities. Trip status = dispatched.
+3. At each stop, recipient confirms received quantity (may differ from dispatched).
+   - Outlet stop confirmed: shop inventory increases by `received_qty`. Discrepancy stored in `trip_stop_items.discrepancy_qty` and surfaced in dashboards/audit log. No auto-return is created.
+   - Customer stop confirmed: nothing is auto-created; stop is just marked confirmed and tagged to that shop. The shop seller records the sale later in the normal Sales tab (it does not affect inventory because the goods never reached the shop's stock).
+4. Returns: any unsold/unaccepted goods are recorded as `trip_returns`; when confirmed they add back to factory inventory. Returns are never sales.
+5. Trip completes once all stops + returns are confirmed (or admin force-completes).
 
-## Company dashboard layout
+PDF: extend the existing delivery-note PDF (Kimp Feeds logo + per-unit totals) so each trip can print:
+- A trip summary sheet listing all stops.
+- A per-stop delivery note for outlet/customer.
 
-```text
-+--------------------------------------------------------------+
-| Period: [Today] [This month] [Custom range]   Shop: [All v]  |
-+--------------------------------------------------------------+
-| KPI cards: Bags sold | Tonnage (kg) | Revenue | Cash in     |
-|            Credit issued | Debt outstanding | Debt paid     |
-|            New customers | Active customers | Low-stock     |
-+--------------------------------------------------------------+
-| Sales trend chart (per shop, stacked)                        |
-| Top products (bags + tonnage)                                |
-| Money mix by payment method (donut)                          |
-+--------------------------------------------------------------+
-| Per-shop table: bags | tonnage | revenue | cash | debt      |
-| Top debtors | Top buyers | Low stock list                    |
-| Recent sensitive activity (last 20 audit entries)            |
-+--------------------------------------------------------------+
-```
+## 3. Admin dashboard
+Add a new "Overview" tab as the first tab of `AdminDashboard`. Same KPI set as the super admin dashboard but scoped to the currently selected shop (or All Shops aggregate), plus delivery metrics:
+- Bags sold, tonnage, revenue, cash in, credit issued, debt outstanding, debt paid.
+- New customers (30d), active customers (90d), top debtors, low stock list.
+- Deliveries inbound (received from factory), customer deliveries pending sale, returns.
+- Date range with Today / This month shortcuts.
 
-- Tonnage rule: bags = quantity * 70kg; raw materials use their unit weight (40kg or 50kg bags); reuse existing bag-equivalent helper.
-- Defaults: Today + This month cards, plus date-range picker.
-- All data scoped by selected shop filter (default: All shops).
+## 4. Seller dashboard
+Add a "Summary" tab (first tab) showing today + this month at-a-glance for the seller's shop:
+- Today: bags sold, tonnage, cash collected, debts taken, debts paid, low-stock count.
+- This month: same metrics + new vs returning customers, top 5 products.
+- Deliveries inbound waiting confirmation (outlet stops assigned to this shop).
+- "Customer deliveries waiting to be billed" list (customer stops tagged to this shop that haven't been turned into a sale yet) — seller can click to pre-fill a new sale.
 
-## Admin dashboard (existing role)
-- Add a summary header to the existing admin view showing the same KPIs but scoped to that admin's shop only: bags, tonnage, money received, credit issued, debt outstanding, low stock count, today vs month.
+## 5. Editable product in admin sales
+In `AdminTableEditor` (and the admin Sales view), make the product field on each sale line editable via the existing inline-edit pattern (autocomplete from products list). Save updates `sales_items.product`; logAudit on change.
+
+## 6. Audit
+`logAudit` calls for: trip create/dispatch/cancel, stop confirm with discrepancy, return confirm, factory adjust, sale product change.
 
 ## Technical details
-- Files to add:
-  - `supabase/migrations/...` — `app_role` enum, `user_roles`, `has_role`, `audit_logs`, RLS (super admin via `has_role(auth.uid(),'super_admin')`)
-  - `supabase/functions/create-super-admin/index.ts` — bootstrap
-  - `src/pages/SuperAdminLogin.tsx`, `src/pages/SuperAdminDashboard.tsx`
-  - `src/components/super-admin/KpiCards.tsx`, `SalesTrend.tsx`, `PaymentMix.tsx`, `PerShopTable.tsx`, `DebtorsList.tsx`, `LowStockList.tsx`, `AuditLog.tsx`, `UserManager.tsx`
-  - `src/components/admin/AdminSummary.tsx`
-  - `src/hooks/useSuperAdminAuth.ts`
-  - `src/lib/audit.ts` — helper to write audit rows
-- Routes: `/super-admin/login`, `/super-admin` (guarded by Supabase session + `super_admin` role).
-- RLS: `audit_logs`, `user_roles` readable only when `has_role(auth.uid(),'super_admin')`. Existing tables stay permissive (no change to current app behavior).
-- Reuse existing batching strategy (chunks of 200) when aggregating across all shops.
-- Charts via existing `recharts` setup; KPI cards follow Kimp Feeds green theme.
+- Migration creates the five new tables with permissive RLS matching existing pattern (super admin still gets audit visibility via existing audit_logs).
+- New components:
+  - `src/components/logistics/TripManager.tsx` — list/create/dispatch trips with stops + returns editor.
+  - `src/components/factory/FactoryInventory.tsx` — factory stock CRUD + low-stock.
+  - `src/components/admin/AdminOverview.tsx` and `src/components/seller/SellerSummary.tsx` — KPI tabs.
+- Existing `DeliveryNoteManager` stays; trips are an additional, broader concept. (Long-term we can fold delivery notes into stops, but not in this pass.)
+- Reuse `toBagEquivalent` and the chunked-fetch pattern.
+- Routes unchanged; everything is tabs inside existing dashboards.
 
-## Out of scope
-- Migrating existing admins/sellers to Supabase Auth
-- Tightening RLS on the rest of the schema (tracked separately)
+## Out of scope (for this round)
+- Auto-creating sales from customer stops (you chose to keep it manual).
+- Migrating existing `delivery_notes` data into trips.
+- Tightening RLS on the new tables beyond the permissive default.
