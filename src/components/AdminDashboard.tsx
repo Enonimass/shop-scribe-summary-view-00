@@ -846,6 +846,14 @@ const AdminDashboard = () => {
           <TabsContent value="daily-report">
             <DailyReport shops={shops} allowAll defaultShop={selectedShop || 'all'} />
           </TabsContent>
+
+          <TabsContent value="factory">
+            <FactoryInventory />
+          </TabsContent>
+
+          <TabsContent value="trips">
+            <TripManager shops={shops} />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
