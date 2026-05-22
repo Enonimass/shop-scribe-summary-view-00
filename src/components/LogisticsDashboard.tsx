@@ -3,10 +3,12 @@ import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { LogOut, Truck, Shield, BarChart3 } from 'lucide-react';
+import { LogOut, Truck, Shield, BarChart3, Factory } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import DeliveryNoteManager from './logistics/DeliveryNoteManager';
 import MovementReport from './logistics/MovementReport';
+import TripManager from './logistics/TripManager';
+import FactoryInventory from './factory/FactoryInventory';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
 
 const LogisticsDashboard = () => {
@@ -71,8 +73,14 @@ const LogisticsDashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="deliveries" className="space-y-6">
+        <Tabs defaultValue="trips" className="space-y-6">
           <TabsList>
+            <TabsTrigger value="trips" className="flex items-center gap-1">
+              <Truck className="h-4 w-4" /> Trips
+            </TabsTrigger>
+            <TabsTrigger value="factory" className="flex items-center gap-1">
+              <Factory className="h-4 w-4" /> Factory Stock
+            </TabsTrigger>
             <TabsTrigger value="deliveries" className="flex items-center gap-1">
               <Truck className="h-4 w-4" /> Delivery Notes
             </TabsTrigger>
@@ -80,6 +88,14 @@ const LogisticsDashboard = () => {
               <BarChart3 className="h-4 w-4" /> Movement Report
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="trips">
+            <TripManager shops={shops} />
+          </TabsContent>
+
+          <TabsContent value="factory">
+            <FactoryInventory />
+          </TabsContent>
 
           <TabsContent value="deliveries">
             <DeliveryNoteManager shops={shops} canCreate={true} />

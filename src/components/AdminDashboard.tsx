@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart, TrendingUp, Tag, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart, DollarSign } from 'lucide-react';
+import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart, TrendingUp, Tag, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart, DollarSign, LayoutDashboard, Factory } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import UserManagement from './UserManagement';
 import AdminTableEditor from './AdminTableEditor';
@@ -18,6 +18,9 @@ import ExportButtons from './ExportButtons';
 import PaymentMethodManager from './money/PaymentMethodManager';
 import PriceManager from './money/PriceManager';
 import DailyReport from './money/DailyReport';
+import AdminOverview from './admin/AdminOverview';
+import FactoryInventory from './factory/FactoryInventory';
+import TripManager from './logistics/TripManager';
 import { Label } from '@/components/ui/label';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
 
@@ -362,8 +365,12 @@ const AdminDashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs defaultValue="summary" className="space-y-6">
           <TabsList className="flex flex-wrap w-full gap-1 h-auto p-1">
+            <TabsTrigger value="summary" className="flex items-center gap-1 text-xs sm:text-sm">
+              <LayoutDashboard className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Summary</span>
+            </TabsTrigger>
             <TabsTrigger value="overview" className="flex items-center gap-1 text-xs sm:text-sm">
               <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Sales</span>
@@ -411,7 +418,19 @@ const AdminDashboard = () => {
               <FileBarChart className="h-3 w-3 sm:h-4 sm:w-4" />
               Daily
             </TabsTrigger>
+            <TabsTrigger value="factory" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Factory className="h-3 w-3 sm:h-4 sm:w-4" />
+              Factory
+            </TabsTrigger>
+            <TabsTrigger value="trips" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Truck className="h-3 w-3 sm:h-4 sm:w-4" />
+              Trips
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="summary">
+            <AdminOverview selectedShop={selectedShop || 'all'} />
+          </TabsContent>
 
           <TabsContent value="overview">
             <div className="space-y-6">
@@ -826,6 +845,14 @@ const AdminDashboard = () => {
 
           <TabsContent value="daily-report">
             <DailyReport shops={shops} allowAll defaultShop={selectedShop || 'all'} />
+          </TabsContent>
+
+          <TabsContent value="factory">
+            <FactoryInventory />
+          </TabsContent>
+
+          <TabsContent value="trips">
+            <TripManager shops={shops} />
           </TabsContent>
         </Tabs>
       </div>

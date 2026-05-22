@@ -11,7 +11,8 @@ import CustomerManagement from './CustomerManagement';
 import DeliveryNoteManager from './logistics/DeliveryNoteManager';
 import DebtPaymentForm from './money/DebtPaymentForm';
 import DailyReport from './money/DailyReport';
-import { LogOut, Store, User, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart } from 'lucide-react';
+import SellerSummary from './seller/SellerSummary';
+import { LogOut, Store, User, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart, LayoutDashboard } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 const SellerDashboard = () => {
@@ -105,8 +106,9 @@ const SellerDashboard = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="inventory" className="space-y-6">
+        <Tabs defaultValue="summary" className="space-y-6">
           <TabsList className="flex flex-wrap w-full gap-1 h-auto p-1 bg-white/80 backdrop-blur-sm">
+            <TabsTrigger value="summary" className="text-xs sm:text-sm flex items-center gap-1"><LayoutDashboard className="h-3 w-3" /> Summary</TabsTrigger>
             <TabsTrigger value="inventory" className="text-xs sm:text-sm">Inventory</TabsTrigger>
             <TabsTrigger value="deliveries" className="text-xs sm:text-sm flex items-center gap-1">
               <Truck className="h-3 w-3" /> Deliveries
@@ -118,6 +120,10 @@ const SellerDashboard = () => {
             <TabsTrigger value="debts" className="text-xs sm:text-sm flex items-center gap-1"><Wallet className="h-3 w-3" /> Debts</TabsTrigger>
             <TabsTrigger value="daily-report" className="text-xs sm:text-sm flex items-center gap-1"><FileBarChart className="h-3 w-3" /> Daily Report</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="summary">
+            <SellerSummary shopId={shopId} />
+          </TabsContent>
 
           <TabsContent value="inventory">
             <InventoryTab shopId={shopId} />

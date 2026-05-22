@@ -168,8 +168,11 @@ const AdminTableEditor = () => {
       return;
     }
 
+    // Find original transaction for audit comparison
+    const originalTx = salesTransactions.find(t => t.id === editingTransaction);
     for (const itemId in editingSalesItems) {
       const item = editingSalesItems[itemId];
+      const originalItem = originalTx?.items.find((it: any) => it.id === itemId);
       const { error: itemError } = await supabase
         .from('sales_items')
         .update({ product: item.product, quantity: item.quantity, unit: item.unit })
@@ -178,6 +181,16 @@ const AdminTableEditor = () => {
       if (itemError) {
         toast({ title: "Error", description: `Failed to update item: ${item.product}`, variant: "destructive" });
         return;
+      }
+      if (originalItem && originalItem.product !== item.product) {
+        logAudit({
+          action: 'sales_item.product_change',
+          entity: 'sales_items',
+          entity_id: itemId,
+          shop_id: originalTx?.shop_id,
+          before: { product: originalItem.product },
+          after: { product: item.product },
+        });
       }
     }
 
