@@ -232,6 +232,36 @@ export type Database = {
         }
         Relationships: []
       }
+      factory_inventory: {
+        Row: {
+          created_at: string
+          id: string
+          product: string
+          quantity: number
+          threshold: number
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product: string
+          quantity?: number
+          threshold?: number
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product?: string
+          quantity?: number
+          threshold?: number
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       inventory: {
         Row: {
           created_at: string
@@ -539,6 +569,204 @@ export type Database = {
           shop_id?: string
           total_amount?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      trip_returns: {
+        Row: {
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          id: string
+          product: string
+          quantity: number
+          reason: string | null
+          status: string
+          trip_id: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          id?: string
+          product: string
+          quantity?: number
+          reason?: string | null
+          status?: string
+          trip_id: string
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          id?: string
+          product?: string
+          quantity?: number
+          reason?: string | null
+          status?: string
+          trip_id?: string
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_returns_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_stop_items: {
+        Row: {
+          created_at: string
+          discrepancy_qty: number | null
+          dispatched_qty: number
+          id: string
+          product: string
+          received_qty: number | null
+          stop_id: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          discrepancy_qty?: number | null
+          dispatched_qty?: number
+          id?: string
+          product: string
+          received_qty?: number | null
+          stop_id: string
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          discrepancy_qty?: number | null
+          dispatched_qty?: number
+          id?: string
+          product?: string
+          received_qty?: number | null
+          stop_id?: string
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_stop_items_stop_id_fkey"
+            columns: ["stop_id"]
+            isOneToOne: false
+            referencedRelation: "trip_stops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_stops: {
+        Row: {
+          billed_sale_id: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          customer_name: string | null
+          id: string
+          notes: string | null
+          place: string | null
+          shop_id: string | null
+          shop_name: string | null
+          status: string
+          stop_type: string
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          billed_sale_id?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          notes?: string | null
+          place?: string | null
+          shop_id?: string | null
+          shop_name?: string | null
+          status?: string
+          stop_type: string
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          billed_sale_id?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          notes?: string | null
+          place?: string | null
+          shop_id?: string | null
+          shop_name?: string | null
+          status?: string
+          stop_type?: string
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_stops_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trips: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          dispatched_at: string | null
+          driver: string | null
+          id: string
+          notes: string | null
+          status: string
+          trip_date: string
+          trip_no: string
+          updated_at: string
+          vehicle: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          dispatched_at?: string | null
+          driver?: string | null
+          id?: string
+          notes?: string | null
+          status?: string
+          trip_date?: string
+          trip_no: string
+          updated_at?: string
+          vehicle?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          dispatched_at?: string | null
+          driver?: string | null
+          id?: string
+          notes?: string | null
+          status?: string
+          trip_date?: string
+          trip_no?: string
+          updated_at?: string
+          vehicle?: string | null
         }
         Relationships: []
       }
