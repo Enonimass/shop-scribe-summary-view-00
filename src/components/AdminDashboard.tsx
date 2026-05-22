@@ -365,8 +365,12 @@ const AdminDashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs defaultValue="summary" className="space-y-6">
           <TabsList className="flex flex-wrap w-full gap-1 h-auto p-1">
+            <TabsTrigger value="summary" className="flex items-center gap-1 text-xs sm:text-sm">
+              <LayoutDashboard className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Summary</span>
+            </TabsTrigger>
             <TabsTrigger value="overview" className="flex items-center gap-1 text-xs sm:text-sm">
               <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Sales</span>
@@ -414,7 +418,19 @@ const AdminDashboard = () => {
               <FileBarChart className="h-3 w-3 sm:h-4 sm:w-4" />
               Daily
             </TabsTrigger>
+            <TabsTrigger value="factory" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Factory className="h-3 w-3 sm:h-4 sm:w-4" />
+              Factory
+            </TabsTrigger>
+            <TabsTrigger value="trips" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Truck className="h-3 w-3 sm:h-4 sm:w-4" />
+              Trips
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="summary">
+            <AdminOverview selectedShop={selectedShop || 'all'} />
+          </TabsContent>
 
           <TabsContent value="overview">
             <div className="space-y-6">
