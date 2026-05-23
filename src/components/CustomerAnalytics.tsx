@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PeriodComparison from './PeriodComparison';
+import PurchasingPower from './analytics/PurchasingPower';
 
 const CHART_COLORS = [
   'hsl(142, 76%, 36%)', 'hsl(79, 81%, 56%)', 'hsl(200, 70%, 50%)',
@@ -220,6 +221,9 @@ const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({ sales, shops }) =
       </TabsContent>
       <TabsContent value="analytics">
     <div className="space-y-6">
+      {/* Purchasing power tiers */}
+      <PurchasingPower shops={shops} shopFilter={shopFilter} hideShopSelect />
+
       {/* Filters */}
       <Card>
         <CardHeader>
