@@ -336,7 +336,8 @@ const TripManager: React.FC<Props> = ({ shops }) => {
                 <TableCell>{(t.trip_returns || []).length}</TableCell>
                 <TableCell><Badge className={STATUS[t.status]?.cls}>{STATUS[t.status]?.label || t.status}</Badge></TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" onClick={() => setOpenTrip(t)}><FileText className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => printTrip(t)} title="Print Trip + Delivery Notes"><Printer className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => setOpenTrip(t)} title="View"><FileText className="h-4 w-4" /></Button>
                 </TableCell>
               </TableRow>
             ))}
