@@ -429,7 +429,7 @@ const AdminDashboard = () => {
           </TabsList>
 
           <TabsContent value="summary">
-            <AdminOverview selectedShop={selectedShop || 'all'} />
+            <AdminOverview selectedShop={selectedShop || 'all'} shops={shops} />
           </TabsContent>
 
           <TabsContent value="overview">
