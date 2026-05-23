@@ -1,63 +1,76 @@
-# Trips, Factory Stock, Dashboards, Editable Sale Product
+## 1. Trip + Delivery Notes coupling
 
-## 1. Factory inventory
-- New table `factory_inventory (product, unit, quantity, threshold)`, unique per (product, unit).
-- Managed via a new "Factory" tab in Admin and Super Admin dashboards: receive stock, adjust, view low-stock.
-- Every outbound trip deducts factory stock; every confirmed return increases it.
+Goal: a trip and its delivery notes are one document. Generating a trip PDF produces a single file containing the trip summary page followed by one delivery-note page per stop with that stop's products and quantities.
 
-## 2. Trips (one big delivery, many stops)
-A trip is the truck leaving the factory. It contains many stops; each stop is either an outlet (shop) or a customer.
+Changes
+- `src/components/logistics/TripManager.tsx`
+  - Replace the current "Trip Summary PDF" + separate per-stop DN export with a single action: "Print Trip + Delivery Notes (PDF)".
+  - PDF layout:
+    1. Page 1 — Trip header: Kimp Feeds logo, Trip No, Date, Driver, Vehicle, Status, totals (bags-equivalent and tonnage), plus a table listing every stop (outlet/customer, place, line count, totals per unit).
+    2. One page per stop — header reads "Delivery Note — {Trip No}/{Stop #}" with destination, place, date, then a product/quantity/unit table and a per-unit summary row ("10 Bags, 5 × 50kg"). Signature blocks for driver and receiver.
+    3. Final page (only if returns exist) — Returns to factory table.
+  - Keep existing dispatch/confirm/return logic untouched.
+- `src/components/logistics/DeliveryNoteManager.tsx` — leave the legacy standalone DN flow as-is for now; mark its section heading as "Standalone delivery notes (legacy)" so users default to trips.
 
-New tables:
-- `trips (trip_no, trip_date, vehicle, driver, status: draft/dispatched/completed/cancelled, notes)`
-- `trip_stops (trip_id, stop_type: outlet|customer, shop_id, customer_name, place, status: pending/confirmed, dispatched_qty_total, received_qty_total, notes)`
-- `trip_stop_items (stop_id, product, unit, dispatched_qty, received_qty, discrepancy_qty)` — `discrepancy = received - dispatched`
-- `trip_returns (trip_id, product, unit, quantity, reason, status: pending/confirmed)` — goods coming back to factory (not a sale)
+No DB changes.
 
-Workflow:
-1. Admin/logistics creates a trip, adds stops (outlets and/or customers), adds items per stop.
-2. Dispatch: factory inventory is deducted by total dispatched quantities. Trip status = dispatched.
-3. At each stop, recipient confirms received quantity (may differ from dispatched).
-   - Outlet stop confirmed: shop inventory increases by `received_qty`. Discrepancy stored in `trip_stop_items.discrepancy_qty` and surfaced in dashboards/audit log. No auto-return is created.
-   - Customer stop confirmed: nothing is auto-created; stop is just marked confirmed and tagged to that shop. The shop seller records the sale later in the normal Sales tab (it does not affect inventory because the goods never reached the shop's stock).
-4. Returns: any unsold/unaccepted goods are recorded as `trip_returns`; when confirmed they add back to factory inventory. Returns are never sales.
-5. Trip completes once all stops + returns are confirmed (or admin force-completes).
+## 2. Purchasing Power tier summary (Customer Analytics)
 
-PDF: extend the existing delivery-note PDF (Kimp Feeds logo + per-unit totals) so each trip can print:
-- A trip summary sheet listing all stops.
-- A per-stop delivery note for outlet/customer.
+Tier definition (per customer, within the selected scope, measured in 70kg bag-equivalents via `toBagEquivalent`):
+- `≥100`     → "≥100"
+- `10–99`    → "10-99"
+- `1–9`      → "1-9"
+- `<1`       → "<1"   (fractional / less than one bag)
 
-## 3. Admin dashboard
-Add a new "Overview" tab as the first tab of `AdminDashboard`. Same KPI set as the super admin dashboard but scoped to the currently selected shop (or All Shops aggregate), plus delivery metrics:
-- Bags sold, tonnage, revenue, cash in, credit issued, debt outstanding, debt paid.
-- New customers (30d), active customers (90d), top debtors, low stock list.
-- Deliveries inbound (received from factory), customer deliveries pending sale, returns.
-- Date range with Today / This month shortcuts.
+Two linked tables, matching the user's screenshots:
 
-## 4. Seller dashboard
-Add a "Summary" tab (first tab) showing today + this month at-a-glance for the seller's shop:
-- Today: bags sold, tonnage, cash collected, debts taken, debts paid, low-stock count.
-- This month: same metrics + new vs returning customers, top 5 products.
-- Deliveries inbound waiting confirmation (outlet stops assigned to this shop).
-- "Customer deliveries waiting to be billed" list (customer stops tagged to this shop that haven't been turned into a sale yet) — seller can click to pre-fill a new sale.
+A. Number of customers per purchasing category (count)
+```
+OUTLET     ≥100   10-99   1-9    <1    TOTAL
+HQ           2      21    101    18     142
+…
+T.Count      3      33    351    60     447
+```
 
-## 5. Editable product in admin sales
-In `AdminTableEditor` (and the admin Sales view), make the product field on each sale line editable via the existing inline-edit pattern (autocomplete from products list). Save updates `sales_items.product`; logAudit on change.
+B. Quantity per purchasing category (sum of bag-equivalents, 2 dp)
+```
+OUTLET     ≥100    10-99    1-9      <1     TOTAL
+HQ         450.00  489.00   259.57   9.64   1,208.21
+…
+T.Quantity 561.57  655.00   700.14   33.07  1,949.79
+```
 
-## 6. Audit
-`logAudit` calls for: trip create/dispatch/cancel, stop confirm with discrepancy, return confirm, factory adjust, sale product change.
+Above the tables: two compact strips showing column %:
+- Customer % (count share per tier)
+- Quantity % (bag-equivalent share per tier)
+And a "GRAND TOTAL" line under each table (total customers / total bag-equivalents).
 
-## Technical details
-- Migration creates the five new tables with permissive RLS matching existing pattern (super admin still gets audit visibility via existing audit_logs).
-- New components:
-  - `src/components/logistics/TripManager.tsx` — list/create/dispatch trips with stops + returns editor.
-  - `src/components/factory/FactoryInventory.tsx` — factory stock CRUD + low-stock.
-  - `src/components/admin/AdminOverview.tsx` and `src/components/seller/SellerSummary.tsx` — KPI tabs.
-- Existing `DeliveryNoteManager` stays; trips are an additional, broader concept. (Long-term we can fold delivery notes into stops, but not in this pass.)
-- Reuse `toBagEquivalent` and the chunked-fetch pattern.
-- Routes unchanged; everything is tabs inside existing dashboards.
+Scope controls
+- Period toggle: "All time" ↔ "Selected range" (date pickers). Default = current month.
+- A shop filter is already present in Customer Analytics — it still applies (selecting one shop collapses the table to that single outlet row).
 
-## Out of scope (for this round)
-- Auto-creating sales from customer stops (you chose to keep it manual).
-- Migrating existing `delivery_notes` data into trips.
-- Tightening RLS on the new tables beyond the permissive default.
+Where it appears
+- `src/components/CustomerAnalytics.tsx` — new section "Purchasing Power" inserted at the top, above the existing customer list. Sellers see only their shop's row; admin/super-admin see all shop rows plus totals.
+- `src/components/admin/AdminOverview.tsx` — add the same two-table block in a new "Purchasing Power" card so admin sees it at a glance on the main dashboard.
+
+Computation notes (in-memory after fetching `sales_items` + `sales_transactions` chunked at 200 IDs, per existing pattern):
+1. For each customer × shop, sum `toBagEquivalent(quantity, unit)` across the filtered transactions.
+2. Bucket each (customer, shop) total into one of the four tiers.
+3. Aggregate counts and quantity sums per (shop, tier) for table A and B.
+4. Compute row totals, column totals, grand totals, and the two percentage strips.
+
+Exports
+- Add "Export CSV" and "Export PDF" buttons next to the Purchasing Power section, reusing `jspdf`/`xlsx` helpers already in the project.
+
+## 3. Technical details
+
+- No new tables. No migrations.
+- Reuse `src/lib/units.ts::toBagEquivalent` for all conversions (50kg → 5/7, kg → 1/70, etc.).
+- Reuse the 200-ID chunking pattern already used in `AdminDashboard.tsx` to fetch full history when "All time" is selected.
+- Numbers formatted with `Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })`; zero quantities render as `-` to match the screenshots.
+- PDF generation reuses the existing `jspdf` + `jspdf-autotable` setup; the trip PDF is built as one `jsPDF` instance with `doc.addPage()` between sections.
+
+## 4. Out of scope (not touched)
+- Trip dispatch / inventory / returns logic.
+- Customer segmentation lifecycle (New/Active/Inactive/Dormant) — separate from purchasing tiers.
+- Pricing, payment methods, debts.
