@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Trash2, Truck, CheckCircle2, Send, RotateCcw, FileText, Printer } from 'lucide-react';
+import { Plus, Trash2, Truck, CheckCircle2, Send, RotateCcw, FileText, Printer, FileSignature } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/components/AuthProvider';
@@ -56,9 +56,27 @@ const TripManager: React.FC<Props> = ({ shops }) => {
       .from('trips')
       .select('*, trip_stops(*, trip_stop_items(*)), trip_returns(*)')
       .order('trip_date', { ascending: false });
-    setTrips(data || []);
+    const trips = data || [];
+    // Fetch delivery notes linked to these trips & attach per stop
+    const tripIds = trips.map((t: any) => t.id);
+    let dns: any[] = [];
+    if (tripIds.length) {
+      const { data: dnData } = await supabase
+        .from('delivery_notes')
+        .select('*, delivery_note_items(*)')
+        .in('trip_id', tripIds);
+      dns = dnData || [];
+    }
+    trips.forEach((t: any) => {
+      const tripDns = dns.filter(d => d.trip_id === t.id);
+      t.delivery_notes = tripDns;
+      (t.trip_stops || []).forEach((s: any) => {
+        s.delivery_notes = tripDns.filter(d => d.trip_stop_id === s.id);
+      });
+    });
+    setTrips(trips);
     if (openTrip) {
-      const fresh = (data || []).find((t: any) => t.id === openTrip.id);
+      const fresh = trips.find((t: any) => t.id === openTrip.id);
       if (fresh) setOpenTrip(fresh);
     }
   };
@@ -76,6 +94,8 @@ const TripManager: React.FC<Props> = ({ shops }) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_stops' }, fetchAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_stop_items' }, fetchAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_returns' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_notes' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_note_items' }, fetchAll)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
@@ -159,6 +179,15 @@ const TripManager: React.FC<Props> = ({ shops }) => {
 
   const dispatchTrip = async (trip: any) => {
     if (trip.status !== 'draft') return;
+    const missing = (trip.trip_stops || []).filter((s: any) => !(s.delivery_notes || []).length);
+    if (missing.length) {
+      toast({
+        title: 'Add delivery notes',
+        description: `Every stop needs at least one delivery note before dispatch (${missing.length} missing).`,
+        variant: 'destructive',
+      });
+      return;
+    }
     const agg = aggregateDispatched(trip);
     // Deduct factory inventory
     for (const a of agg) {
@@ -218,6 +247,61 @@ const TripManager: React.FC<Props> = ({ shops }) => {
 
   // Returns
   const [retForm, setRetForm] = useState({ product: '', unit: 'bags', quantity: '', reason: '' });
+
+  // Per-stop delivery note authoring
+  const [dnStop, setDnStop] = useState<any | null>(null);
+  const [dnNo, setDnNo] = useState('');
+  const [dnDate, setDnDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dnDeliveredBy, setDnDeliveredBy] = useState('');
+  const [dnNotes, setDnNotes] = useState('');
+  const [dnItems, setDnItems] = useState<{ product: string; unit: string; quantity: string }[]>([{ product: '', unit: 'bags', quantity: '' }]);
+
+  const openAddDn = (stop: any) => {
+    setDnStop(stop);
+    setDnNo(`DN-${Date.now().toString().slice(-6)}`);
+    setDnDate(new Date().toISOString().split('T')[0]);
+    setDnDeliveredBy(openTrip?.driver || '');
+    setDnNotes('');
+    // Pre-fill from stop items for convenience
+    setDnItems((stop.trip_stop_items || []).map((it: any) => ({
+      product: it.product, unit: it.unit, quantity: String(it.dispatched_qty || ''),
+    })) || [{ product: '', unit: 'bags', quantity: '' }]);
+  };
+
+  const saveDn = async () => {
+    if (!dnStop || !openTrip) return;
+    if (!dnNo.trim()) return toast({ title: 'DN number required', variant: 'destructive' });
+    const valid = dnItems.filter(i => i.product && Number(i.quantity) > 0);
+    if (!valid.length) return toast({ title: 'Add at least one product line', variant: 'destructive' });
+    const shopId = dnStop.shop_id || openTrip.trip_stops?.find((s: any) => s.id === dnStop.id)?.shop_id || 'AWAY';
+    const { data: dn, error } = await supabase.from('delivery_notes').insert({
+      shop_id: shopId,
+      delivery_note_no: dnNo.trim(),
+      delivery_date: dnDate,
+      delivered_by: dnDeliveredBy || openTrip.driver || '-',
+      notes: dnNotes || null,
+      created_by: profile?.username || null,
+      status: 'draft',
+      trip_id: openTrip.id,
+      trip_stop_id: dnStop.id,
+    } as any).select().single();
+    if (error || !dn) return toast({ title: 'Error', description: error?.message, variant: 'destructive' });
+    await supabase.from('delivery_note_items').insert(valid.map(it => ({
+      delivery_note_id: dn.id, product: it.product, unit: it.unit, quantity: Number(it.quantity),
+    })));
+    logAudit({ action: 'delivery_note.create', entity: 'delivery_notes', entity_id: dn.id, notes: `via trip ${openTrip.trip_no} stop` });
+    toast({ title: 'Delivery note added' });
+    setDnStop(null);
+    fetchAll();
+  };
+
+  const removeDn = async (dnId: string) => {
+    if (!confirm('Remove this delivery note from the trip?')) return;
+    await supabase.from('delivery_note_items').delete().eq('delivery_note_id', dnId);
+    await supabase.from('delivery_notes').delete().eq('id', dnId);
+    fetchAll();
+  };
+
   const addReturn = async (tripId: string) => {
     if (!retForm.product || !retForm.quantity) return toast({ title: 'Product & qty required', variant: 'destructive' });
     const { error } = await supabase.from('trip_returns').insert({
@@ -472,6 +556,34 @@ const TripManager: React.FC<Props> = ({ shops }) => {
                           ))}
                         </TableBody>
                       </Table>
+                      {/* Delivery notes for this stop */}
+                      <div className="mt-3 border-t pt-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="text-sm font-semibold flex items-center gap-1"><FileSignature className="h-4 w-4" /> Delivery notes
+                            {(s.delivery_notes || []).length === 0
+                              ? <Badge variant="destructive" className="ml-2">none</Badge>
+                              : <Badge variant="outline" className="ml-2">{(s.delivery_notes || []).length}</Badge>}
+                          </div>
+                          {openTrip.status === 'draft' && (
+                            <Button size="sm" variant="outline" onClick={() => openAddDn(s)}><Plus className="h-3 w-3 mr-1" /> Add DN</Button>
+                          )}
+                        </div>
+                        {(s.delivery_notes || []).length === 0 ? (
+                          <div className="text-xs text-muted-foreground">Required before dispatch — add a delivery note for this stop.</div>
+                        ) : (
+                          <ul className="text-sm space-y-1">
+                            {(s.delivery_notes || []).map((d: any) => (
+                              <li key={d.id} className="flex justify-between items-center bg-muted/30 rounded px-2 py-1">
+                                <span className="font-mono">{d.delivery_note_no}</span>
+                                <span className="text-xs text-muted-foreground">{d.delivery_date} · {(d.delivery_note_items || []).length} lines · by {d.delivered_by}</span>
+                                {openTrip.status === 'draft' && (
+                                  <Button variant="ghost" size="icon" onClick={() => removeDn(d.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     </Card>
                   ))}
                 </div>
@@ -532,6 +644,49 @@ const TripManager: React.FC<Props> = ({ shops }) => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmStop(null)}>Cancel</Button>
             <Button onClick={saveConfirmStop}>Save & Confirm</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Delivery Note dialog */}
+      <Dialog open={!!dnStop} onOpenChange={(o) => !o && setDnStop(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>New delivery note · {dnStop?.stop_type === 'outlet' ? (dnStop?.shop_name || dnStop?.shop_id) : dnStop?.customer_name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>DN no.</Label><Input value={dnNo} onChange={e => setDnNo(e.target.value)} /></div>
+              <div><Label>Date</Label><Input type="date" value={dnDate} onChange={e => setDnDate(e.target.value)} /></div>
+              <div className="col-span-2"><Label>Delivered by</Label><Input value={dnDeliveredBy} onChange={e => setDnDeliveredBy(e.target.value)} /></div>
+              <div className="col-span-2"><Label>Notes</Label><Input value={dnNotes} onChange={e => setDnNotes(e.target.value)} /></div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label>Items</Label>
+                <Button size="sm" variant="outline" onClick={() => setDnItems([...dnItems, { product: '', unit: 'bags', quantity: '' }])}><Plus className="h-3 w-3 mr-1" /> Add line</Button>
+              </div>
+              {dnItems.map((it, idx) => (
+                <div key={idx} className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-6">
+                    <Input list={`dn-prod-${idx}`} placeholder="Product" value={it.product} onChange={e => setDnItems(dnItems.map((x, i) => i === idx ? { ...x, product: e.target.value } : x))} />
+                    <datalist id={`dn-prod-${idx}`}>{products.map(p => <option key={p} value={p} />)}</datalist>
+                  </div>
+                  <div className="col-span-3">
+                    <Select value={it.unit} onValueChange={v => setDnItems(dnItems.map((x, i) => i === idx ? { ...x, unit: v } : x))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2"><Input type="number" placeholder="Qty" value={it.quantity} onChange={e => setDnItems(dnItems.map((x, i) => i === idx ? { ...x, quantity: e.target.value } : x))} /></div>
+                  <Button variant="ghost" size="icon" onClick={() => setDnItems(dnItems.filter((_, i) => i !== idx))}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDnStop(null)}>Cancel</Button>
+            <Button onClick={saveDn}>Save delivery note</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

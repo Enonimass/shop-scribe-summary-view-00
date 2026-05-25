@@ -1,0 +1,376 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from './AuthProvider';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { LogOut, Calculator, DollarSign, Wallet, AlertTriangle, Package, Factory, TrendingUp } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import ExportButtons from './ExportButtons';
+import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
+
+const fmtKes = (n: number) => `KES ${Math.round(n).toLocaleString()}`;
+
+const AccountantDashboard: React.FC = () => {
+  const { profile, logout } = useAuth();
+  const [shops, setShops] = useState<{ shop_id: string; shop_name: string }[]>([]);
+  const [shopFilter, setShopFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>(() => {
+    const d = new Date(); d.setDate(1);
+    return d.toISOString().split('T')[0];
+  });
+  const [dateTo, setDateTo] = useState<string>(() => new Date().toISOString().split('T')[0]);
+
+  const [tx, setTx] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
+  const [debtPayments, setDebtPayments] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
+  const [factory, setFactory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('profiles').select('shop_id, shop_name').eq('role', 'seller').not('shop_id', 'is', null);
+      const uniq = new Map<string, string>();
+      (data || []).forEach((p: any) => { if (p.shop_id) uniq.set(p.shop_id, p.shop_name || p.shop_id); });
+      setShops([...uniq.entries()].map(([shop_id, shop_name]) => ({ shop_id, shop_name })));
+    })();
+  }, []);
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [shopFilter, dateFrom, dateTo]);
+
+  const load = async () => {
+    setLoading(true);
+    let txQ = supabase.from('sales_transactions').select('*').gte('sale_date', dateFrom).lte('sale_date', dateTo).order('sale_date', { ascending: false });
+    if (shopFilter !== 'all') txQ = txQ.eq('shop_id', shopFilter);
+    let allTx: any[] = [];
+    const PAGE = 1000;
+    let page = 0;
+    while (true) {
+      const { data } = await txQ.range(page * PAGE, page * PAGE + PAGE - 1);
+      if (!data || !data.length) break;
+      allTx = allTx.concat(data);
+      if (data.length < PAGE) break;
+      page++;
+    }
+    const ids = allTx.map(t => t.id);
+    let allItems: any[] = [];
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data: it } = await supabase.from('sales_items').select('*').in('transaction_id', ids.slice(i, i + 200));
+      allItems = allItems.concat(it || []);
+    }
+
+    let dpQ = supabase.from('debt_payments').select('*').gte('payment_date', dateFrom).lte('payment_date', dateTo).order('payment_date', { ascending: false });
+    if (shopFilter !== 'all') dpQ = dpQ.eq('shop_id', shopFilter);
+    const { data: dp } = await dpQ;
+
+    let invQ = supabase.from('inventory').select('*');
+    if (shopFilter !== 'all') invQ = invQ.eq('shop_id', shopFilter);
+    const { data: inv } = await invQ;
+
+    const { data: fac } = await supabase.from('factory_inventory').select('*');
+
+    setTx(allTx); setItems(allItems); setDebtPayments(dp || []); setInventory(inv || []); setFactory(fac || []);
+    setLoading(false);
+  };
+
+  const kpis = useMemo(() => {
+    const revenue = tx.reduce((s, t) => s + Number(t.total_amount || 0), 0);
+    const collected = tx.reduce((s, t) => s + Number(t.amount_paid || 0), 0);
+    const outstanding = tx.filter(t => t.is_credit).reduce((s, t) => s + (Number(t.total_amount) - Number(t.amount_paid)), 0);
+    const debtPaid = debtPayments.reduce((s, d) => s + Number(d.amount || 0), 0);
+    const moneyIn = collected + debtPaid;
+    return { revenue, collected, outstanding, debtPaid, moneyIn, txCount: tx.length };
+  }, [tx, debtPayments]);
+
+  const moneyByMethod = useMemo(() => {
+    const m = new Map<string, number>();
+    tx.forEach(t => {
+      const k = t.payment_method_name || 'Unspecified';
+      m.set(k, (m.get(k) || 0) + Number(t.amount_paid || 0));
+    });
+    debtPayments.forEach(d => {
+      const k = d.payment_method_name || 'Unspecified';
+      m.set(k, (m.get(k) || 0) + Number(d.amount || 0));
+    });
+    return [...m.entries()].map(([method, amount]) => ({ method, amount })).sort((a, b) => b.amount - a.amount);
+  }, [tx, debtPayments]);
+
+  const outstandingByCustomer = useMemo(() => {
+    const m = new Map<string, { customer: string; shop_id: string; total: number; paid: number; debt: number; count: number }>();
+    tx.filter(t => t.is_credit).forEach(t => {
+      const key = `${t.shop_id}|${(t.customer_name || '').toLowerCase()}`;
+      const cur = m.get(key) || { customer: t.customer_name, shop_id: t.shop_id, total: 0, paid: 0, debt: 0, count: 0 };
+      cur.total += Number(t.total_amount || 0);
+      cur.paid += Number(t.amount_paid || 0);
+      cur.debt = cur.total - cur.paid;
+      cur.count += 1;
+      m.set(key, cur);
+    });
+    return [...m.values()].filter(r => r.debt > 0.01).sort((a, b) => b.debt - a.debt);
+  }, [tx]);
+
+  const shopName = (id: string) => shops.find(s => s.shop_id === id)?.shop_name || id;
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b bg-card">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <img src={kimpFeedsLogo} alt="Kimp Feeds" className="h-9 w-9 rounded" />
+            <div>
+              <h1 className="text-lg font-bold flex items-center gap-2"><Calculator className="h-5 w-5 text-green-awesome" /> Accountant Console</h1>
+              <p className="text-xs text-muted-foreground">Read-only access · {profile?.display_name}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">Read-only</Badge>
+            <Button variant="outline" size="sm" onClick={logout}><LogOut className="h-4 w-4 mr-1" /> Logout</Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-4 space-y-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+              <div>
+                <Label>Shop</Label>
+                <Select value={shopFilter} onValueChange={setShopFilter}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All shops</SelectItem>
+                    {shops.map(s => <SelectItem key={s.shop_id} value={s.shop_id}>{s.shop_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>From</Label><Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} /></div>
+              <div><Label>To</Label><Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} /></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Revenue</div><div className="text-2xl font-bold">{fmtKes(kpis.revenue)}</div><div className="text-xs text-muted-foreground">{kpis.txCount} sales</div></CardContent></Card>
+          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Money in</div><div className="text-2xl font-bold text-green-awesome">{fmtKes(kpis.moneyIn)}</div><div className="text-xs text-muted-foreground">Collected + debt paid</div></CardContent></Card>
+          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Outstanding debt</div><div className="text-2xl font-bold text-destructive">{fmtKes(kpis.outstanding)}</div></CardContent></Card>
+          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Debt paid in period</div><div className="text-2xl font-bold">{fmtKes(kpis.debtPaid)}</div></CardContent></Card>
+        </div>
+
+        <Tabs defaultValue="sales">
+          <TabsList className="flex-wrap h-auto">
+            <TabsTrigger value="sales"><DollarSign className="h-4 w-4 mr-1" /> Sales</TabsTrigger>
+            <TabsTrigger value="money"><Wallet className="h-4 w-4 mr-1" /> Money in</TabsTrigger>
+            <TabsTrigger value="debts"><AlertTriangle className="h-4 w-4 mr-1" /> Debts</TabsTrigger>
+            <TabsTrigger value="stock"><Package className="h-4 w-4 mr-1" /> Shop stock</TabsTrigger>
+            <TabsTrigger value="factory"><Factory className="h-4 w-4 mr-1" /> Factory stock</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="sales">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5" /> Sales transactions</CardTitle>
+                <ExportButtons
+                  filename={`sales-${dateFrom}_${dateTo}`}
+                  getData={() => ({
+                    title: 'Sales Transactions',
+                    headers: ['Date', 'Shop', 'Customer', 'Type', 'Method', 'Total', 'Paid', 'Credit?'],
+                    rows: tx.map(t => [t.sale_date, shopName(t.shop_id), t.customer_name, t.sale_type, t.payment_method_name || '-', Number(t.total_amount || 0), Number(t.amount_paid || 0), t.is_credit ? 'Yes' : 'No']),
+                    summary: { Revenue: fmtKes(kpis.revenue), Collected: fmtKes(kpis.collected), Outstanding: fmtKes(kpis.outstanding) },
+                  })}
+                />
+              </CardHeader>
+              <CardContent>
+                {loading ? <div className="text-sm text-muted-foreground">Loading…</div> : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader><TableRow>
+                        <TableHead>Date</TableHead><TableHead>Shop</TableHead><TableHead>Customer</TableHead>
+                        <TableHead>Type</TableHead><TableHead>Method</TableHead>
+                        <TableHead className="text-right">Total</TableHead><TableHead className="text-right">Paid</TableHead><TableHead>Credit</TableHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {tx.slice(0, 500).map(t => (
+                          <TableRow key={t.id}>
+                            <TableCell>{t.sale_date}</TableCell>
+                            <TableCell>{shopName(t.shop_id)}</TableCell>
+                            <TableCell>{t.customer_name}</TableCell>
+                            <TableCell><Badge variant={t.sale_type === 'away' ? 'secondary' : 'outline'}>{t.sale_type}</Badge></TableCell>
+                            <TableCell>{t.payment_method_name || '-'}</TableCell>
+                            <TableCell className="text-right">{fmtKes(Number(t.total_amount || 0))}</TableCell>
+                            <TableCell className="text-right">{fmtKes(Number(t.amount_paid || 0))}</TableCell>
+                            <TableCell>{t.is_credit ? <Badge variant="destructive">Credit</Badge> : '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                        {!tx.length && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No transactions in period.</TableCell></TableRow>}
+                      </TableBody>
+                    </Table>
+                    {tx.length > 500 && <div className="text-xs text-muted-foreground mt-2">Showing first 500 of {tx.length}. Export for full list.</div>}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="money">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> Money in by method</CardTitle>
+                <ExportButtons
+                  filename={`money-in-${dateFrom}_${dateTo}`}
+                  getData={() => ({
+                    title: 'Money In by Method',
+                    headers: ['Method', 'Amount'],
+                    rows: moneyByMethod.map(r => [r.method, Number(r.amount.toFixed(2))]),
+                    summary: { 'Total money in': fmtKes(kpis.moneyIn) },
+                  })}
+                />
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader><TableRow><TableHead>Method</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {moneyByMethod.map(r => (
+                      <TableRow key={r.method}><TableCell>{r.method}</TableCell><TableCell className="text-right">{fmtKes(r.amount)}</TableCell></TableRow>
+                    ))}
+                    {!moneyByMethod.length && <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">No payments recorded.</TableCell></TableRow>}
+                    <TableRow className="bg-muted/40">
+                      <TableCell className="font-semibold">Total</TableCell>
+                      <TableCell className="text-right font-bold">{fmtKes(kpis.moneyIn)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="debts">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Outstanding debts</CardTitle>
+                <ExportButtons
+                  filename={`debts-${dateFrom}_${dateTo}`}
+                  getData={() => ({
+                    title: 'Outstanding debts',
+                    headers: ['Customer', 'Shop', 'Credit sales', 'Billed', 'Paid', 'Owing'],
+                    rows: outstandingByCustomer.map(r => [r.customer, shopName(r.shop_id), r.count, r.total, r.paid, r.debt]),
+                    summary: { 'Total outstanding': fmtKes(outstandingByCustomer.reduce((s, r) => s + r.debt, 0)) },
+                  })}
+                />
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader><TableRow>
+                    <TableHead>Customer</TableHead><TableHead>Shop</TableHead>
+                    <TableHead className="text-right">Credit sales</TableHead>
+                    <TableHead className="text-right">Billed</TableHead>
+                    <TableHead className="text-right">Paid</TableHead>
+                    <TableHead className="text-right">Owing</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    {outstandingByCustomer.map((r, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-medium">{r.customer}</TableCell>
+                        <TableCell>{shopName(r.shop_id)}</TableCell>
+                        <TableCell className="text-right">{r.count}</TableCell>
+                        <TableCell className="text-right">{fmtKes(r.total)}</TableCell>
+                        <TableCell className="text-right">{fmtKes(r.paid)}</TableCell>
+                        <TableCell className="text-right text-destructive font-semibold">{fmtKes(r.debt)}</TableCell>
+                      </TableRow>
+                    ))}
+                    {!outstandingByCustomer.length && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No outstanding debts in period.</TableCell></TableRow>}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="stock">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5" /> Shop inventory</CardTitle>
+                <ExportButtons
+                  filename={`shop-inventory`}
+                  getData={() => ({
+                    title: 'Shop Inventory',
+                    headers: ['Shop', 'Product', 'Unit', 'Quantity', 'Threshold'],
+                    rows: inventory.map(i => [shopName(i.shop_id), i.product, i.unit, Number(i.quantity), Number(i.threshold)]),
+                  })}
+                />
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader><TableRow>
+                    <TableHead>Shop</TableHead><TableHead>Product</TableHead><TableHead>Unit</TableHead>
+                    <TableHead className="text-right">Quantity</TableHead><TableHead className="text-right">Threshold</TableHead><TableHead>Status</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    {inventory.map(i => {
+                      const low = Number(i.quantity) <= Number(i.threshold);
+                      return (
+                        <TableRow key={i.id}>
+                          <TableCell>{shopName(i.shop_id)}</TableCell>
+                          <TableCell>{i.product}</TableCell>
+                          <TableCell>{i.unit}</TableCell>
+                          <TableCell className="text-right">{Number(i.quantity)}</TableCell>
+                          <TableCell className="text-right">{Number(i.threshold)}</TableCell>
+                          <TableCell>{low ? <Badge variant="destructive">Low</Badge> : <Badge variant="outline">OK</Badge>}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {!inventory.length && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No inventory.</TableCell></TableRow>}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="factory">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2"><Factory className="h-5 w-5" /> Factory inventory</CardTitle>
+                <ExportButtons
+                  filename={`factory-inventory`}
+                  getData={() => ({
+                    title: 'Factory Inventory',
+                    headers: ['Product', 'Unit', 'Quantity', 'Threshold'],
+                    rows: factory.map(f => [f.product, f.unit, Number(f.quantity), Number(f.threshold)]),
+                  })}
+                />
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader><TableRow>
+                    <TableHead>Product</TableHead><TableHead>Unit</TableHead>
+                    <TableHead className="text-right">Quantity</TableHead><TableHead className="text-right">Threshold</TableHead><TableHead>Status</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    {factory.map(f => {
+                      const low = Number(f.quantity) <= Number(f.threshold);
+                      return (
+                        <TableRow key={f.id}>
+                          <TableCell>{f.product}</TableCell>
+                          <TableCell>{f.unit}</TableCell>
+                          <TableCell className="text-right">{Number(f.quantity)}</TableCell>
+                          <TableCell className="text-right">{Number(f.threshold)}</TableCell>
+                          <TableCell>{low ? <Badge variant="destructive">Low</Badge> : <Badge variant="outline">OK</Badge>}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {!factory.length && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No factory stock.</TableCell></TableRow>}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  );
+};
+
+export default AccountantDashboard;

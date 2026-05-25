@@ -98,7 +98,7 @@ const LogisticsDashboard = () => {
           </TabsContent>
 
           <TabsContent value="deliveries">
-            <DeliveryNoteManager shops={shops} canCreate={true} />
+            <DeliveryNoteManager shops={shops} canCreate={false} />
           </TabsContent>
 
           <TabsContent value="movement">
