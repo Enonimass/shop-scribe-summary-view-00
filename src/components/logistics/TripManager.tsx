@@ -647,6 +647,49 @@ const TripManager: React.FC<Props> = ({ shops }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Delivery Note dialog */}
+      <Dialog open={!!dnStop} onOpenChange={(o) => !o && setDnStop(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>New delivery note · {dnStop?.stop_type === 'outlet' ? (dnStop?.shop_name || dnStop?.shop_id) : dnStop?.customer_name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>DN no.</Label><Input value={dnNo} onChange={e => setDnNo(e.target.value)} /></div>
+              <div><Label>Date</Label><Input type="date" value={dnDate} onChange={e => setDnDate(e.target.value)} /></div>
+              <div className="col-span-2"><Label>Delivered by</Label><Input value={dnDeliveredBy} onChange={e => setDnDeliveredBy(e.target.value)} /></div>
+              <div className="col-span-2"><Label>Notes</Label><Input value={dnNotes} onChange={e => setDnNotes(e.target.value)} /></div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label>Items</Label>
+                <Button size="sm" variant="outline" onClick={() => setDnItems([...dnItems, { product: '', unit: 'bags', quantity: '' }])}><Plus className="h-3 w-3 mr-1" /> Add line</Button>
+              </div>
+              {dnItems.map((it, idx) => (
+                <div key={idx} className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-6">
+                    <Input list={`dn-prod-${idx}`} placeholder="Product" value={it.product} onChange={e => setDnItems(dnItems.map((x, i) => i === idx ? { ...x, product: e.target.value } : x))} />
+                    <datalist id={`dn-prod-${idx}`}>{products.map(p => <option key={p} value={p} />)}</datalist>
+                  </div>
+                  <div className="col-span-3">
+                    <Select value={it.unit} onValueChange={v => setDnItems(dnItems.map((x, i) => i === idx ? { ...x, unit: v } : x))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2"><Input type="number" placeholder="Qty" value={it.quantity} onChange={e => setDnItems(dnItems.map((x, i) => i === idx ? { ...x, quantity: e.target.value } : x))} /></div>
+                  <Button variant="ghost" size="icon" onClick={() => setDnItems(dnItems.filter((_, i) => i !== idx))}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDnStop(null)}>Cancel</Button>
+            <Button onClick={saveDn}>Save delivery note</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
