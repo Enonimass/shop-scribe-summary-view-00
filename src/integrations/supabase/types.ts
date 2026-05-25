@@ -194,6 +194,8 @@ export type Database = {
           seller_confirmed_by: string | null
           shop_id: string
           status: string
+          trip_id: string | null
+          trip_stop_id: string | null
           updated_at: string
         }
         Insert: {
@@ -211,6 +213,8 @@ export type Database = {
           seller_confirmed_by?: string | null
           shop_id: string
           status?: string
+          trip_id?: string | null
+          trip_stop_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -228,6 +232,8 @@ export type Database = {
           seller_confirmed_by?: string | null
           shop_id?: string
           status?: string
+          trip_id?: string | null
+          trip_stop_id?: string | null
           updated_at?: string
         }
         Relationships: []
