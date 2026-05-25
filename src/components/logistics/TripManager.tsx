@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Trash2, Truck, CheckCircle2, Send, RotateCcw, FileText, Printer } from 'lucide-react';
+import { Plus, Trash2, Truck, CheckCircle2, Send, RotateCcw, FileText, Printer, FileSignature } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/components/AuthProvider';
@@ -56,9 +56,27 @@ const TripManager: React.FC<Props> = ({ shops }) => {
       .from('trips')
       .select('*, trip_stops(*, trip_stop_items(*)), trip_returns(*)')
       .order('trip_date', { ascending: false });
-    setTrips(data || []);
+    const trips = data || [];
+    // Fetch delivery notes linked to these trips & attach per stop
+    const tripIds = trips.map((t: any) => t.id);
+    let dns: any[] = [];
+    if (tripIds.length) {
+      const { data: dnData } = await supabase
+        .from('delivery_notes')
+        .select('*, delivery_note_items(*)')
+        .in('trip_id', tripIds);
+      dns = dnData || [];
+    }
+    trips.forEach((t: any) => {
+      const tripDns = dns.filter(d => d.trip_id === t.id);
+      t.delivery_notes = tripDns;
+      (t.trip_stops || []).forEach((s: any) => {
+        s.delivery_notes = tripDns.filter(d => d.trip_stop_id === s.id);
+      });
+    });
+    setTrips(trips);
     if (openTrip) {
-      const fresh = (data || []).find((t: any) => t.id === openTrip.id);
+      const fresh = trips.find((t: any) => t.id === openTrip.id);
       if (fresh) setOpenTrip(fresh);
     }
   };
@@ -76,6 +94,8 @@ const TripManager: React.FC<Props> = ({ shops }) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_stops' }, fetchAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_stop_items' }, fetchAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_returns' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_notes' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_note_items' }, fetchAll)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
@@ -159,6 +179,15 @@ const TripManager: React.FC<Props> = ({ shops }) => {
 
   const dispatchTrip = async (trip: any) => {
     if (trip.status !== 'draft') return;
+    const missing = (trip.trip_stops || []).filter((s: any) => !(s.delivery_notes || []).length);
+    if (missing.length) {
+      toast({
+        title: 'Add delivery notes',
+        description: `Every stop needs at least one delivery note before dispatch (${missing.length} missing).`,
+        variant: 'destructive',
+      });
+      return;
+    }
     const agg = aggregateDispatched(trip);
     // Deduct factory inventory
     for (const a of agg) {
