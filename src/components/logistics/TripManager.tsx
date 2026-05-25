@@ -247,6 +247,61 @@ const TripManager: React.FC<Props> = ({ shops }) => {
 
   // Returns
   const [retForm, setRetForm] = useState({ product: '', unit: 'bags', quantity: '', reason: '' });
+
+  // Per-stop delivery note authoring
+  const [dnStop, setDnStop] = useState<any | null>(null);
+  const [dnNo, setDnNo] = useState('');
+  const [dnDate, setDnDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dnDeliveredBy, setDnDeliveredBy] = useState('');
+  const [dnNotes, setDnNotes] = useState('');
+  const [dnItems, setDnItems] = useState<{ product: string; unit: string; quantity: string }[]>([{ product: '', unit: 'bags', quantity: '' }]);
+
+  const openAddDn = (stop: any) => {
+    setDnStop(stop);
+    setDnNo(`DN-${Date.now().toString().slice(-6)}`);
+    setDnDate(new Date().toISOString().split('T')[0]);
+    setDnDeliveredBy(openTrip?.driver || '');
+    setDnNotes('');
+    // Pre-fill from stop items for convenience
+    setDnItems((stop.trip_stop_items || []).map((it: any) => ({
+      product: it.product, unit: it.unit, quantity: String(it.dispatched_qty || ''),
+    })) || [{ product: '', unit: 'bags', quantity: '' }]);
+  };
+
+  const saveDn = async () => {
+    if (!dnStop || !openTrip) return;
+    if (!dnNo.trim()) return toast({ title: 'DN number required', variant: 'destructive' });
+    const valid = dnItems.filter(i => i.product && Number(i.quantity) > 0);
+    if (!valid.length) return toast({ title: 'Add at least one product line', variant: 'destructive' });
+    const shopId = dnStop.shop_id || openTrip.trip_stops?.find((s: any) => s.id === dnStop.id)?.shop_id || 'AWAY';
+    const { data: dn, error } = await supabase.from('delivery_notes').insert({
+      shop_id: shopId,
+      delivery_note_no: dnNo.trim(),
+      delivery_date: dnDate,
+      delivered_by: dnDeliveredBy || openTrip.driver || '-',
+      notes: dnNotes || null,
+      created_by: profile?.username || null,
+      status: 'draft',
+      trip_id: openTrip.id,
+      trip_stop_id: dnStop.id,
+    } as any).select().single();
+    if (error || !dn) return toast({ title: 'Error', description: error?.message, variant: 'destructive' });
+    await supabase.from('delivery_note_items').insert(valid.map(it => ({
+      delivery_note_id: dn.id, product: it.product, unit: it.unit, quantity: Number(it.quantity),
+    })));
+    logAudit({ action: 'delivery_note.create', entity: 'delivery_notes', entity_id: dn.id, notes: `via trip ${openTrip.trip_no} stop` });
+    toast({ title: 'Delivery note added' });
+    setDnStop(null);
+    fetchAll();
+  };
+
+  const removeDn = async (dnId: string) => {
+    if (!confirm('Remove this delivery note from the trip?')) return;
+    await supabase.from('delivery_note_items').delete().eq('delivery_note_id', dnId);
+    await supabase.from('delivery_notes').delete().eq('id', dnId);
+    fetchAll();
+  };
+
   const addReturn = async (tripId: string) => {
     if (!retForm.product || !retForm.quantity) return toast({ title: 'Product & qty required', variant: 'destructive' });
     const { error } = await supabase.from('trip_returns').insert({
