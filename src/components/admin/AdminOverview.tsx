@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toBagEquivalent, toKg, formatBags, formatTonnes } from '@/lib/units';
 import { Package, DollarSign, Wallet, TrendingUp, Users, AlertTriangle, Truck } from 'lucide-react';
 import PurchasingPower from '@/components/analytics/PurchasingPower';
+import WeeklyPurchasing from '@/components/analytics/WeeklyPurchasing';
 
 interface Props {
   selectedShop: string; // 'all' or shop_id
@@ -133,6 +134,7 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
         </CardContent></Card>
       </div>
       <PurchasingPower shops={shops} shopFilter={selectedShop} hideShopSelect />
+      <WeeklyPurchasing shops={shops} shopFilter={selectedShop} hideShopSelect />
     </div>
   );
 };

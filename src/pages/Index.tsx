@@ -5,6 +5,7 @@ import LoginForm from '../components/LoginForm';
 import SellerDashboard from '../components/SellerDashboard';
 import AdminDashboard from '../components/AdminDashboard';
 import LogisticsDashboard from '../components/LogisticsDashboard';
+import AccountantDashboard from '../components/AccountantDashboard';
 
 const AppContent = () => {
   const { profile, isAuthenticated, loading } = useAuth();
@@ -23,6 +24,10 @@ const AppContent = () => {
 
   if (profile?.role === 'logistics') {
     return <LogisticsDashboard />;
+  }
+
+  if (profile?.role === 'accountant') {
+    return <AccountantDashboard />;
   }
 
   return <SellerDashboard />;
