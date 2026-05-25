@@ -1,76 +1,90 @@
-## 1. Trip + Delivery Notes coupling
+## 1. Weekly Purchasing Analysis (new tab in Customer Analytics)
 
-Goal: a trip and its delivery notes are one document. Generating a trip PDF produces a single file containing the trip summary page followed by one delivery-note page per stop with that stop's products and quantities.
+New component `src/components/analytics/WeeklyPurchasing.tsx`.
 
-Changes
-- `src/components/logistics/TripManager.tsx`
-  - Replace the current "Trip Summary PDF" + separate per-stop DN export with a single action: "Print Trip + Delivery Notes (PDF)".
-  - PDF layout:
-    1. Page 1 — Trip header: Kimp Feeds logo, Trip No, Date, Driver, Vehicle, Status, totals (bags-equivalent and tonnage), plus a table listing every stop (outlet/customer, place, line count, totals per unit).
-    2. One page per stop — header reads "Delivery Note — {Trip No}/{Stop #}" with destination, place, date, then a product/quantity/unit table and a per-unit summary row ("10 Bags, 5 × 50kg"). Signature blocks for driver and receiver.
-    3. Final page (only if returns exist) — Returns to factory table.
-  - Keep existing dispatch/confirm/return logic untouched.
-- `src/components/logistics/DeliveryNoteManager.tsx` — leave the legacy standalone DN flow as-is for now; mark its section heading as "Standalone delivery notes (legacy)" so users default to trips.
+Tiers (bag‑equivalents per week, Mon–Sat = one week):
+- `>10`, `5–10`, `1–5`, `<1`
 
-No DB changes.
+For each customer in the period:
+1. Group their sales into Mon–Sat weeks.
+2. Sum bag‑equivalents per week (reuse `toBagEquivalent`).
+3. Count how many of that customer's weeks fall in each tier.
 
-## 2. Purchasing Power tier summary (Customer Analytics)
+Two tables (matching the existing Purchasing Power layout):
 
-Tier definition (per customer, within the selected scope, measured in 70kg bag-equivalents via `toBagEquivalent`):
-- `≥100`     → "≥100"
-- `10–99`    → "10-99"
-- `1–9`      → "1-9"
-- `<1`       → "<1"   (fractional / less than one bag)
-
-Two linked tables, matching the user's screenshots:
-
-A. Number of customers per purchasing category (count)
+A. Customer‑weeks per tier — per shop row + totals
 ```
-OUTLET     ≥100   10-99   1-9    <1    TOTAL
-HQ           2      21    101    18     142
+OUTLET   >10   5-10   1-5   <1   TOTAL WEEKS
+HQ        4     17    62    9        92
 …
-T.Count      3      33    351    60     447
 ```
 
-B. Quantity per purchasing category (sum of bag-equivalents, 2 dp)
+B. Distinct customers reaching each tier at least once (so admin sees "how many customers ever hit ≥10 bags/week")
 ```
-OUTLET     ≥100    10-99    1-9      <1     TOTAL
-HQ         450.00  489.00   259.57   9.64   1,208.21
-…
-T.Quantity 561.57  655.00   700.14   33.07  1,949.79
+OUTLET   >10   5-10   1-5   <1   ACTIVE CUSTOMERS
+HQ        2     8     45    12       67
 ```
 
-Above the tables: two compact strips showing column %:
-- Customer % (count share per tier)
-- Quantity % (bag-equivalent share per tier)
-And a "GRAND TOTAL" line under each table (total customers / total bag-equivalents).
+Scope controls (same pattern as Purchasing Power):
+- Period toggle: This Month / All Time / Custom Range (default current month).
+- Shop filter respected; sellers see only their own shop.
+- CSV + PDF export buttons.
 
-Scope controls
-- Period toggle: "All time" ↔ "Selected range" (date pickers). Default = current month.
-- A shop filter is already present in Customer Analytics — it still applies (selecting one shop collapses the table to that single outlet row).
+Surfaces:
+- New "Weekly Purchasing" section inside `CustomerAnalytics.tsx`, directly under Purchasing Power.
+- Same block reused inside `AdminOverview.tsx`.
 
-Where it appears
-- `src/components/CustomerAnalytics.tsx` — new section "Purchasing Power" inserted at the top, above the existing customer list. Sellers see only their shop's row; admin/super-admin see all shop rows plus totals.
-- `src/components/admin/AdminOverview.tsx` — add the same two-table block in a new "Purchasing Power" card so admin sees it at a glance on the main dashboard.
+No DB changes — pure in‑memory aggregation over `sales_items` + `sales_transactions` fetched with the existing 200‑ID chunking.
 
-Computation notes (in-memory after fetching `sales_items` + `sales_transactions` chunked at 200 IDs, per existing pattern):
-1. For each customer × shop, sum `toBagEquivalent(quantity, unit)` across the filtered transactions.
-2. Bucket each (customer, shop) total into one of the four tiers.
-3. Aggregate counts and quantity sums per (shop, tier) for table A and B.
-4. Compute row totals, column totals, grand totals, and the two percentage strips.
+## 2. Trip ↔ Delivery Note coupling (enforced)
 
-Exports
-- Add "Export CSV" and "Export PDF" buttons next to the Purchasing Power section, reusing `jspdf`/`xlsx` helpers already in the project.
+Rule: every delivery note must live inside a trip. DNs are still authored manually, but only from within a trip.
 
-## 3. Technical details
+`src/components/logistics/TripManager.tsx`
+- Each trip stop gains a "Delivery Notes" sub‑panel. Logistics user adds DN(s) per stop manually (DN no., delivery date, items, notes).
+- Trip cannot be dispatched if any stop has zero delivery notes (button disabled + tooltip "Add a delivery note to every stop").
+- The combined "Print Trip + Delivery Notes (PDF)" already implemented stays — now it iterates real DN records per stop instead of synthesising from stop items.
 
-- No new tables. No migrations.
-- Reuse `src/lib/units.ts::toBagEquivalent` for all conversions (50kg → 5/7, kg → 1/70, etc.).
-- Reuse the 200-ID chunking pattern already used in `AdminDashboard.tsx` to fetch full history when "All time" is selected.
-- Numbers formatted with `Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })`; zero quantities render as `-` to match the screenshots.
-- PDF generation reuses the existing `jspdf` + `jspdf-autotable` setup; the trip PDF is built as one `jsPDF` instance with `doc.addPage()` between sections.
+`src/components/logistics/DeliveryNoteManager.tsx`
+- Remove "Create new delivery note" UI. Keep only a read‑only history list of legacy/standalone DNs labelled "Legacy delivery notes (read‑only)".
+- Hide the page entry from the nav for non‑super‑admin to discourage use.
 
-## 4. Out of scope (not touched)
-- Trip dispatch / inventory / returns logic.
-- Customer segmentation lifecycle (New/Active/Inactive/Dormant) — separate from purchasing tiers.
-- Pricing, payment methods, debts.
+Data model
+- Add `trip_stop_id uuid` and `trip_id uuid` columns to `delivery_notes` (nullable for legacy rows).
+- New DNs created via TripManager must have both set; UI enforces it.
+
+Dispatch validation
+- Client‑side check (count DNs per stop) on dispatch.
+- Migration also adds a trigger that prevents `trips.status = 'dispatched'` when any stop has zero linked DNs.
+
+## 3. Accountant role (read‑only + exports)
+
+New role `accountant` (DB enum + profile role string).
+
+Admin → User Management can create accountant accounts (same form, role dropdown gains "Accountant").
+
+New page `src/pages/AccountantDashboard.tsx` with tabs:
+- Sales (all shops, all transactions, filters, exports) — read‑only `SalesTab`.
+- Money In — payments (`sales_transactions.amount_paid`, `debt_payments`), grouped by method + shop.
+- Debts — outstanding (transactions where `amount_paid < total_amount`).
+- Stock Levels — `inventory` per shop.
+- Factory Inventory — `factory_inventory`.
+- Accounting Summary — KPIs: total sales, total collected, outstanding debt, COGS proxy (factory dispatched), stock value (if prices present).
+
+All existing tables shown with current export buttons (CSV/PDF/Excel) enabled. No create/edit/delete buttons rendered; routing guard hides them.
+
+`AuthProvider` + `src/pages/Index.tsx` routing:
+- If `role === 'accountant'` → render `AccountantDashboard`, never `AdminDashboard`/`SellerDashboard`.
+- A small `useReadOnly()` hook returns true for accountants; all mutating components check it and render disabled actions.
+
+## Technical details
+
+- Migration (one file): add `delivery_notes.trip_id`, `delivery_notes.trip_stop_id`; add `accountant` to the role enum (or accepted role strings on `profiles`); add trigger `trg_trips_require_dn_before_dispatch`.
+- Reuse `toBagEquivalent`, `Intl.NumberFormat`, `jspdf`/`jspdf‑autotable`, `xlsx` already in project.
+- Mon–Sat week key: format date as `YYYY-WW` where week start = nearest prior Monday, week end = Saturday (Sundays ignored / rolled into previous Saturday's week).
+- Read‑only enforcement is UI‑level only (RLS stays permissive as today) — flagged as a follow‑up if stricter security is required later.
+
+## Out of scope
+- Changing existing trip dispatch/return/inventory math.
+- Touching pricing or payment‑method logic beyond surfacing them to the accountant.
+- Server‑side RLS lockdown for accountant (UI guard only this round).
