@@ -33,7 +33,7 @@ const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   added_to_inventory: { label: 'Added to Inventory', className: 'bg-green-600 text-white' },
 };
 
-const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate = true }) => {
+const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate = false }) => {
   const { profile } = useAuth();
   const [notes, setNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -277,8 +277,8 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
     <div className="space-y-4">
       <div className="flex justify-between items-center flex-wrap gap-2">
         <div>
-          <h2 className="text-xl font-bold flex items-center gap-2"><Truck className="h-5 w-5" /> Delivery Notes</h2>
-          <p className="text-sm text-muted-foreground">Manage stock deliveries with dual confirmation</p>
+          <h2 className="text-xl font-bold flex items-center gap-2"><Truck className="h-5 w-5" /> Delivery Notes (legacy)</h2>
+          <p className="text-sm text-muted-foreground">New delivery notes are now created inside a Trip. This list shows historical notes only.</p>
         </div>
         {canCreate && (
           <Button onClick={() => setShowCreate(true)}>
