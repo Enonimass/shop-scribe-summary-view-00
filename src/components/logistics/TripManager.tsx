@@ -556,6 +556,34 @@ const TripManager: React.FC<Props> = ({ shops }) => {
                           ))}
                         </TableBody>
                       </Table>
+                      {/* Delivery notes for this stop */}
+                      <div className="mt-3 border-t pt-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="text-sm font-semibold flex items-center gap-1"><FileSignature className="h-4 w-4" /> Delivery notes
+                            {(s.delivery_notes || []).length === 0
+                              ? <Badge variant="destructive" className="ml-2">none</Badge>
+                              : <Badge variant="outline" className="ml-2">{(s.delivery_notes || []).length}</Badge>}
+                          </div>
+                          {openTrip.status === 'draft' && (
+                            <Button size="sm" variant="outline" onClick={() => openAddDn(s)}><Plus className="h-3 w-3 mr-1" /> Add DN</Button>
+                          )}
+                        </div>
+                        {(s.delivery_notes || []).length === 0 ? (
+                          <div className="text-xs text-muted-foreground">Required before dispatch — add a delivery note for this stop.</div>
+                        ) : (
+                          <ul className="text-sm space-y-1">
+                            {(s.delivery_notes || []).map((d: any) => (
+                              <li key={d.id} className="flex justify-between items-center bg-muted/30 rounded px-2 py-1">
+                                <span className="font-mono">{d.delivery_note_no}</span>
+                                <span className="text-xs text-muted-foreground">{d.delivery_date} · {(d.delivery_note_items || []).length} lines · by {d.delivered_by}</span>
+                                {openTrip.status === 'draft' && (
+                                  <Button variant="ghost" size="icon" onClick={() => removeDn(d.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     </Card>
                   ))}
                 </div>
