@@ -11,6 +11,7 @@ import { Plus, Trash2, Pencil, AlertTriangle, Factory } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
+import { PIVOT_UNITS, canonicalUnitKey, toBagEquivalent, formatBags } from '@/lib/units';
 
 interface Row {
   id: string;
@@ -82,10 +83,69 @@ const FactoryInventory: React.FC = () => {
 
   const lowCount = rows.filter(r => r.quantity <= r.threshold).length;
 
+  const pivotProducts = React.useMemo(() => {
+    const m = new Map<string, Record<string, number>>();
+    rows.forEach(r => {
+      const k = canonicalUnitKey(r.unit);
+      if (!k) return;
+      const cur = m.get(r.product) || {};
+      cur[k] = (cur[k] || 0) + Number(r.quantity || 0);
+      m.set(r.product, cur);
+    });
+    return [...m.entries()]
+      .map(([product, units]) => ({ product, units }))
+      .sort((a, b) => a.product.localeCompare(b.product));
+  }, [rows]);
+
+  const productBagEq = (units: Record<string, number>) => {
+    let total = 0;
+    PIVOT_UNITS.forEach(u => {
+      const q = units[u.key] || 0;
+      if (!q) return;
+      const dbU = u.key === '70kg' ? 'bags' : (u.key === 'kg' ? 'kg' : u.key);
+      total += toBagEquivalent(q, dbU);
+    });
+    return total;
+  };
+
   return (
+    <div className="space-y-4">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Factory className="h-5 w-5" /> Factory Stock by Product</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Product</TableHead>
+              {PIVOT_UNITS.map(u => <TableHead key={u.key} className="text-right">{u.label}</TableHead>)}
+              <TableHead className="text-right">Total (70kg eq.)</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pivotProducts.map(({ product, units }) => (
+              <TableRow key={product}>
+                <TableCell className="font-medium">{product}</TableCell>
+                {PIVOT_UNITS.map(u => (
+                  <TableCell key={u.key} className="text-right">
+                    {units[u.key] ? formatBags(units[u.key]) : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                ))}
+                <TableCell className="text-right font-semibold">{formatBags(productBagEq(units))}</TableCell>
+              </TableRow>
+            ))}
+            {pivotProducts.length === 0 && (
+              <TableRow><TableCell colSpan={PIVOT_UNITS.length + 2} className="text-center text-muted-foreground">No factory stock yet.</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2"><Factory className="h-5 w-5" /> Factory Inventory</CardTitle>
+        <CardTitle className="flex items-center gap-2"><Factory className="h-5 w-5" /> Thresholds &amp; Management</CardTitle>
         <div className="flex items-center gap-3">
           {lowCount > 0 && (
             <Badge variant="destructive" className="flex items-center gap-1">
@@ -169,6 +229,7 @@ const FactoryInventory: React.FC = () => {
         </DialogContent>
       </Dialog>
     </Card>
+    </div>
   );
 };
 
