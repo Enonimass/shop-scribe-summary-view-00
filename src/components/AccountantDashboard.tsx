@@ -105,14 +105,33 @@ const AccountantDashboard: React.FC = () => {
     tx.filter(t => t.is_credit).forEach(t => {
       const key = `${t.shop_id}|${(t.customer_name || '').toLowerCase()}`;
       const cur = m.get(key) || { customer: t.customer_name, shop_id: t.shop_id, total: 0, paid: 0, debt: 0, count: 0 };
+      const extra = debtPayments
+        .filter(d => d.sale_transaction_id === t.id)
+        .reduce((s, d) => s + Number(d.amount || 0), 0);
       cur.total += Number(t.total_amount || 0);
-      cur.paid += Number(t.amount_paid || 0);
+      cur.paid += Number(t.amount_paid || 0) + extra;
       cur.debt = cur.total - cur.paid;
       cur.count += 1;
       m.set(key, cur);
     });
     return [...m.values()].filter(r => r.debt > 0.01).sort((a, b) => b.debt - a.debt);
-  }, [tx]);
+  }, [tx, debtPayments]);
+
+  const openCreditSales = useMemo(() => {
+    return tx
+      .filter(t => t.is_credit)
+      .map(t => {
+        const extra = debtPayments
+          .filter(d => d.sale_transaction_id === t.id)
+          .reduce((s, d) => s + Number(d.amount || 0), 0);
+        const paid = Number(t.amount_paid || 0) + extra;
+        const balance = Number(t.total_amount || 0) - paid;
+        const linkedPayments = debtPayments.filter(d => d.sale_transaction_id === t.id);
+        return { ...t, _paid: paid, _balance: balance, _payments: linkedPayments };
+      })
+      .filter(s => s._balance > 0.01)
+      .sort((a, b) => b._balance - a._balance);
+  }, [tx, debtPayments]);
 
   const shopName = (id: string) => shops.find(s => s.shop_id === id)?.shop_name || id;
 
@@ -255,36 +274,78 @@ const AccountantDashboard: React.FC = () => {
                 <ExportButtons
                   filename={`debts-${dateFrom}_${dateTo}`}
                   getData={() => ({
-                    title: 'Outstanding debts',
-                    headers: ['Customer', 'Shop', 'Credit sales', 'Billed', 'Paid', 'Owing'],
-                    rows: outstandingByCustomer.map(r => [r.customer, shopName(r.shop_id), r.count, r.total, r.paid, r.debt]),
-                    summary: { 'Total outstanding': fmtKes(outstandingByCustomer.reduce((s, r) => s + r.debt, 0)) },
+                    title: 'Outstanding debts by sale',
+                    headers: ['Date', 'Customer', 'Shop', 'Sale #', 'Billed', 'Paid', 'Owing'],
+                    rows: openCreditSales.map(s => [
+                      new Date(s.sale_date).toLocaleDateString(),
+                      s.customer_name, shopName(s.shop_id), s.id.slice(0, 8),
+                      s.total_amount, s._paid, s._balance,
+                    ]),
+                    summary: { 'Total outstanding': fmtKes(openCreditSales.reduce((sum, s) => sum + s._balance, 0)) },
                   })}
                 />
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader><TableRow>
-                    <TableHead>Customer</TableHead><TableHead>Shop</TableHead>
-                    <TableHead className="text-right">Credit sales</TableHead>
-                    <TableHead className="text-right">Billed</TableHead>
-                    <TableHead className="text-right">Paid</TableHead>
-                    <TableHead className="text-right">Owing</TableHead>
-                  </TableRow></TableHeader>
-                  <TableBody>
-                    {outstandingByCustomer.map((r, i) => (
-                      <TableRow key={i}>
-                        <TableCell className="font-medium">{r.customer}</TableCell>
-                        <TableCell>{shopName(r.shop_id)}</TableCell>
-                        <TableCell className="text-right">{r.count}</TableCell>
-                        <TableCell className="text-right">{fmtKes(r.total)}</TableCell>
-                        <TableCell className="text-right">{fmtKes(r.paid)}</TableCell>
-                        <TableCell className="text-right text-destructive font-semibold">{fmtKes(r.debt)}</TableCell>
-                      </TableRow>
-                    ))}
-                    {!outstandingByCustomer.length && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No outstanding debts in period.</TableCell></TableRow>}
-                  </TableBody>
-                </Table>
+                <div className="space-y-6">
+                  <div>
+                    <div className="text-sm font-semibold mb-2">By customer (totals)</div>
+                    <Table>
+                      <TableHeader><TableRow>
+                        <TableHead>Customer</TableHead><TableHead>Shop</TableHead>
+                        <TableHead className="text-right">Credit sales</TableHead>
+                        <TableHead className="text-right">Billed</TableHead>
+                        <TableHead className="text-right">Paid</TableHead>
+                        <TableHead className="text-right">Owing</TableHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {outstandingByCustomer.map((r, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="font-medium">{r.customer}</TableCell>
+                            <TableCell>{shopName(r.shop_id)}</TableCell>
+                            <TableCell className="text-right">{r.count}</TableCell>
+                            <TableCell className="text-right">{fmtKes(r.total)}</TableCell>
+                            <TableCell className="text-right">{fmtKes(r.paid)}</TableCell>
+                            <TableCell className="text-right text-destructive font-semibold">{fmtKes(r.debt)}</TableCell>
+                          </TableRow>
+                        ))}
+                        {!outstandingByCustomer.length && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No outstanding debts in period.</TableCell></TableRow>}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div>
+                    <div className="text-sm font-semibold mb-2">Per credit sale</div>
+                    <Table>
+                      <TableHeader><TableRow>
+                        <TableHead>Date</TableHead><TableHead>Customer</TableHead><TableHead>Shop</TableHead>
+                        <TableHead>Sale #</TableHead>
+                        <TableHead className="text-right">Billed</TableHead>
+                        <TableHead className="text-right">Paid</TableHead>
+                        <TableHead className="text-right">Owing</TableHead>
+                        <TableHead className="text-right">Payments</TableHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {openCreditSales.map(s => (
+                          <TableRow key={s.id}>
+                            <TableCell>{new Date(s.sale_date).toLocaleDateString()}</TableCell>
+                            <TableCell className="font-medium">{s.customer_name}</TableCell>
+                            <TableCell>{shopName(s.shop_id)}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{s.id.slice(0, 8)}</TableCell>
+                            <TableCell className="text-right">{fmtKes(s.total_amount)}</TableCell>
+                            <TableCell className="text-right">{fmtKes(s._paid)}</TableCell>
+                            <TableCell className="text-right text-destructive font-semibold">{fmtKes(s._balance)}</TableCell>
+                            <TableCell className="text-right text-xs">
+                              {s._payments.length
+                                ? s._payments.map((p: any) => `${new Date(p.payment_date).toLocaleDateString()}: ${Math.round(Number(p.amount)).toLocaleString()}`).join(' · ')
+                                : <span className="italic text-muted-foreground">none</span>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {!openCreditSales.length && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No open credit sales in period.</TableCell></TableRow>}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

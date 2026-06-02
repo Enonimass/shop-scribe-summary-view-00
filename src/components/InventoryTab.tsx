@@ -10,6 +10,7 @@ import ExportButtons from './ExportButtons';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import UnitConverter from './UnitConverter';
+import { PIVOT_UNITS, canonicalUnitKey, toBagEquivalent, formatBags } from '@/lib/units';
 
 interface InventoryItem {
   id: string;
@@ -193,6 +194,32 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
 
   const lowStockItems = inventory.filter(item => item.quantity <= item.threshold);
 
+  const pivotProducts = React.useMemo(() => {
+    const m = new Map<string, Record<string, number>>();
+    inventory.forEach(item => {
+      const key = canonicalUnitKey(item.unit);
+      if (!key) return;
+      const row = m.get(item.product) || {};
+      row[key] = (row[key] || 0) + Number(item.quantity || 0);
+      m.set(item.product, row);
+    });
+    return [...m.entries()]
+      .map(([product, units]) => ({ product, units }))
+      .sort((a, b) => a.product.localeCompare(b.product));
+  }, [inventory]);
+
+  const productBagEq = (units: Record<string, number>) => {
+    let total = 0;
+    PIVOT_UNITS.forEach(u => {
+      const q = units[u.key] || 0;
+      if (!q) return;
+      // For 70kg use 'bags', for kg use 'kg', otherwise the key itself maps to kg-based unit
+      const dbU = u.key === '70kg' ? 'bags' : (u.key === 'kg' ? 'kg' : u.key);
+      total += toBagEquivalent(q, dbU);
+    });
+    return total;
+  };
+
   const calculateQuantityToAdd = (currentQuantity: number, desiredQuantity: number) => {
     const quantityToAdd = desiredQuantity - currentQuantity;
     return quantityToAdd > 0 ? quantityToAdd : 0;
@@ -312,21 +339,55 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
         </Card>
       )}
 
-      {/* Inventory Table */}
+      {/* Pivoted stock-by-product table */}
       <Card className="bg-white/80 backdrop-blur-sm border-green-200">
         <CardHeader>
-          <CardTitle>Current Inventory</CardTitle>
+          <CardTitle>Stock by Product</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Product</TableHead>
-                <TableHead>Quantity</TableHead>
+                {PIVOT_UNITS.map(u => <TableHead key={u.key} className="text-right">{u.label}</TableHead>)}
+                <TableHead className="text-right">Total (70kg eq.)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pivotProducts.map(({ product, units }) => (
+                <TableRow key={product}>
+                  <TableCell className="font-medium">{product}</TableCell>
+                  {PIVOT_UNITS.map(u => (
+                    <TableCell key={u.key} className="text-right">
+                      {units[u.key] ? formatBags(units[u.key]) : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-right font-semibold">{formatBags(productBagEq(units))}</TableCell>
+                </TableRow>
+              ))}
+              {pivotProducts.length === 0 && (
+                <TableRow><TableCell colSpan={PIVOT_UNITS.length + 2} className="text-center text-muted-foreground">No stock yet.</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Stock Thresholds (kept) */}
+      <Card className="bg-white/80 backdrop-blur-sm border-green-200">
+        <CardHeader>
+          <CardTitle>Stock Thresholds &amp; Reorder</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Product</TableHead>
                 <TableHead>Unit</TableHead>
-                <TableHead>Threshold</TableHead>
-                <TableHead>Desired Quantity</TableHead>
-                <TableHead>Quantity to Add</TableHead>
+                <TableHead className="text-right">Quantity</TableHead>
+                <TableHead className="text-right">Threshold</TableHead>
+                <TableHead className="text-right">Desired</TableHead>
+                <TableHead className="text-right">To Add</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -334,11 +395,11 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
               {inventory.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.product}</TableCell>
-                  <TableCell>{item.quantity}</TableCell>
                   <TableCell>{item.unit}</TableCell>
-                  <TableCell>{item.threshold}</TableCell>
-                  <TableCell>{item.desired_quantity}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">{item.quantity}</TableCell>
+                  <TableCell className="text-right">{item.threshold}</TableCell>
+                  <TableCell className="text-right">{item.desired_quantity}</TableCell>
+                  <TableCell className="text-right">
                     {calculateQuantityToAdd(item.quantity, item.desired_quantity) > 0 ? (
                       <span className="text-orange-600 font-medium">
                         {calculateQuantityToAdd(item.quantity, item.desired_quantity)}

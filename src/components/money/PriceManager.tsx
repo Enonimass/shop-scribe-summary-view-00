@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
 import { Save } from 'lucide-react';
+import { PIVOT_UNITS, canonicalUnitKey, dbUnitForKey, getEffectiveUnitPrice } from '@/lib/units';
 
 interface Shop { shop_id: string; shop_name: string; }
 
@@ -32,31 +33,32 @@ const PriceManager = ({ shops }: { shops: Shop[] }) => {
   };
   useEffect(() => { load(); }, [selectedShop]);
 
-  const rows = useMemo(() => {
-    const seen = new Set<string>();
-    const list: { product: string; unit: string }[] = [];
-    (inventory || []).forEach(i => {
-      const k = `${i.product}|${i.unit}`;
-      if (!seen.has(k)) { seen.add(k); list.push({ product: i.product, unit: i.unit }); }
-    });
-    return list.sort((a, b) => a.product.localeCompare(b.product));
-  }, [inventory]);
+  const products = useMemo(() => {
+    const set = new Set<string>();
+    (inventory || []).forEach(i => set.add(i.product));
+    (prices || []).forEach(p => set.add(p.product));
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [inventory, prices]);
 
-  const getPrice = (product: string, unit: string) => {
-    return prices.find(p => p.product === product && p.unit === unit)?.price ?? '';
+  const explicitPrice = (product: string, unitKey: string) => {
+    const row = prices.find(p => p.product === product && canonicalUnitKey(p.unit) === unitKey);
+    return row ? String(row.price) : '';
   };
 
-  const save = async (product: string, unit: string) => {
-    const k = `${product}|${unit}`;
-    const val = parseFloat(drafts[k] ?? `${getPrice(product, unit)}`);
+  const save = async (product: string, unitKey: string) => {
+    const k = `${product}|${unitKey}`;
+    const raw = drafts[k];
+    if (raw === undefined) return;
+    const val = parseFloat(raw);
     if (isNaN(val) || val < 0) { toast({ title: 'Invalid price', variant: 'destructive' }); return; }
-    const existing = prices.find(p => p.product === product && p.unit === unit);
+    const existing = prices.find(p => p.product === product && canonicalUnitKey(p.unit) === unitKey);
+    const dbUnit = dbUnitForKey(unitKey);
     if (existing) {
-      await supabase.from('product_prices').update({ price: val }).eq('id', existing.id);
+      await supabase.from('product_prices').update({ price: val, unit: dbUnit }).eq('id', existing.id);
     } else {
-      await supabase.from('product_prices').insert({ shop_id: selectedShop, product, unit, price: val });
+      await supabase.from('product_prices').insert({ shop_id: selectedShop, product, unit: dbUnit, price: val });
     }
-    toast({ title: 'Saved', description: `${product} (${unit}) = ${val}` });
+    toast({ title: 'Saved', description: `${product} (${unitKey}) = ${val}` });
     setDrafts(d => { const n = { ...d }; delete n[k]; return n; });
     load();
   };
@@ -75,42 +77,52 @@ const PriceManager = ({ shops }: { shops: Shop[] }) => {
           </Select>
         </div>
 
+        <div className="text-xs text-muted-foreground">
+          Tip: leave a cell blank and it will be derived (kg = 10kg/10, 10kg = kg×10).
+          Edit a cell and click Save to persist it.
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Product</TableHead>
-              <TableHead>Unit</TableHead>
-              <TableHead>Price</TableHead>
-              <TableHead></TableHead>
+              {PIVOT_UNITS.map(u => <TableHead key={u.key} className="text-right">{u.label}</TableHead>)}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map(r => {
-              const k = `${r.product}|${r.unit}`;
-              const current = drafts[k] ?? `${getPrice(r.product, r.unit)}`;
-              return (
-                <TableRow key={k}>
-                  <TableCell className="font-medium">{r.product}</TableCell>
-                  <TableCell>{r.unit}</TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={current}
-                      onChange={(e) => setDrafts(d => ({ ...d, [k]: e.target.value }))}
-                      className="w-32"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Button size="sm" onClick={() => save(r.product, r.unit)}>
-                      <Save className="w-4 h-4 mr-1" /> Save
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-            {rows.length === 0 && (
-              <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No inventory items for this shop yet.</TableCell></TableRow>
+            {products.map(product => (
+              <TableRow key={product}>
+                <TableCell className="font-medium">{product}</TableCell>
+                {PIVOT_UNITS.map(u => {
+                  const k = `${product}|${u.key}`;
+                  const explicit = explicitPrice(product, u.key);
+                  const derived = !explicit ? getEffectiveUnitPrice(prices, product, u.key) : null;
+                  const draft = drafts[k];
+                  const value = draft ?? explicit;
+                  const dirty = draft !== undefined && draft !== explicit;
+                  return (
+                    <TableCell key={u.key} className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={value}
+                          placeholder={derived ? `≈ ${derived.value.toFixed(2)}` : '—'}
+                          onChange={(e) => setDrafts(d => ({ ...d, [k]: e.target.value }))}
+                          className="w-24 text-right"
+                        />
+                        {dirty && (
+                          <Button size="icon" variant="ghost" onClick={() => save(product, u.key)} title="Save">
+                            <Save className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            ))}
+            {products.length === 0 && (
+              <TableRow><TableCell colSpan={PIVOT_UNITS.length + 1} className="text-center text-muted-foreground">No products for this shop yet.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
