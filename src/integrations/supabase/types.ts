@@ -100,6 +100,7 @@ export type Database = {
       }
       debt_payments: {
         Row: {
+          allocated_amount: number | null
           amount: number
           created_at: string
           customer_name: string
@@ -109,10 +110,12 @@ export type Database = {
           payment_method_id: string | null
           payment_method_name: string | null
           recorded_by: string | null
+          sale_transaction_id: string | null
           shop_id: string
           updated_at: string
         }
         Insert: {
+          allocated_amount?: number | null
           amount: number
           created_at?: string
           customer_name: string
@@ -122,10 +125,12 @@ export type Database = {
           payment_method_id?: string | null
           payment_method_name?: string | null
           recorded_by?: string | null
+          sale_transaction_id?: string | null
           shop_id: string
           updated_at?: string
         }
         Update: {
+          allocated_amount?: number | null
           amount?: number
           created_at?: string
           customer_name?: string
@@ -135,6 +140,7 @@ export type Database = {
           payment_method_id?: string | null
           payment_method_name?: string | null
           recorded_by?: string | null
+          sale_transaction_id?: string | null
           shop_id?: string
           updated_at?: string
         }
