@@ -8,12 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '../AuthProvider';
+import { printPaymentReceipt, getPreferredFormat, setPreferredFormat, type ReceiptFormat } from '@/lib/receipts';
+import { Select as Sel2, SelectContent as SC2, SelectItem as SI2, SelectTrigger as ST2, SelectValue as SV2 } from '@/components/ui/select';
+import { FileText } from 'lucide-react';
 
 const DebtPaymentForm = ({ shopId }: { shopId: string }) => {
   const { profile } = useAuth();
   const [methods, setMethods] = useState<any[]>([]);
   const [customers, setCustomers] = useState<string[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
+  const [shopName, setShopName] = useState<string>('');
+  const [receiptFormat, setReceiptFormat] = useState<ReceiptFormat>(getPreferredFormat());
   const [customerName, setCustomerName] = useState('');
   const [amount, setAmount] = useState<string>('');
   const [methodId, setMethodId] = useState<string>('');
@@ -23,14 +28,16 @@ const DebtPaymentForm = ({ shopId }: { shopId: string }) => {
   const [saleTxId, setSaleTxId] = useState<string>('');
 
   const load = async () => {
-    const [{ data: m }, { data: cust }, { data: r }] = await Promise.all([
+    const [{ data: m }, { data: cust }, { data: r }, { data: sp }] = await Promise.all([
       supabase.from('payment_methods').select('*').eq('is_active', true).neq('kind', 'credit').order('name'),
       supabase.from('customers').select('name').eq('shop_id', shopId).order('name'),
       supabase.from('debt_payments').select('*').eq('shop_id', shopId).order('payment_date', { ascending: false }).limit(20),
+      supabase.from('profiles').select('shop_name').eq('shop_id', shopId).limit(1).maybeSingle(),
     ]);
     setMethods(m || []);
     setCustomers([...new Set((cust || []).map(c => c.name))]);
     setRecent(r || []);
+    setShopName((sp as any)?.shop_name || shopId);
     if (m && m.length && !methodId) setMethodId(m[0].id);
   };
   useEffect(() => { if (shopId) load(); }, [shopId]);
@@ -87,17 +94,52 @@ const DebtPaymentForm = ({ shopId }: { shopId: string }) => {
       return;
     }
     const method = methods.find(m => m.id === methodId);
-    const { error } = await supabase.from('debt_payments').insert({
+    const { data: inserted, error } = await supabase.from('debt_payments').insert({
       shop_id: shopId, customer_name: customerName, amount: amt,
       payment_method_id: methodId, payment_method_name: method?.name,
       payment_date: paymentDate, recorded_by: profile?.username, notes,
       sale_transaction_id: saleTxId,
       allocated_amount: amt,
-    });
+    }).select().single();
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'Debt payment recorded', description: `${customerName} paid ${amt}` });
+    if (sale && inserted) {
+      try {
+        const newPaid = (sale._paid || 0) + amt;
+        printPaymentReceipt({
+          shopName,
+          receiptNo: inserted.id,
+          date: paymentDate,
+          customerName,
+          saleNo: sale.id,
+          saleTotal: Number(sale.total_amount || 0),
+          amountPaidNow: amt,
+          totalPaidToDate: newPaid,
+          outstanding: Number(sale.total_amount || 0) - newPaid,
+          method: method?.name,
+          recordedBy: profile?.display_name || profile?.username,
+        }, receiptFormat);
+      } catch (err) { console.error('Print receipt failed', err); }
+    }
     setAmount(''); setCustomerName(''); setNotes(''); setSaleTxId('');
     load();
+  };
+
+  const reprint = (p: any) => {
+    const linkedSale = openCredits.find(c => c.id === p.sale_transaction_id);
+    printPaymentReceipt({
+      shopName,
+      receiptNo: p.id,
+      date: p.payment_date,
+      customerName: p.customer_name,
+      saleNo: p.sale_transaction_id || '-',
+      saleTotal: Number(linkedSale?.total_amount || 0),
+      amountPaidNow: Number(p.amount || 0),
+      totalPaidToDate: Number(p.amount || 0),
+      outstanding: Number(linkedSale?._balance || 0),
+      method: p.payment_method_name,
+      recordedBy: p.recorded_by,
+    }, receiptFormat);
   };
 
   return (
@@ -149,6 +191,16 @@ const DebtPaymentForm = ({ shopId }: { shopId: string }) => {
               <Label>Notes</Label>
               <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
+            <div className="space-y-1">
+              <Label>Receipt format</Label>
+              <Sel2 value={receiptFormat} onValueChange={(v: ReceiptFormat) => { setReceiptFormat(v); setPreferredFormat(v); }}>
+                <ST2><SV2 /></ST2>
+                <SC2>
+                  <SI2 value="a4">A4 PDF</SI2>
+                  <SI2 value="thermal">80mm thermal</SI2>
+                </SC2>
+              </Sel2>
+            </div>
           </div>
           <Button className="mt-4" onClick={submit}>Record Payment</Button>
         </CardContent>
@@ -166,6 +218,7 @@ const DebtPaymentForm = ({ shopId }: { shopId: string }) => {
                 <TableHead>Method</TableHead>
                 <TableHead>Linked sale</TableHead>
                 <TableHead>Notes</TableHead>
+                  <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -177,9 +230,12 @@ const DebtPaymentForm = ({ shopId }: { shopId: string }) => {
                   <TableCell>{r.payment_method_name}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{r.sale_transaction_id ? r.sale_transaction_id.slice(0, 8) : <span className="italic">unallocated</span>}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{r.notes}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => reprint(r)} title="Reprint receipt"><FileText className="h-4 w-4" /></Button>
+                    </TableCell>
                 </TableRow>
               ))}
-              {recent.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No debt payments yet.</TableCell></TableRow>}
+              {recent.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No debt payments yet.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </CardContent>
