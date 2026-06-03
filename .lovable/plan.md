@@ -1,84 +1,85 @@
-# Plan: Linked Debt Payments + Pivoted Inventory/Prices
+# Plan
 
-## 1. Debt payments linked to specific credit purchases
+## 1. Friendlier product picker on Sales
 
-**Goal:** Each debt payment must be tied to a specific credit sale (a row in `sales_transactions` with `is_credit = true`), not just a customer name.
+Today the Sales form shows one row per (product × unit) — e.g. `Pig Grower - 50kg (12 available)`, `Pig Grower - 10kg ...`, etc. Hard to scan on mobile.
 
-### DB migration
-- Add nullable columns to `debt_payments`:
-  - `sale_transaction_id uuid` (the credit sale being paid off)
-  - `allocated_amount numeric` (optional; defaults to `amount` — supports partial payments)
-- Index on `sale_transaction_id`.
-- Leave existing rows with `sale_transaction_id = NULL` (legacy, unallocated).
+Change the line-item editor to two cascading pickers:
 
-### UI: `DebtPaymentForm.tsx`
-- When a customer name is chosen, fetch their outstanding credit sales for that shop:
-  `sales_transactions` where `shop_id = X`, `customer_name = Y`, `is_credit = true`, and
-  `total_amount > coalesce(sum(debt_payments.amount where sale_transaction_id = id), 0)`.
-- Show a **dropdown/list** of those open credit sales: `Date · Items summary · Total · Paid · Balance`.
-- User picks one before saving. Amount defaults to remaining balance; cannot exceed it.
-- Save sets `sale_transaction_id` on the new `debt_payments` row.
+- **Product** — distinct product names from inventory, alphabetically. Shows total bag-equivalent stock as a small hint.
+- **Unit** — only the units that actually have stock for the selected product, with "(N available)" inline.
 
-### UI: Customer debts view (`AccountantDashboard`, `SellerSummary`, `AdminOverview` where debts are listed)
-- Replace "outstanding by customer" aggregate with a drill-down:
-  - Customer row → expandable to show each open credit sale (date, total, paid, balance) and the payments allocated to it.
+After both are chosen we apply the same `lookupPrice` + override behavior as today. Defaults: product empty, unit empty until product is picked.
 
-### Out of scope
-- Auto-reallocating legacy payments. They stay as "Unallocated" and are still subtracted from the customer's overall balance.
+Also drop `40kg` everywhere it appears as a selectable/canonical unit:
+- Remove `40kg` from `PIVOT_UNITS` in `src/lib/units.ts`.
+- Remove the `40kg` branches from `toBagEquivalent` / `toKg`.
+- Remove the `40kg` column from the pivoted Stock and Price tables (`InventoryTab.tsx`, `FactoryInventory.tsx`, `PriceManager.tsx`).
+- Keep existing DB rows untouched — they just won't be offered as new options and won't get a dedicated pivot column.
 
-## 2. Pivoted inventory: one row per product, columns per unit
+## 2. Price derivation: extend the kg rule to 20kg
 
-**Goal:** Replace the long per-(product,unit) list with a pivot table.
+`getEffectiveUnitPrice` already derives `kg` from `10kg/10` and `10kg` from `kg*10`. Extend so any of `{10kg, 20kg, 50kg, 70kg}` can be derived from the per-kg price (× pack size) when no explicit price is set, and `kg` can be derived from any pack price (÷ pack size, preferring the smallest pack). Explicit prices always win.
 
-### Unit set (fixed columns, in this order)
-`70kg bags`, `50kg bags`, `40kg bags`, `20kg bags`, `10kg bags`, `kg`
+This affects `PriceManager` display and the sales price lookup (sales will call `getEffectiveUnitPrice` instead of the raw `lookupPrice` row match, so derived prices auto-populate the Unit Price field).
 
-(70kg = the bag-equivalent standard; the rest are the unit values already in use.)
+## 3. Credit due dates + debtors view
 
-### `InventoryTab.tsx` (seller stock view)
-- Fetch `inventory` for shop, group by `product`.
-- Render one row per product. Each unit column shows the `quantity` for that exact (product, unit) row, or `—` if none.
-- Keep an extra **Total (70kg eq.)** column using `toBagEquivalent` from `src/lib/units.ts`.
-- **Threshold/desired/status table stays untouched** as a separate card below (current per-row table), as requested.
-- Low-stock alert logic unchanged.
+Add a due date to each credit sale and surface a real debtors list everywhere debts are managed (Accountant, Shop Admin).
 
-### Factory inventory view (`FactoryInventory.tsx`)
-- Same pivot treatment (no shop filter).
+### Schema (one migration)
+- `sales_transactions.due_date date NULL` — only meaningful when `is_credit = true`.
+- Backfill: leave NULL for existing rows; UI treats NULL as "no due date set".
 
-### Add-stock form
-- Unchanged: still writes a single (product, unit) row. The pivot is purely a display change.
+### Sales recording
+- In `SalesTab` credit flow, when "Credit" is selected show a **Due date** field (defaults to +30 days, editable). Save into `due_date`.
 
-## 3. Pivoted prices: one row per product, columns per unit, with derived `kg`
+### Debtors list component (new `DebtorsList.tsx`)
+Computes per open credit sale: customer, sale date, due date, billed, paid (sum of `debt_payments.allocated_amount` + `sales_transactions.amount_paid`), balance, age in days.
 
-**Goal:** Admin sees all prices for a product on one row.
+Bucketing by age past due (configurable, defaults shown):
+- **Good** — not yet due, or ≤ 30 days past due
+- **Long** — 31–90 days past due
+- **Bad** — > 90 days past due, or due date missing and > 90 days old
 
-### `PriceManager.tsx`
-- Same unit columns as inventory: `70kg`, `50kg`, `40kg`, `20kg`, `10kg`, `kg`.
-- Row source: distinct product names from `inventory` ∪ `product_prices` for the selected shop.
-- Each cell is an editable price input bound to the (product, unit) row in `product_prices`.
-- **Derived `kg` rule:** when a `10kg` price exists and `kg` is empty, show `10kg / 10` as a faint placeholder (e.g. `"≈ 120"`). Saving writes an explicit value; otherwise the derived value is used at read time wherever prices are consumed.
-  - Implement a single helper `getEffectiveUnitPrice(prices, product, unit)`:
-    - returns explicit price if present
-    - else if unit = `kg` and a `10kg` price exists → `price_10kg / 10`
-    - else if unit = `10kg` and a `kg` price exists → `price_kg * 10`
-    - else `null`
-  - Use it in `PriceManager` cells (as placeholder) and anywhere else prices are read for display (sales line entry). Saving still creates a real `product_prices` row.
-- Save per cell (existing pattern) — no bulk save button needed this round.
+Top of the list: three KPI cards with count + KES total per bucket.
 
-### Out of scope
-- Backfilling `product_prices` rows from the derived rule (kept on-the-fly).
-- Changing how sales pricing is recorded (`sales_items.unit_price` still snapshots whatever value was used).
+Filters: customer search, min/max balance, age range (days since sale), bucket multi-select, "due before/after" date range. Sort by balance, age, or due date.
+
+Reused on:
+- `AccountantDashboard` → Debts tab (above the existing payments list).
+- `AdminDashboard` (Shop Admin) → new "Debtors" sub-tab next to existing money views.
+
+## 4. Credit invoice + payment receipt (PDF / thermal)
+
+A new helper `src/lib/receipts.ts` generating two layouts with `jspdf`:
+
+- **Credit Invoice** — issued at the moment a credit sale is saved. Contains: shop header, invoice no (= sale id short), date, customer name, line items (product, qty, unit, unit price, line total), total, amount paid, **credit balance**, **due date**, signature lines. Two render modes:
+  - `a4()` — standard A4 PDF, opens in new tab + download.
+  - `thermal(80mm)` — narrow 80mm receipt PDF for thermal printers (single column, monospace, auto-height).
+- **Debt Payment Receipt** — issued when a `debt_payments` row is created. Contains: receipt no, date, customer, linked sale ref + original total, amount paid today, total paid to date, **outstanding balance**, method.
+
+UI wiring:
+- After a successful credit sale in `SalesTab`, show a toast with **Print invoice** + **Download PDF** actions and an inline "Format: A4 / 80mm" toggle (persists in localStorage).
+- After a successful debt payment in `DebtPaymentForm`, same pattern for the payment receipt.
+- Each row in the new `DebtorsList` gets a **Reprint invoice** button; each row in the Recent Debt Payments table gets **Reprint receipt**.
+
+No new DB tables — invoice/receipt numbers derive from the row id.
+
+## 5. Custom-period summaries (Admin & Shop Summary)
+
+Replace the hard-coded `Today / This month` toggle in `AdminOverview` and `SellerSummary` with a small `<PeriodPicker>` component:
+
+- Presets: Today, Yesterday, Last 7 days, This month, Last month, This year.
+- **Custom range**: two date inputs (from/to).
+- Component returns `{ start, end, label }` and the parent re-runs its existing aggregation against that range (all current queries already use `gte('sale_date', startStr)` — extend with `lte` when `end` is set).
+
+The same picker is reused in both dashboards so behavior stays consistent.
 
 ## Technical notes
-- Migration tool: only the `debt_payments` column additions.
-- All other work is frontend pivoting + a small price-derivation helper.
-- No RLS changes; no changes to existing constraints.
 
-## Files touched
-- `supabase/migrations/<new>.sql` — add columns to `debt_payments`
-- `src/components/money/DebtPaymentForm.tsx` — credit-sale picker
-- `src/components/AccountantDashboard.tsx`, `src/components/seller/SellerSummary.tsx`, `src/components/admin/AdminOverview.tsx` — debts drill-down
-- `src/components/InventoryTab.tsx` — pivot stock table
-- `src/components/factory/FactoryInventory.tsx` — pivot factory stock
-- `src/components/money/PriceManager.tsx` — pivot prices + derived kg
-- `src/lib/units.ts` — add `getEffectiveUnitPrice` helper
+- All changes scoped to existing tables; one schema-only migration adds `sales_transactions.due_date`.
+- New files: `src/components/money/DebtorsList.tsx`, `src/lib/receipts.ts`, `src/components/PeriodPicker.tsx`.
+- Edited files: `src/lib/units.ts`, `src/components/SalesTab.tsx`, `src/components/money/PriceManager.tsx`, `src/components/InventoryTab.tsx`, `src/components/factory/FactoryInventory.tsx`, `src/components/AccountantDashboard.tsx`, `src/components/AdminDashboard.tsx`, `src/components/admin/AdminOverview.tsx`, `src/components/seller/SellerSummary.tsx`, `src/components/money/DebtPaymentForm.tsx`.
+- `jspdf` is already a project dependency (used by `exportUtils`), so no new packages needed.
+- Bucket thresholds (30/90 days) exposed as constants at the top of `DebtorsList.tsx` so they're easy to tune later.
