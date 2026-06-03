@@ -852,6 +852,10 @@ const AdminDashboard = () => {
             <DailyReport shops={shops} allowAll defaultShop={selectedShop || 'all'} />
           </TabsContent>
 
+          <TabsContent value="debtors">
+            <DebtorsList shopId={selectedShop && selectedShop !== 'all' ? selectedShop : undefined} shops={shops} />
+          </TabsContent>
+
           <TabsContent value="factory">
             <FactoryInventory />
           </TabsContent>
