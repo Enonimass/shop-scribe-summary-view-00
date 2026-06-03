@@ -78,8 +78,8 @@ const PriceManager = ({ shops }: { shops: Shop[] }) => {
         </div>
 
         <div className="text-xs text-muted-foreground">
-          Tip: leave a cell blank and it will be derived (kg = 10kg/10, 10kg = kg×10).
-          Edit a cell and click Save to persist it.
+          Tip: leave a cell blank and it will be derived from the per-kg price (or vice-versa).
+          E.g. 10kg = kg×10, 20kg = kg×20, 50kg = kg×50. Edit a cell and click Save to persist it.
         </div>
         <Table>
           <TableHeader>
