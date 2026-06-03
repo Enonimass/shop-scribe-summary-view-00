@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { LogOut, Calculator, DollarSign, Wallet, AlertTriangle, Package, Factory, TrendingUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import ExportButtons from './ExportButtons';
+import DebtorsList from './money/DebtorsList';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
 
 const fmtKes = (n: number) => `KES ${Math.round(n).toLocaleString()}`;
@@ -268,6 +269,7 @@ const AccountantDashboard: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="debts">
+            <DebtorsList shopId={shopFilter === 'all' ? undefined : shopFilter} shops={shops} />
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Outstanding debts</CardTitle>
