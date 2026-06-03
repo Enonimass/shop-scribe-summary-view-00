@@ -15,6 +15,9 @@ import BulkSalesUpload from './BulkSalesUpload';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { getEffectiveUnitPrice, canonicalUnitKey } from '@/lib/units';
+import { printCreditInvoice, getPreferredFormat, setPreferredFormat, type ReceiptFormat } from '@/lib/receipts';
+import { useAuth } from './AuthProvider';
 
 // Convert quantity to bag equivalent for totals
 // 1 x 50kg bag = 5/7 of a regular bag (since a bag = 70kg)
@@ -63,6 +66,7 @@ const availableProducts = [
 ];
 
 const SalesTab = ({ shopId }: { shopId: string }) => {
+  const { profile } = useAuth();
   const [sales, setSales] = useState<Sale[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -70,6 +74,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([{ product: '', quantity: 0, unit: 'bags' }]);
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState<string>(() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0]; });
+  const [receiptFormat, setReceiptFormat] = useState<ReceiptFormat>(getPreferredFormat());
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [paymentMethodId, setPaymentMethodId] = useState<string>('');
   const [amountPaid, setAmountPaid] = useState<string>('');
@@ -179,8 +185,15 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     setProductPrices(data || []);
   };
 
-  const lookupPrice = (product: string, unit: string) =>
-    productPrices.find(p => p.product === product && p.unit === unit)?.price ?? 0;
+  const lookupPrice = (product: string, unit: string): number => {
+    const k = canonicalUnitKey(unit);
+    if (k) {
+      const eff = getEffectiveUnitPrice(productPrices as any, product, k);
+      if (eff) return eff.value;
+    }
+    const direct = productPrices.find(p => p.product === product && p.unit === unit);
+    return direct ? Number(direct.price) : 0;
+  };
 
   const fetchSales = async () => {
     if (!shopId) return;
@@ -301,6 +314,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
           amount_paid: paid,
           fulfilled_by_shop_id: effectiveFulfillShopId,
           fulfilled_by_shop_name: fulfillShop?.shop_name || effectiveFulfillShopId,
+          due_date: isCredit ? (dueDate || null) : null,
         })
         .select()
         .single();
@@ -356,9 +370,31 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
 
       const itemsDescription = validItems.map(item => `${item.quantity} ${item.unit} ${item.product}`).join(', ');
       toast({
-        title: "Sale Recorded",
+        title: 'Sale Recorded',
         description: `Sale to ${customerName}: ${itemsDescription}`,
       });
+
+      if (isCredit && transaction) {
+        try {
+          printCreditInvoice({
+            shopName: fulfillShop?.shop_name || shopId,
+            invoiceNo: transaction.id,
+            date: saleDate,
+            dueDate,
+            customerName,
+            items: validItems.map(it => {
+              const up = Number(it.unit_price ?? lookupPrice(it.product, it.unit));
+              return { product: it.product, quantity: Number(it.quantity), unit: it.unit, unit_price: up, line_total: up * Number(it.quantity) };
+            }),
+            total: totalAmount,
+            paid,
+            balance: totalAmount - paid,
+            servedBy: profile?.display_name || profile?.username,
+          }, receiptFormat);
+        } catch (err) {
+          console.error('Print invoice failed', err);
+        }
+      }
 
       setCustomerName('');
       setSaleItems([{ product: '', quantity: 0, unit: 'bags' }]);
