@@ -18,6 +18,7 @@ import ExportButtons from './ExportButtons';
 import PaymentMethodManager from './money/PaymentMethodManager';
 import PriceManager from './money/PriceManager';
 import DailyReport from './money/DailyReport';
+import DebtorsList from './money/DebtorsList';
 import AdminOverview from './admin/AdminOverview';
 import FactoryInventory from './factory/FactoryInventory';
 import TripManager from './logistics/TripManager';
@@ -417,6 +418,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="daily-report" className="flex items-center gap-1 text-xs sm:text-sm">
               <FileBarChart className="h-3 w-3 sm:h-4 sm:w-4" />
               Daily
+            </TabsTrigger>
+            <TabsTrigger value="debtors" className="flex items-center gap-1 text-xs sm:text-sm">
+              <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
+              Debtors
             </TabsTrigger>
             <TabsTrigger value="factory" className="flex items-center gap-1 text-xs sm:text-sm">
               <Factory className="h-3 w-3 sm:h-4 sm:w-4" />
