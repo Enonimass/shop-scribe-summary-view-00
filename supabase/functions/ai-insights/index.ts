@@ -19,6 +19,28 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+    // Require an authenticated app user. The client passes the stored profile id
+    // via the `x-app-user-id` header; we verify it matches a real profile.
+    const appUserId = req.headers.get("x-app-user-id") || "";
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(appUserId)) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const { data: callerProfile } = await supabase
+      .from("profiles")
+      .select("id, role, shop_id")
+      .eq("id", appUserId)
+      .maybeSingle();
+    if (!callerProfile) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get optional shop_id from request body
     let shopId: string | null = null;
     try {
@@ -26,6 +48,10 @@ Deno.serve(async (req) => {
       shopId = body.shop_id || null;
     } catch {
       // no body is fine
+    }
+    // Sellers can only request their own shop's data.
+    if (callerProfile.role === "seller") {
+      shopId = callerProfile.shop_id || null;
     }
 
     // Fetch last 30 days of sales transactions + items
@@ -145,7 +171,7 @@ Date range: ${dateStr} to ${new Date().toISOString().split("T")[0]}`;
   } catch (e) {
     console.error("ai-insights error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: "An internal error occurred" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

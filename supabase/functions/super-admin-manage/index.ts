@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
     return json({ error: "Unknown action" }, 400);
   } catch (err) {
     console.error("super-admin-manage error", err);
-    return json({ error: String(err?.message ?? err) }, 500);
+    return json({ error: "An internal error occurred" }, 500);
   }
 });
 
