@@ -15,6 +15,9 @@ import BulkSalesUpload from './BulkSalesUpload';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { getEffectiveUnitPrice, canonicalUnitKey } from '@/lib/units';
+import { printCreditInvoice, getPreferredFormat, setPreferredFormat, type ReceiptFormat } from '@/lib/receipts';
+import { useAuth } from './AuthProvider';
 
 // Convert quantity to bag equivalent for totals
 // 1 x 50kg bag = 5/7 of a regular bag (since a bag = 70kg)
@@ -63,6 +66,7 @@ const availableProducts = [
 ];
 
 const SalesTab = ({ shopId }: { shopId: string }) => {
+  const { profile } = useAuth();
   const [sales, setSales] = useState<Sale[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -70,6 +74,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([{ product: '', quantity: 0, unit: 'bags' }]);
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState<string>(() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0]; });
+  const [receiptFormat, setReceiptFormat] = useState<ReceiptFormat>(getPreferredFormat());
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [paymentMethodId, setPaymentMethodId] = useState<string>('');
   const [amountPaid, setAmountPaid] = useState<string>('');
@@ -179,8 +185,15 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     setProductPrices(data || []);
   };
 
-  const lookupPrice = (product: string, unit: string) =>
-    productPrices.find(p => p.product === product && p.unit === unit)?.price ?? 0;
+  const lookupPrice = (product: string, unit: string): number => {
+    const k = canonicalUnitKey(unit);
+    if (k) {
+      const eff = getEffectiveUnitPrice(productPrices as any, product, k);
+      if (eff) return eff.value;
+    }
+    const direct = productPrices.find(p => p.product === product && p.unit === unit);
+    return direct ? Number(direct.price) : 0;
+  };
 
   const fetchSales = async () => {
     if (!shopId) return;
@@ -301,6 +314,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
           amount_paid: paid,
           fulfilled_by_shop_id: effectiveFulfillShopId,
           fulfilled_by_shop_name: fulfillShop?.shop_name || effectiveFulfillShopId,
+          due_date: isCredit ? (dueDate || null) : null,
         })
         .select()
         .single();
@@ -356,9 +370,31 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
 
       const itemsDescription = validItems.map(item => `${item.quantity} ${item.unit} ${item.product}`).join(', ');
       toast({
-        title: "Sale Recorded",
+        title: 'Sale Recorded',
         description: `Sale to ${customerName}: ${itemsDescription}`,
       });
+
+      if (isCredit && transaction) {
+        try {
+          printCreditInvoice({
+            shopName: fulfillShop?.shop_name || shopId,
+            invoiceNo: transaction.id,
+            date: saleDate,
+            dueDate,
+            customerName,
+            items: validItems.map(it => {
+              const up = Number(it.unit_price ?? lookupPrice(it.product, it.unit));
+              return { product: it.product, quantity: Number(it.quantity), unit: it.unit, unit_price: up, line_total: up * Number(it.quantity) };
+            }),
+            total: totalAmount,
+            paid,
+            balance: totalAmount - paid,
+            servedBy: profile?.display_name || profile?.username,
+          }, receiptFormat);
+        } catch (err) {
+          console.error('Print invoice failed', err);
+        }
+      }
 
       setCustomerName('');
       setSaleItems([{ product: '', quantity: 0, unit: 'bags' }]);
@@ -940,27 +976,37 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 </div>
                 
                 {saleItems.map((item, index) => (
-                  <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg">
-                    <div className="space-y-2">
-                      <Label>Product & Unit</Label>
-                      <Select 
-                        value={item.product && item.unit ? `${item.product}|${item.unit}` : ''} 
-                        onValueChange={(value) => {
-                          const [product, unit] = value.split('|');
-                          const price = lookupPrice(product, unit);
-                          setSaleItems(saleItems.map((sItem, i) => 
-                            i === index ? { ...sItem, product, unit, unit_price: price, original_price: price, price_overridden: false } : sItem
-                          ));
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4 border rounded-lg">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Product</Label>
+                      <Select
+                        value={item.product || ''}
+                        onValueChange={(product) => {
+                          setSaleItems(saleItems.map((s, i) => i === index ? { ...s, product, unit: '', unit_price: undefined, original_price: undefined, price_overridden: false } : s));
                         }}
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select product & unit" />
-                        </SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                         <SelectContent>
-                          {fulfillInventory.map(invItem => (
-                            <SelectItem key={invItem.id} value={`${invItem.product}|${invItem.unit}`}>
-                              {invItem.product} - {invItem.unit} ({invItem.quantity} available)
-                            </SelectItem>
+                          {[...new Set(fulfillInventory.filter(i => Number(i.quantity) > 0).map(i => i.product))].sort().map(p => (
+                            <SelectItem key={p} value={p}>{p}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Unit</Label>
+                      <Select
+                        value={item.unit || ''}
+                        disabled={!item.product}
+                        onValueChange={(unit) => {
+                          const price = lookupPrice(item.product, unit);
+                          setSaleItems(saleItems.map((s, i) => i === index ? { ...s, unit, unit_price: price, original_price: price, price_overridden: false } : s));
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder={item.product ? 'Unit' : 'Pick product first'} /></SelectTrigger>
+                        <SelectContent>
+                          {fulfillInventory.filter(i => i.product === item.product && Number(i.quantity) > 0).map(i => (
+                            <SelectItem key={i.id} value={i.unit}>{i.unit} · {i.quantity} avail.</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -1037,6 +1083,27 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   </div>
                 </div>
               </div>
+
+              {(() => { const m = paymentMethods.find(x => x.id === paymentMethodId); return m?.kind === 'credit'; })() && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-orange-50/40">
+                  <div className="space-y-2">
+                    <Label>Payment due date</Label>
+                    <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+                    <p className="text-xs text-muted-foreground">Used to track good / long / bad debts.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Invoice format</Label>
+                    <Select value={receiptFormat} onValueChange={(v: ReceiptFormat) => { setReceiptFormat(v); setPreferredFormat(v); }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="a4">A4 PDF</SelectItem>
+                        <SelectItem value="thermal">80mm thermal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">An invoice is generated automatically when the credit sale is saved.</p>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>

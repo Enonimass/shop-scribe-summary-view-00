@@ -7,6 +7,7 @@ import { toBagEquivalent, toKg, formatBags, formatTonnes } from '@/lib/units';
 import { Package, DollarSign, Wallet, TrendingUp, Users, AlertTriangle, Truck } from 'lucide-react';
 import PurchasingPower from '@/components/analytics/PurchasingPower';
 import WeeklyPurchasing from '@/components/analytics/WeeklyPurchasing';
+import PeriodPicker, { buildPreset, type Period } from '@/components/PeriodPicker';
 
 interface Props {
   selectedShop: string; // 'all' or shop_id
@@ -14,21 +15,18 @@ interface Props {
 interface PropsExt extends Props { shops?: { shop_id: string; shop_name: string }[] }
 
 const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
-  const [range, setRange] = useState<'today' | 'month'>('month');
+  const [period, setPeriod] = useState<Period>(() => buildPreset('month'));
   const [data, setData] = useState<any>({ loading: true });
 
-  useEffect(() => { load(); }, [selectedShop, range]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [selectedShop, period]);
 
   const load = async () => {
     setData({ loading: true });
-    const now = new Date();
-    const start = range === 'today'
-      ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      : new Date(now.getFullYear(), now.getMonth(), 1);
-    const startStr = start.toISOString().split('T')[0];
+    const startStr = period.start.toISOString().split('T')[0];
+    const endStr = period.end.toISOString().split('T')[0];
 
     // Transactions
-    let txQ = supabase.from('sales_transactions').select('*').gte('sale_date', startStr);
+    let txQ = supabase.from('sales_transactions').select('*').gte('sale_date', startStr).lte('sale_date', endStr);
     if (selectedShop !== 'all') txQ = txQ.eq('shop_id', selectedShop);
     const { data: tx } = await txQ;
     const txIds = (tx || []).map((t: any) => t.id);
@@ -46,7 +44,7 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
     const collected = (tx || []).reduce((s, t: any) => s + Number(t.amount_paid || 0), 0);
     const credit = (tx || []).filter((t: any) => t.is_credit).reduce((s, t: any) => s + (Number(t.total_amount) - Number(t.amount_paid)), 0);
 
-    let dpQ = supabase.from('debt_payments').select('*').gte('payment_date', startStr);
+    let dpQ = supabase.from('debt_payments').select('*').gte('payment_date', startStr).lte('payment_date', endStr);
     if (selectedShop !== 'all') dpQ = dpQ.eq('shop_id', selectedShop);
     const { data: dp } = await dpQ;
     const debtPaid = (dp || []).reduce((s, d: any) => s + Number(d.amount || 0), 0);
@@ -105,10 +103,7 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <Button size="sm" variant={range === 'today' ? 'default' : 'outline'} onClick={() => setRange('today')}>Today</Button>
-        <Button size="sm" variant={range === 'month' ? 'default' : 'outline'} onClick={() => setRange('month')}>This month</Button>
-      </div>
+      <Card><CardContent className="p-3"><PeriodPicker value={period} onChange={setPeriod} /></CardContent></Card>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Kpi title="Bags (70kg eq)" value={formatBags(data.totalBags)} icon={Package} sub={`${data.txCount} sales`} />
         <Kpi title="Tonnage" value={formatTonnes(data.totalKg)} icon={Package} />

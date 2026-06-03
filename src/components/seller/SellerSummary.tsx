@@ -5,22 +5,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { toBagEquivalent, toKg, formatBags, formatTonnes } from '@/lib/units';
 import { Package, DollarSign, Wallet, Users, AlertTriangle, Truck } from 'lucide-react';
+import PeriodPicker, { buildPreset, type Period } from '@/components/PeriodPicker';
 
 interface Props { shopId: string }
 
 const SellerSummary: React.FC<Props> = ({ shopId }) => {
   const [d, setD] = useState<any>({ loading: true });
+  const [period, setPeriod] = useState<Period>(() => buildPreset('month'));
 
-  useEffect(() => { if (shopId) load(); }, [shopId]);
+  useEffect(() => { if (shopId) load(); /* eslint-disable-next-line */ }, [shopId, period]);
 
   const load = async () => {
     setD({ loading: true });
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+    const startStr = period.start.toISOString().split('T')[0];
+    const endStr = period.end.toISOString().split('T')[0];
 
-    const fetchKpis = async (startStr: string) => {
-      const { data: tx } = await supabase.from('sales_transactions').select('*').eq('shop_id', shopId).gte('sale_date', startStr);
+    const fetchKpis = async () => {
+      const { data: tx } = await supabase.from('sales_transactions').select('*').eq('shop_id', shopId).gte('sale_date', startStr).lte('sale_date', endStr);
       const ids = (tx || []).map((t: any) => t.id);
       let items: any[] = [];
       for (let i = 0; i < ids.length; i += 200) {
@@ -31,13 +32,12 @@ const SellerSummary: React.FC<Props> = ({ shopId }) => {
       const kg = items.reduce((s, it) => s + toKg(Number(it.quantity), it.unit), 0);
       const collected = (tx || []).reduce((s, t: any) => s + Number(t.amount_paid || 0), 0);
       const credit = (tx || []).filter((t: any) => t.is_credit).reduce((s, t: any) => s + (Number(t.total_amount) - Number(t.amount_paid)), 0);
-      const { data: dp } = await supabase.from('debt_payments').select('amount').eq('shop_id', shopId).gte('payment_date', startStr);
+      const { data: dp } = await supabase.from('debt_payments').select('amount').eq('shop_id', shopId).gte('payment_date', startStr).lte('payment_date', endStr);
       const debtPaid = (dp || []).reduce((s, x: any) => s + Number(x.amount || 0), 0);
       return { bags, kg, collected, credit, debtPaid, txCount: (tx || []).length };
     };
 
-    const todayK = await fetchKpis(todayStr);
-    const monthK = await fetchKpis(monthStart);
+    const kpis = await fetchKpis();
 
     const { data: inv } = await supabase.from('inventory').select('*').eq('shop_id', shopId);
     const lowStock = (inv || []).filter((i: any) => Number(i.quantity) <= Number(i.threshold));
@@ -57,7 +57,7 @@ const SellerSummary: React.FC<Props> = ({ shopId }) => {
       customerToBill = (stops || []).filter((s: any) => s.stop_type === 'customer' && !s.billed_sale_id);
     }
 
-    setD({ loading: false, today: todayK, month: monthK, lowStock, pendingOutlet, customerToBill });
+    setD({ loading: false, kpis, lowStock, pendingOutlet, customerToBill });
   };
 
   if (d.loading) return <Card><CardContent className="p-6 text-muted-foreground">Loading…</CardContent></Card>;
@@ -71,19 +71,14 @@ const SellerSummary: React.FC<Props> = ({ shopId }) => {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Today</h2>
+      <Card><CardContent className="p-3"><PeriodPicker value={period} onChange={setPeriod} /></CardContent></Card>
+      <h2 className="text-lg font-semibold">{period.label}</h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Kpi title="Bags sold" value={formatBags(d.today.bags)} icon={Package} />
-        <Kpi title="Tonnage" value={formatTonnes(d.today.kg)} icon={Package} />
-        <Kpi title="Cash collected" value={`KES ${Math.round(d.today.collected).toLocaleString()}`} icon={Wallet} />
-        <Kpi title="Credit taken" value={`KES ${Math.round(d.today.credit).toLocaleString()}`} icon={DollarSign} />
-      </div>
-      <h2 className="text-lg font-semibold mt-2">This month</h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Kpi title="Bags sold" value={formatBags(d.month.bags)} icon={Package} />
-        <Kpi title="Tonnage" value={formatTonnes(d.month.kg)} icon={Package} />
-        <Kpi title="Revenue collected" value={`KES ${Math.round(d.month.collected).toLocaleString()}`} icon={Wallet} />
-        <Kpi title="Debt paid" value={`KES ${Math.round(d.month.debtPaid).toLocaleString()}`} icon={Wallet} />
+        <Kpi title="Bags sold" value={formatBags(d.kpis.bags)} icon={Package} />
+        <Kpi title="Tonnage" value={formatTonnes(d.kpis.kg)} icon={Package} />
+        <Kpi title="Cash collected" value={`KES ${Math.round(d.kpis.collected).toLocaleString()}`} icon={Wallet} />
+        <Kpi title="Credit taken" value={`KES ${Math.round(d.kpis.credit).toLocaleString()}`} icon={DollarSign} />
+        <Kpi title="Debt paid" value={`KES ${Math.round(d.kpis.debtPaid).toLocaleString()}`} icon={Wallet} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Card>

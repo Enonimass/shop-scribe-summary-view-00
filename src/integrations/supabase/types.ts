@@ -538,6 +538,7 @@ export type Database = {
           amount_paid: number
           created_at: string
           customer_name: string
+          due_date: string | null
           fulfilled_by_shop_id: string | null
           fulfilled_by_shop_name: string | null
           id: string
@@ -554,6 +555,7 @@ export type Database = {
           amount_paid?: number
           created_at?: string
           customer_name: string
+          due_date?: string | null
           fulfilled_by_shop_id?: string | null
           fulfilled_by_shop_name?: string | null
           id?: string
@@ -570,6 +572,7 @@ export type Database = {
           amount_paid?: number
           created_at?: string
           customer_name?: string
+          due_date?: string | null
           fulfilled_by_shop_id?: string | null
           fulfilled_by_shop_name?: string | null
           id?: string
