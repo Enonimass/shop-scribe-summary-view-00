@@ -64,7 +64,7 @@ const AdminDashboard = () => {
   const fetchProfiles = async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*');
+      .select('id, username, display_name, role, shop_id, shop_name, created_at, updated_at');
     
     if (error) {
       console.error('Error fetching profiles:', error);

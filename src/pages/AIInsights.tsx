@@ -34,6 +34,7 @@ const AIInsights = () => {
     try {
       const { data, error } = await supabase.functions.invoke('ai-insights', {
         body: { shop_id: shopId || null },
+        headers: profile?.id ? { 'x-app-user-id': profile.id } : undefined,
       });
 
       if (error) {
