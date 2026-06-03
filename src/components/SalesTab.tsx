@@ -976,27 +976,37 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 </div>
                 
                 {saleItems.map((item, index) => (
-                  <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg">
-                    <div className="space-y-2">
-                      <Label>Product & Unit</Label>
-                      <Select 
-                        value={item.product && item.unit ? `${item.product}|${item.unit}` : ''} 
-                        onValueChange={(value) => {
-                          const [product, unit] = value.split('|');
-                          const price = lookupPrice(product, unit);
-                          setSaleItems(saleItems.map((sItem, i) => 
-                            i === index ? { ...sItem, product, unit, unit_price: price, original_price: price, price_overridden: false } : sItem
-                          ));
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4 border rounded-lg">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Product</Label>
+                      <Select
+                        value={item.product || ''}
+                        onValueChange={(product) => {
+                          setSaleItems(saleItems.map((s, i) => i === index ? { ...s, product, unit: '', unit_price: undefined, original_price: undefined, price_overridden: false } : s));
                         }}
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select product & unit" />
-                        </SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                         <SelectContent>
-                          {fulfillInventory.map(invItem => (
-                            <SelectItem key={invItem.id} value={`${invItem.product}|${invItem.unit}`}>
-                              {invItem.product} - {invItem.unit} ({invItem.quantity} available)
-                            </SelectItem>
+                          {[...new Set(fulfillInventory.filter(i => Number(i.quantity) > 0).map(i => i.product))].sort().map(p => (
+                            <SelectItem key={p} value={p}>{p}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Unit</Label>
+                      <Select
+                        value={item.unit || ''}
+                        disabled={!item.product}
+                        onValueChange={(unit) => {
+                          const price = lookupPrice(item.product, unit);
+                          setSaleItems(saleItems.map((s, i) => i === index ? { ...s, unit, unit_price: price, original_price: price, price_overridden: false } : s));
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder={item.product ? 'Unit' : 'Pick product first'} /></SelectTrigger>
+                        <SelectContent>
+                          {fulfillInventory.filter(i => i.product === item.product && Number(i.quantity) > 0).map(i => (
+                            <SelectItem key={i.id} value={i.unit}>{i.unit} · {i.quantity} avail.</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -1073,6 +1083,27 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   </div>
                 </div>
               </div>
+
+              {(() => { const m = paymentMethods.find(x => x.id === paymentMethodId); return m?.kind === 'credit'; })() && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-orange-50/40">
+                  <div className="space-y-2">
+                    <Label>Payment due date</Label>
+                    <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+                    <p className="text-xs text-muted-foreground">Used to track good / long / bad debts.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Invoice format</Label>
+                    <Select value={receiptFormat} onValueChange={(v: ReceiptFormat) => { setReceiptFormat(v); setPreferredFormat(v); }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="a4">A4 PDF</SelectItem>
+                        <SelectItem value="thermal">80mm thermal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">An invoice is generated automatically when the credit sale is saved.</p>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
