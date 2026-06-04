@@ -258,10 +258,15 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
       {/* Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Customer Directory ({filteredCustomers.length})
-          </CardTitle>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Customer Directory ({filteredCustomers.length})
+            </CardTitle>
+            <Button size="sm" variant="outline" onClick={syncFromSales} disabled={syncing}>
+              <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Refresh from sales
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
