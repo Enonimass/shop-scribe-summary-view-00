@@ -10,10 +10,12 @@ import MovementReport from './logistics/MovementReport';
 import TripManager from './logistics/TripManager';
 import FactoryInventory from './factory/FactoryInventory';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
+import MobileTabsNav from './MobileTabsNav';
 
 const LogisticsDashboard = () => {
   const { profile, logout } = useAuth();
   const [shops, setShops] = useState<{ shop_id: string; shop_name: string }[]>([]);
+  const [tab, setTab] = useState('trips');
 
   useEffect(() => {
     (async () => {
@@ -73,8 +75,18 @@ const LogisticsDashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="trips" className="space-y-6">
-          <TabsList>
+        <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+          <MobileTabsNav
+            value={tab}
+            onChange={setTab}
+            items={[
+              { value: 'trips', label: 'Trips', icon: <Truck className="h-4 w-4" /> },
+              { value: 'factory', label: 'Factory Stock', icon: <Factory className="h-4 w-4" /> },
+              { value: 'deliveries', label: 'Delivery Notes', icon: <Truck className="h-4 w-4" /> },
+              { value: 'movement', label: 'Movement Report', icon: <BarChart3 className="h-4 w-4" /> },
+            ]}
+          />
+          <TabsList className="hidden md:flex">
             <TabsTrigger value="trips" className="flex items-center gap-1">
               <Truck className="h-4 w-4" /> Trips
             </TabsTrigger>

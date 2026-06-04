@@ -24,11 +24,13 @@ import FactoryInventory from './factory/FactoryInventory';
 import TripManager from './logistics/TripManager';
 import { Label } from '@/components/ui/label';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
+import MobileTabsNav from './MobileTabsNav';
 
 const AdminDashboard = () => {
   const { profile, logout } = useAuth();
   const [profiles, setProfiles] = useState<any[]>([]);
   const [selectedShop, setSelectedShop] = useState('');
+  const [tab, setTab] = useState('summary');
   const [inventory, setInventory] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [salesSortBy, setSalesSortBy] = useState<'product' | 'customer' | 'date'>('date');
@@ -366,8 +368,29 @@ const AdminDashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="summary" className="space-y-6">
-          <TabsList className="flex flex-wrap w-full gap-1 h-auto p-1">
+        <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+          <MobileTabsNav
+            value={tab}
+            onChange={setTab}
+            items={[
+              { value: 'summary', label: 'Summary', icon: <LayoutDashboard className="h-4 w-4" /> },
+              { value: 'overview', label: 'Sales', icon: <BarChart3 className="h-4 w-4" /> },
+              { value: 'product-analytics', label: 'Products', icon: <TrendingUp className="h-4 w-4" /> },
+              { value: 'customer-analytics', label: 'Customer Analytics', icon: <Users className="h-4 w-4" /> },
+              { value: 'customers', label: 'Customers', icon: <UserCheck className="h-4 w-4" /> },
+              { value: 'categories', label: 'Categories', icon: <Tag className="h-4 w-4" /> },
+              { value: 'inventory', label: 'Inventory', icon: <ShoppingCart className="h-4 w-4" /> },
+              { value: 'users', label: 'Users', icon: <Users className="h-4 w-4" /> },
+              { value: 'manage', label: 'Tables', icon: <Store className="h-4 w-4" /> },
+              { value: 'pricing', label: 'Pricing', icon: <DollarSign className="h-4 w-4" /> },
+              { value: 'payments', label: 'Payments', icon: <Wallet className="h-4 w-4" /> },
+              { value: 'daily-report', label: 'Daily', icon: <FileBarChart className="h-4 w-4" /> },
+              { value: 'debtors', label: 'Debtors', icon: <Wallet className="h-4 w-4" /> },
+              { value: 'factory', label: 'Factory', icon: <Factory className="h-4 w-4" /> },
+              { value: 'trips', label: 'Trips', icon: <Truck className="h-4 w-4" /> },
+            ]}
+          />
+          <TabsList className="hidden md:flex flex-wrap w-full gap-1 h-auto p-1">
             <TabsTrigger value="summary" className="flex items-center gap-1 text-xs sm:text-sm">
               <LayoutDashboard className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Summary</span>

@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { LOGO_DATA_URL, LOGO_MIME, BRAND_NAME } from './brand';
 
 interface ExportData {
   title: string;
@@ -81,18 +82,21 @@ export const exportToExcel = (data: ExportData, filename: string) => {
 // PDF Export
 export const exportToPDF = (data: ExportData, filename: string) => {
   const doc = new jsPDF();
-  
-  // Title
-  doc.setFontSize(16);
+
+  // Logo + brand
+  try { doc.addImage(LOGO_DATA_URL, LOGO_MIME, 14, 8, 22, 22); } catch { /* ignore */ }
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text(data.title, 14, 20);
+  doc.text(BRAND_NAME, 40, 16);
+  doc.setFontSize(13);
+  doc.text(data.title, 40, 24);
   
   // Date
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 14, 28);
-  
-  let startY = 35;
+  doc.text(`Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 40, 30);
+
+  let startY = 38;
   
   // Summary
   if (data.summary) {

@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 interface Shop { shop_id: string; shop_name: string; }
 
-const toBagEq = (q: number, unit: string) => (unit === '50kg' || unit === '50kg Bags') ? q * (5/7) : q;
+import { toBagEquivalent, formatBags } from '@/lib/units';
 
 const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; defaultShop?: string; allowAll?: boolean }) => {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -37,17 +37,30 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
     load();
   }, [shopId, date]);
 
-  // Bags sold per product (in bag equivalents)
-  const bagsByProduct = useMemo(() => {
-    const map: Record<string, number> = {};
+  // Per-product per-unit pivot, with bag-equivalent total
+  const pivot = useMemo(() => {
+    const products = new Map<string, Map<string, number>>();
+    const unitSet = new Set<string>();
     items.forEach(it => {
-      const eq = toBagEq(Number(it.quantity), it.unit);
-      map[it.product] = (map[it.product] || 0) + eq;
+      unitSet.add(it.unit);
+      if (!products.has(it.product)) products.set(it.product, new Map());
+      const m = products.get(it.product)!;
+      m.set(it.unit, (m.get(it.unit) || 0) + Number(it.quantity || 0));
     });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+    const units = Array.from(unitSet).sort();
+    const rows = Array.from(products.entries()).map(([product, m]) => {
+      const byUnit: Record<string, number> = {};
+      let bagEq = 0;
+      units.forEach(u => { byUnit[u] = m.get(u) || 0; bagEq += toBagEquivalent(byUnit[u], u); });
+      return { product, byUnit, bagEq };
+    }).sort((a, b) => b.bagEq - a.bagEq);
+    const totals: Record<string, number> = {};
+    units.forEach(u => { totals[u] = rows.reduce((s, r) => s + (r.byUnit[u] || 0), 0); });
+    const grandBags = rows.reduce((s, r) => s + r.bagEq, 0);
+    return { units, rows, totals, grandBags };
   }, [items]);
 
-  const totalBags = bagsByProduct.reduce((s, [, v]) => s + v, 0);
+  const totalBags = pivot.grandBags;
 
   // Money by payment method
   const moneyByMethod = useMemo(() => {
@@ -96,7 +109,7 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Total Bags Sold</p><p className="text-2xl font-bold">{totalBags.toFixed(2)}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Total Bags Sold (70kg eq)</p><p className="text-2xl font-bold">{formatBags(totalBags)}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Total Sales Value</p><p className="text-2xl font-bold">{totalSalesValue.toLocaleString()}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Money Collected</p><p className="text-2xl font-bold">{totalCash.toLocaleString()}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Credit Issued</p><p className="text-2xl font-bold text-orange-600">{creditIssued.toLocaleString()}</p></CardContent></Card>
@@ -104,16 +117,30 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
-          <CardHeader><CardTitle>Bags Sold by Product</CardTitle></CardHeader>
-          <CardContent>
+          <CardHeader><CardTitle>Products sold — per unit + bag equivalents</CardTitle></CardHeader>
+          <CardContent className="overflow-x-auto">
             <Table>
-              <TableHeader><TableRow><TableHead>Product</TableHead><TableHead className="text-right">Bag Equivalents</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow>
+                <TableHead>Product</TableHead>
+                {pivot.units.map(u => <TableHead key={u} className="text-right">{u}</TableHead>)}
+                <TableHead className="text-right">Total (bags eq)</TableHead>
+              </TableRow></TableHeader>
               <TableBody>
-                {bagsByProduct.map(([p, v]) => (
-                  <TableRow key={p}><TableCell>{p}</TableCell><TableCell className="text-right">{v.toFixed(2)}</TableCell></TableRow>
+                {pivot.rows.map(r => (
+                  <TableRow key={r.product}>
+                    <TableCell className="font-medium">{r.product}</TableCell>
+                    {pivot.units.map(u => <TableCell key={u} className="text-right">{r.byUnit[u] || ''}</TableCell>)}
+                    <TableCell className="text-right font-semibold">{formatBags(r.bagEq)}</TableCell>
+                  </TableRow>
                 ))}
-                {bagsByProduct.length === 0 && <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">No sales for this day.</TableCell></TableRow>}
-                {bagsByProduct.length > 0 && <TableRow className="font-semibold"><TableCell>Total</TableCell><TableCell className="text-right">{totalBags.toFixed(2)}</TableCell></TableRow>}
+                {pivot.rows.length === 0 && <TableRow><TableCell colSpan={pivot.units.length + 2} className="text-center text-muted-foreground">No sales for this day.</TableCell></TableRow>}
+                {pivot.rows.length > 0 && (
+                  <TableRow className="font-semibold bg-muted/40">
+                    <TableCell>Total</TableCell>
+                    {pivot.units.map(u => <TableCell key={u} className="text-right">{pivot.totals[u]}</TableCell>)}
+                    <TableCell className="text-right">{formatBags(totalBags)}</TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>

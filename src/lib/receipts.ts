@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { LOGO_DATA_URL, LOGO_MIME, BRAND_NAME } from './brand';
 
 export type ReceiptFormat = 'a4' | 'thermal';
 
@@ -54,9 +55,10 @@ export const printCreditInvoice = (inv: CreditInvoice, format: ReceiptFormat = g
 
 const a4Invoice = (inv: CreditInvoice) => {
   const doc = new jsPDF();
+  try { doc.addImage(LOGO_DATA_URL, LOGO_MIME, 14, 8, 22, 22); } catch { /* ignore */ }
   doc.setFontSize(16); doc.setFont('helvetica', 'bold');
-  doc.text(inv.shopName || 'Kimp Feeds', 14, 18);
-  doc.setFontSize(12); doc.text('CREDIT INVOICE', 14, 26);
+  doc.text(inv.shopName || BRAND_NAME, 40, 18);
+  doc.setFontSize(12); doc.text('CREDIT INVOICE', 40, 26);
 
   doc.setFontSize(10); doc.setFont('helvetica', 'normal');
   doc.text(`Invoice #: ${shortNo(inv.invoiceNo)}`, 140, 18);
@@ -64,13 +66,13 @@ const a4Invoice = (inv: CreditInvoice) => {
   if (inv.dueDate) doc.text(`Due: ${inv.dueDate}`, 140, 30);
 
   doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-  doc.text('Bill to:', 14, 38);
-  doc.setFont('helvetica', 'normal'); doc.text(inv.customerName || '-', 32, 38);
+  doc.text('Bill to:', 14, 40);
+  doc.setFont('helvetica', 'normal'); doc.text(inv.customerName || '-', 32, 40);
 
   autoTable(doc, {
     head: [['Product', 'Qty', 'Unit', 'Unit Price', 'Total']],
     body: inv.items.map(i => [i.product, String(i.quantity), i.unit, KES(i.unit_price), KES(i.line_total)]),
-    startY: 44,
+    startY: 46,
     styles: { fontSize: 9, cellPadding: 3 },
     headStyles: { fillColor: [34, 139, 34], textColor: 255, fontStyle: 'bold' },
   });
@@ -98,10 +100,11 @@ const thermalInvoice = (inv: CreditInvoice) => {
   const lines = 14 + inv.items.length * 2 + (inv.dueDate ? 1 : 0);
   const H = Math.max(110, 40 + lines * 4);
   const doc = new jsPDF({ unit: 'mm', format: [W, H] });
+  try { doc.addImage(LOGO_DATA_URL, LOGO_MIME, (W - 18) / 2, 3, 18, 18); } catch { /* ignore */ }
   doc.setFont('courier', 'normal'); doc.setFontSize(10);
-  let y = 6;
+  let y = 25;
   const line = (t: string, bold = false) => { doc.setFont('courier', bold ? 'bold' : 'normal'); doc.text(t, 4, y); y += 4; };
-  line(inv.shopName || 'Kimp Feeds', true);
+  line(inv.shopName || BRAND_NAME, true);
   line('CREDIT INVOICE', true);
   line(`No: ${shortNo(inv.invoiceNo)}`);
   line(`Date: ${inv.date}`);
@@ -132,16 +135,17 @@ export const printPaymentReceipt = (r: PaymentReceipt, format: ReceiptFormat = g
 
 const a4Receipt = (r: PaymentReceipt) => {
   const doc = new jsPDF();
+  try { doc.addImage(LOGO_DATA_URL, LOGO_MIME, 14, 8, 22, 22); } catch { /* ignore */ }
   doc.setFontSize(16); doc.setFont('helvetica', 'bold');
-  doc.text(r.shopName || 'Kimp Feeds', 14, 18);
-  doc.setFontSize(12); doc.text('DEBT PAYMENT RECEIPT', 14, 26);
+  doc.text(r.shopName || BRAND_NAME, 40, 18);
+  doc.setFontSize(12); doc.text('DEBT PAYMENT RECEIPT', 40, 26);
 
   doc.setFontSize(10); doc.setFont('helvetica', 'normal');
   doc.text(`Receipt #: ${shortNo(r.receiptNo)}`, 140, 18);
   doc.text(`Date: ${r.date}`, 140, 24);
 
-  doc.setFont('helvetica', 'bold'); doc.text('Received from:', 14, 38);
-  doc.setFont('helvetica', 'normal'); doc.text(r.customerName || '-', 50, 38);
+  doc.setFont('helvetica', 'bold'); doc.text('Received from:', 14, 40);
+  doc.setFont('helvetica', 'normal'); doc.text(r.customerName || '-', 50, 40);
 
   autoTable(doc, {
     head: [['Detail', 'Amount']],
@@ -153,7 +157,7 @@ const a4Receipt = (r: PaymentReceipt) => {
       ['Outstanding balance', KES(r.outstanding)],
       ['Method', r.method || '-'],
     ],
-    startY: 44, styles: { fontSize: 10, cellPadding: 3 },
+    startY: 46, styles: { fontSize: 10, cellPadding: 3 },
     headStyles: { fillColor: [34, 139, 34], textColor: 255 },
   });
 
@@ -167,10 +171,11 @@ const a4Receipt = (r: PaymentReceipt) => {
 const thermalReceipt = (r: PaymentReceipt) => {
   const W = 80, H = 130;
   const doc = new jsPDF({ unit: 'mm', format: [W, H] });
+  try { doc.addImage(LOGO_DATA_URL, LOGO_MIME, (W - 18) / 2, 3, 18, 18); } catch { /* ignore */ }
   doc.setFont('courier', 'normal'); doc.setFontSize(10);
-  let y = 6;
+  let y = 25;
   const line = (t: string, bold = false) => { doc.setFont('courier', bold ? 'bold' : 'normal'); doc.text(t, 4, y); y += 4; };
-  line(r.shopName || 'Kimp Feeds', true);
+  line(r.shopName || BRAND_NAME, true);
   line('PAYMENT RECEIPT', true);
   line(`No:   ${shortNo(r.receiptNo)}`);
   line(`Date: ${r.date}`);

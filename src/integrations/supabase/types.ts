@@ -59,6 +59,7 @@ export type Database = {
       customers: {
         Row: {
           created_at: string
+          email: string | null
           feeds: string | null
           first_purchase_date: string | null
           id: string
@@ -72,6 +73,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email?: string | null
           feeds?: string | null
           first_purchase_date?: string | null
           id?: string
@@ -85,6 +87,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email?: string | null
           feeds?: string | null
           first_purchase_date?: string | null
           id?: string
@@ -818,6 +821,11 @@ export type Database = {
         }
         Returns: boolean
       }
+      rename_customer: {
+        Args: { p_new: string; p_old: string; p_shop_id: string }
+        Returns: Json
+      }
+      sync_customers_from_sales: { Args: { p_shop_id?: string }; Returns: Json }
       verify_password: {
         Args: { _hash: string; _password: string }
         Returns: boolean
