@@ -2,12 +2,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { toBagEquivalent, toKg, formatBags, formatTonnes } from '@/lib/units';
 import { Package, DollarSign, Wallet, TrendingUp, Users, AlertTriangle, Truck } from 'lucide-react';
 import PurchasingPower from '@/components/analytics/PurchasingPower';
 import WeeklyPurchasing from '@/components/analytics/WeeklyPurchasing';
 import PeriodPicker, { buildPreset, type Period } from '@/components/PeriodPicker';
+import DebtorsList from '@/components/money/DebtorsList';
 
 interface Props {
   selectedShop: string; // 'all' or shop_id
@@ -17,6 +20,7 @@ interface PropsExt extends Props { shops?: { shop_id: string; shop_name: string 
 const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
   const [period, setPeriod] = useState<Period>(() => buildPreset('month'));
   const [data, setData] = useState<any>({ loading: true });
+  const [showDebtors, setShowDebtors] = useState(false);
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [selectedShop, period]);
 
@@ -49,6 +53,38 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
     const { data: dp } = await dpQ;
     const debtPaid = (dp || []).reduce((s, d: any) => s + Number(d.amount || 0), 0);
 
+    // Bags per product (period)
+    const bagsByProductMap = new Map<string, number>();
+    items.forEach((it: any) => {
+      const eq = toBagEquivalent(Number(it.quantity), it.unit);
+      bagsByProductMap.set(it.product, (bagsByProductMap.get(it.product) || 0) + eq);
+    });
+    const bagsByProduct = Array.from(bagsByProductMap.entries())
+      .map(([product, bags]) => ({ product, bags }))
+      .sort((a, b) => b.bags - a.bags);
+
+    // Outstanding debt as of today (period-independent)
+    let allCreditQ = supabase.from('sales_transactions').select('id, customer_name, total_amount, amount_paid').eq('is_credit', true);
+    if (selectedShop !== 'all') allCreditQ = allCreditQ.eq('shop_id', selectedShop);
+    const { data: allCredit } = await allCreditQ;
+    const creditIds = (allCredit || []).map((c: any) => c.id);
+    let extraPays: any[] = [];
+    for (let i = 0; i < creditIds.length; i += 200) {
+      const { data: p } = await supabase.from('debt_payments').select('sale_transaction_id, amount').in('sale_transaction_id', creditIds.slice(i, i + 200));
+      extraPays = extraPays.concat(p || []);
+    }
+    const payByTx: Record<string, number> = {};
+    extraPays.forEach((p: any) => { payByTx[p.sale_transaction_id] = (payByTx[p.sale_transaction_id] || 0) + Number(p.amount || 0); });
+    let outstandingTotal = 0;
+    const debtorSet = new Set<string>();
+    (allCredit || []).forEach((c: any) => {
+      const bal = Number(c.total_amount || 0) - Number(c.amount_paid || 0) - (payByTx[c.id] || 0);
+      if (bal > 0.01) {
+        outstandingTotal += bal;
+        debtorSet.add(((c.customer_name || '') as string).toLowerCase());
+      }
+    });
+
     // Customers
     let custQ = supabase.from('customers').select('*');
     if (selectedShop !== 'all') custQ = custQ.eq('shop_id', selectedShop);
@@ -80,7 +116,8 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
     setData({
       loading: false, totalBags, totalKg, revenue, collected, credit, debtPaid,
       newCust, activeCust, lowStock, stopsPending, returnsPending,
-      txCount: (tx || []).length,
+      txCount: (tx || []).length, bagsByProduct,
+      outstandingTotal, debtorCount: debtorSet.size,
     });
   };
 
@@ -114,6 +151,46 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
         <Kpi title="New customers (30d)" value={String(data.newCust)} icon={Users} />
         <Kpi title="Active customers (90d)" value={String(data.activeCust)} icon={Users} />
       </div>
+      <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
+        <Card className="cursor-pointer hover:bg-muted/40" onClick={() => setShowDebtors(true)}>
+          <CardContent className="p-4 flex justify-between items-start">
+            <div>
+              <div className="text-xs text-muted-foreground">Outstanding debt (today)</div>
+              <div className="text-2xl font-bold text-destructive">KES {Math.round(data.outstandingTotal || 0).toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground">Tap to view debtors</div>
+            </div>
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+          </CardContent>
+        </Card>
+        <Card className="cursor-pointer hover:bg-muted/40" onClick={() => setShowDebtors(true)}>
+          <CardContent className="p-4 flex justify-between items-start">
+            <div>
+              <div className="text-xs text-muted-foreground">Debtors</div>
+              <div className="text-2xl font-bold">{data.debtorCount || 0}</div>
+              <div className="text-xs text-muted-foreground">Customers owing now</div>
+            </div>
+            <Users className="h-5 w-5 text-muted-foreground" />
+          </CardContent>
+        </Card>
+      </div>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Bags sold per product — {period.label}</CardTitle></CardHeader>
+        <CardContent>
+          {(!data.bagsByProduct || data.bagsByProduct.length === 0) ? (
+            <div className="text-sm text-muted-foreground">No sales in this period.</div>
+          ) : (
+            <Table>
+              <TableHeader><TableRow><TableHead>Product</TableHead><TableHead className="text-right">Bags (70kg eq)</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {data.bagsByProduct.map((r: any) => (
+                  <TableRow key={r.product}><TableCell className="font-medium">{r.product}</TableCell><TableCell className="text-right">{formatBags(r.bags)}</TableCell></TableRow>
+                ))}
+                <TableRow className="font-semibold bg-muted/40"><TableCell>Total</TableCell><TableCell className="text-right">{formatBags(data.totalBags)}</TableCell></TableRow>
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card><CardContent className="p-4 flex items-center justify-between">
           <div><div className="text-xs text-muted-foreground">Low stock items</div><div className="text-2xl font-bold">{data.lowStock}</div></div>
@@ -130,6 +207,12 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
       </div>
       <PurchasingPower shops={shops} shopFilter={selectedShop} hideShopSelect />
       <WeeklyPurchasing shops={shops} shopFilter={selectedShop} hideShopSelect />
+      <Dialog open={showDebtors} onOpenChange={setShowDebtors}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Debtors</DialogTitle></DialogHeader>
+          <DebtorsList shopId={selectedShop === 'all' ? undefined : selectedShop} shops={shops} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
