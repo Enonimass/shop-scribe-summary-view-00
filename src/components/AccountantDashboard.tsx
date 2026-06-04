@@ -13,11 +13,13 @@ import { supabase } from '@/integrations/supabase/client';
 import ExportButtons from './ExportButtons';
 import DebtorsList from './money/DebtorsList';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
+import MobileTabsNav from './MobileTabsNav';
 
 const fmtKes = (n: number) => `KES ${Math.round(n).toLocaleString()}`;
 
 const AccountantDashboard: React.FC = () => {
   const { profile, logout } = useAuth();
+  const [tab, setTab] = useState<string>('sales');
   const [shops, setShops] = useState<{ shop_id: string; shop_name: string }[]>([]);
   const [shopFilter, setShopFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState<string>(() => {
@@ -181,8 +183,19 @@ const AccountantDashboard: React.FC = () => {
           <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Debt paid in period</div><div className="text-2xl font-bold">{fmtKes(kpis.debtPaid)}</div></CardContent></Card>
         </div>
 
-        <Tabs defaultValue="sales">
-          <TabsList className="flex-wrap h-auto">
+        <Tabs value={tab} onValueChange={setTab}>
+          <MobileTabsNav
+            value={tab}
+            onChange={setTab}
+            items={[
+              { value: 'sales', label: 'Sales', icon: <DollarSign className="h-4 w-4" /> },
+              { value: 'money', label: 'Money in', icon: <Wallet className="h-4 w-4" /> },
+              { value: 'debts', label: 'Debts', icon: <AlertTriangle className="h-4 w-4" /> },
+              { value: 'stock', label: 'Shop stock', icon: <Package className="h-4 w-4" /> },
+              { value: 'factory', label: 'Factory stock', icon: <Factory className="h-4 w-4" /> },
+            ]}
+          />
+          <TabsList className="hidden md:flex flex-wrap h-auto">
             <TabsTrigger value="sales"><DollarSign className="h-4 w-4 mr-1" /> Sales</TabsTrigger>
             <TabsTrigger value="money"><Wallet className="h-4 w-4 mr-1" /> Money in</TabsTrigger>
             <TabsTrigger value="debts"><AlertTriangle className="h-4 w-4 mr-1" /> Debts</TabsTrigger>
