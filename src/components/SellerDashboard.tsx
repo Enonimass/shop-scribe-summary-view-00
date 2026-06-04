@@ -14,11 +14,13 @@ import DailyReport from './money/DailyReport';
 import SellerSummary from './seller/SellerSummary';
 import { LogOut, Store, User, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart, LayoutDashboard } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import MobileTabsNav, { MobileTabItem } from './MobileTabsNav';
 
 const SellerDashboard = () => {
   const { profile, logout } = useAuth();
   const [allSales, setAllSales] = useState<any[]>([]);
   const [selectedShop, setSelectedShop] = useState(profile?.shop_id || '');
+  const [tab, setTab] = useState('summary');
 
   const shopId = profile?.shop_id || '';
 
@@ -106,8 +108,23 @@ const SellerDashboard = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="summary" className="space-y-6">
-          <TabsList className="flex flex-wrap w-full gap-1 h-auto p-1 bg-white/80 backdrop-blur-sm">
+        <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+          <MobileTabsNav
+            value={tab}
+            onChange={setTab}
+            items={[
+              { value: 'summary', label: 'Summary', icon: <LayoutDashboard className="h-4 w-4" /> },
+              { value: 'inventory', label: 'Inventory' },
+              { value: 'deliveries', label: 'Deliveries', icon: <Truck className="h-4 w-4" /> },
+              { value: 'sales', label: 'Sales' },
+              { value: 'customers', label: 'Customers' },
+              { value: 'product-analytics', label: 'Product Analytics' },
+              { value: 'customer-analytics', label: 'Customer Analytics' },
+              { value: 'debts', label: 'Debts', icon: <Wallet className="h-4 w-4" /> },
+              { value: 'daily-report', label: 'Daily Report', icon: <FileBarChart className="h-4 w-4" /> },
+            ]}
+          />
+          <TabsList className="hidden md:flex flex-wrap w-full gap-1 h-auto p-1 bg-white/80 backdrop-blur-sm">
             <TabsTrigger value="summary" className="text-xs sm:text-sm flex items-center gap-1"><LayoutDashboard className="h-3 w-3" /> Summary</TabsTrigger>
             <TabsTrigger value="inventory" className="text-xs sm:text-sm">Inventory</TabsTrigger>
             <TabsTrigger value="deliveries" className="text-xs sm:text-sm flex items-center gap-1">
