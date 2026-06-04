@@ -9,13 +9,15 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { Users, Search, Edit, Phone, MapPin, Calendar, UserCheck, UserX, Moon } from 'lucide-react';
+import { Users, Search, Edit, Phone, MapPin, Calendar, UserCheck, UserX, Moon, Eye, RefreshCw, Mail } from 'lucide-react';
+import CustomerDetailDialog from '@/components/customers/CustomerDetailDialog';
 
 interface Customer {
   id: string;
   name: string;
   phone: string | null;
   place: string | null;
+  email?: string | null;
   shop_id: string;
   first_purchase_date: string | null;
   last_purchase_date: string | null;
@@ -36,10 +38,14 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
   const [statusFilter, setStatusFilter] = useState('all');
   const [shopFilter, setShopFilter] = useState(isAdmin ? 'all' : shopId);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editPlace, setEditPlace] = useState('');
   const [editStatus, setEditStatus] = useState('');
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     fetchCustomers();
@@ -47,59 +53,21 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
 
   const fetchCustomers = async () => {
     setLoading(true);
-    let query = supabase.from('customers').select('*');
+    let query = supabase.from('customers').select('*').order('name', { ascending: true });
     if (!isAdmin) query = query.eq('shop_id', shopId);
-    const { data: existingCustomers, error } = await query;
-
-    if (error) { console.error('Error fetching customers:', error); setLoading(false); return; }
-
-    // Sync from sales_transactions
-    let salesQuery = supabase.from('sales_transactions').select('customer_name, shop_id, sale_date');
-    if (!isAdmin) salesQuery = salesQuery.eq('shop_id', shopId);
-    const { data: salesData } = await salesQuery;
-
-    if (salesData && salesData.length > 0) {
-      const customerMap: Record<string, { name: string; shop_id: string; first: string; last: string }> = {};
-      salesData.forEach(sale => {
-        const key = `${sale.customer_name?.toLowerCase()}_${sale.shop_id}`;
-        if (!customerMap[key]) {
-          customerMap[key] = { name: sale.customer_name, shop_id: sale.shop_id, first: sale.sale_date, last: sale.sale_date };
-        } else {
-          if (sale.sale_date < customerMap[key].first) customerMap[key].first = sale.sale_date;
-          if (sale.sale_date > customerMap[key].last) customerMap[key].last = sale.sale_date;
-        }
-      });
-
-      const existing = existingCustomers || [];
-      const existingKeys = new Set(existing.map(c => `${c.name.toLowerCase()}_${c.shop_id}`));
-
-      const toInsert = Object.entries(customerMap)
-        .filter(([key]) => !existingKeys.has(key))
-        .map(([_, val]) => ({ name: val.name, shop_id: val.shop_id, first_purchase_date: val.first, last_purchase_date: val.last }));
-
-      if (toInsert.length > 0) await supabase.from('customers').insert(toInsert as any);
-
-      for (const customer of existing) {
-        const key = `${customer.name.toLowerCase()}_${customer.shop_id}`;
-        const salesInfo = customerMap[key];
-        if (salesInfo) {
-          const needsUpdate = customer.first_purchase_date !== salesInfo.first || customer.last_purchase_date !== salesInfo.last;
-          if (needsUpdate) {
-            await supabase.from('customers').update({
-              first_purchase_date: salesInfo.first, last_purchase_date: salesInfo.last,
-            } as any).eq('id', customer.id);
-          }
-        }
-      }
-
-      let refetchQuery = supabase.from('customers').select('*');
-      if (!isAdmin) refetchQuery = refetchQuery.eq('shop_id', shopId);
-      const { data: refreshed } = await refetchQuery;
-      setCustomers((refreshed as any) || []);
-    } else {
-      setCustomers((existingCustomers as any) || []);
-    }
+    const { data, error } = await query;
+    if (error) console.error('Error fetching customers:', error);
+    setCustomers((data as any) || []);
     setLoading(false);
+  };
+
+  const syncFromSales = async () => {
+    setSyncing(true);
+    const { error } = await supabase.rpc('sync_customers_from_sales', { p_shop_id: isAdmin ? null : shopId });
+    if (error) toast({ title: 'Sync failed', description: error.message, variant: 'destructive' });
+    else toast({ title: 'Synced', description: 'Customer list refreshed from sales' });
+    await fetchCustomers();
+    setSyncing(false);
   };
 
   const getCustomerStatus = (customer: Customer): 'active' | 'inactive' | 'new' | 'dormant' => {
@@ -150,6 +118,8 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
 
   const handleEditCustomer = (customer: Customer) => {
     setEditingCustomer(customer);
+    setEditName(customer.name);
+    setEditEmail(customer.email || '');
     setEditPhone(customer.phone || '');
     setEditPlace(customer.place || '');
     setEditStatus(customer.status || getCustomerStatus(customer));
@@ -157,9 +127,32 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
 
   const handleSaveEdit = async () => {
     if (!editingCustomer) return;
+    const trimmedNew = editName.trim();
+    if (!trimmedNew) {
+      toast({ title: 'Name required', variant: 'destructive' }); return;
+    }
+    // If renaming, propagate via RPC across sales/debts/etc.
+    if (trimmedNew.toLowerCase() !== editingCustomer.name.toLowerCase()) {
+      const { data: rpc, error: rErr } = await supabase.rpc('rename_customer', {
+        p_old: editingCustomer.name,
+        p_new: trimmedNew,
+        p_shop_id: editingCustomer.shop_id,
+      });
+      if (rErr) {
+        toast({ title: 'Rename failed', description: rErr.message, variant: 'destructive' });
+        return;
+      }
+      const r = (rpc as any) || {};
+      toast({
+        title: 'Customer renamed',
+        description: `Updated in ${r.sales_transactions || 0} sales, ${r.debt_payments || 0} debt records, ${r.trip_stops || 0} trips.`,
+      });
+    }
     const { error } = await supabase.from('customers').update({
+      name: trimmedNew,
       phone: editPhone || null,
       place: editPlace || null,
+      email: editEmail || null,
       status: editStatus === 'dormant' ? 'dormant' : 'active',
     } as any).eq('id', editingCustomer.id);
 
@@ -283,6 +276,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
                     <TableHead>Name</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Place</TableHead>
+                    <TableHead>Email</TableHead>
                     {isAdmin && <TableHead>Shop</TableHead>}
                     <TableHead>First Purchase</TableHead>
                     <TableHead>Last Purchase</TableHead>
@@ -304,6 +298,11 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
                           <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{customer.place}</span>
                         ) : <span className="text-muted-foreground text-xs">Not set</span>}
                       </TableCell>
+                      <TableCell>
+                        {customer.email ? (
+                          <span className="flex items-center gap-1 text-xs"><Mail className="h-3 w-3" />{customer.email}</span>
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                      </TableCell>
                       {isAdmin && <TableCell>{getShopName(customer.shop_id)}</TableCell>}
                       <TableCell>
                         {customer.first_purchase_date ? (
@@ -324,6 +323,9 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
                       <TableCell>{getStatusBadge(customer)}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button size="sm" variant="outline" onClick={() => setViewingCustomer(customer)} title="View details">
+                            <Eye className="h-3 w-3" />
+                          </Button>
                           <Button size="sm" variant="outline" onClick={() => handleEditCustomer(customer)}>
                             <Edit className="h-3 w-3 mr-1" /> Edit
                           </Button>
@@ -354,12 +356,21 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
+              <Label>Name</Label>
+              <Input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Customer name" />
+              <p className="text-xs text-muted-foreground">Renaming updates sales, debts and trip records for this shop.</p>
+            </div>
+            <div className="space-y-2">
               <Label>Phone Number</Label>
               <Input value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="e.g. 0712345678" />
             </div>
             <div className="space-y-2">
               <Label>Place / Location</Label>
               <Input value={editPlace} onChange={e => setEditPlace(e.target.value)} placeholder="e.g. Nakuru" />
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="e.g. name@example.com" />
             </div>
             <div className="space-y-2">
               <Label>Status</Label>
@@ -384,6 +395,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <CustomerDetailDialog customer={viewingCustomer} onClose={() => setViewingCustomer(null)} shopName={viewingCustomer ? getShopName(viewingCustomer.shop_id) : undefined} />
     </div>
   );
 };
