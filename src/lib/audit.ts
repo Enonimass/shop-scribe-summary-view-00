@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
-import { adminAction, getSessionToken } from './adminApi';
+import { adminAction } from './adminApi';
+import { getStored } from './session';
 
 export interface AuditEntry {
   action: string;
@@ -12,16 +13,16 @@ export interface AuditEntry {
 }
 
 function readActor(): { actor: string; actor_role: string } {
-  try {
-    const raw = localStorage.getItem('currentUser');
-    if (raw) {
+  const raw = getStored('currentUser');
+  if (raw) {
+    try {
       const u = JSON.parse(raw);
       return {
         actor: u.username || u.display_name || u.id || 'unknown',
         actor_role: u.role || 'unknown',
       };
-    }
-  } catch {}
+    } catch {}
+  }
   // Super admin uses Supabase Auth; fall back to that if available
   return { actor: 'unknown', actor_role: 'unknown' };
 }
@@ -34,7 +35,7 @@ export async function logAudit(entry: AuditEntry) {
     // App users: route audit log writes through the admin-action edge function,
     // which validates the caller's signed session token before inserting.
     // Super admins use Supabase Auth and write directly with their JWT.
-    if (getSessionToken()) {
+    if (getStored('sessionToken')) {
       await adminAction('log_audit', {
         entry: {
           actor: resolvedActor,
