@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { issueSessionToken } from "../_shared/session.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,8 +55,17 @@ Deno.serve(async (req) => {
     // Return profile without password
     const { password: _, ...safeProfile } = profile;
 
+    // Issue an HMAC-signed session token the app can use to call protected
+    // edge functions (manage users, rename customers, etc.) without trusting
+    // a client-supplied profile id.
+    const session_token = await issueSessionToken({
+      sub: safeProfile.id,
+      role: safeProfile.role,
+      shop_id: safeProfile.shop_id ?? null,
+    });
+
     return new Response(
-      JSON.stringify({ profile: safeProfile }),
+      JSON.stringify({ profile: safeProfile, session_token }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
