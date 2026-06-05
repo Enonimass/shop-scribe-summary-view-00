@@ -36,6 +36,9 @@ const Auth = () => {
       } else {
         // Store profile WITHOUT password in localStorage
         localStorage.setItem('currentUser', JSON.stringify(data.profile));
+        if (data.session_token) {
+          localStorage.setItem('sessionToken', data.session_token);
+        }
         
         toast({
           title: "Welcome back!",

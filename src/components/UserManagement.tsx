@@ -7,9 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserPlus, KeyRound, Trash2, Edit } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
+import { adminAction } from '@/lib/adminApi';
 
 interface UserManagementProps {
   profiles: any[];
@@ -46,24 +46,14 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .insert({
-          username,
-          password,
-          display_name: displayName,
-          role,
-          shop_id: role === 'seller' ? shopId : null,
-          shop_name: role === 'seller' ? shopName : null,
-        });
-
-      if (error) {
-        toast({
-          title: "Failed to create user",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
+      await adminAction('create_user', {
+        username,
+        password,
+        display_name: displayName,
+        role,
+        shop_id: role === 'seller' ? shopId : null,
+        shop_name: role === 'seller' ? shopName : null,
+      });
         toast({
           title: "User created successfully",
           description: `${displayName} has been added to the system.`,
@@ -83,11 +73,10 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
         setShopName('');
         setCreateUserOpen(false);
         onProfilesUpdate();
-      }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Failed to create user",
-        description: "An unexpected error occurred.",
+        description: error?.message || "An unexpected error occurred.",
         variant: "destructive",
       });
     }
@@ -100,18 +89,7 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ password: newPassword })
-        .eq('id', selectedUser.id);
-
-      if (error) {
-        toast({
-          title: "Failed to update password",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
+      await adminAction('reset_password', { id: selectedUser.id, new_password: newPassword });
         toast({
           title: "Password updated",
           description: `Password for ${selectedUser.display_name} has been updated.`,
@@ -126,11 +104,10 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
         setPasswordResetOpen(false);
         setSelectedUser(null);
         onProfilesUpdate();
-      }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Failed to update password",
-        description: "An unexpected error occurred.",
+        description: error?.message || "An unexpected error occurred.",
         variant: "destructive",
       });
     }
@@ -143,22 +120,12 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          username: editUsername,
-          display_name: editDisplayName,
-          shop_name: editShopName || null,
-        })
-        .eq('id', selectedUser.id);
-
-      if (error) {
-        toast({
-          title: "Failed to update user",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
+      await adminAction('update_user', {
+        id: selectedUser.id,
+        username: editUsername,
+        display_name: editDisplayName,
+        shop_name: editShopName || null,
+      });
         toast({
           title: "User updated",
           description: `${editDisplayName} has been updated.`,
@@ -173,11 +140,10 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
         setEditUserOpen(false);
         setSelectedUser(null);
         onProfilesUpdate();
-      }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Failed to update user",
-        description: "An unexpected error occurred.",
+        description: error?.message || "An unexpected error occurred.",
         variant: "destructive",
       });
     }
@@ -193,18 +159,7 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', profile.id);
-      
-      if (error) {
-        toast({
-          title: "Failed to delete user",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
+      await adminAction('delete_user', { id: profile.id });
         toast({
           title: "User deleted",
           description: `${profile.display_name} has been removed from the system.`,
@@ -216,11 +171,10 @@ const UserManagement = ({ profiles, onProfilesUpdate }: UserManagementProps) => 
           before: { username: profile.username, role: profile.role, shop_id: profile.shop_id },
         });
         onProfilesUpdate();
-      }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Failed to delete user",
-        description: "An unexpected error occurred.",
+        description: error?.message || "An unexpected error occurred.",
         variant: "destructive",
       });
     }

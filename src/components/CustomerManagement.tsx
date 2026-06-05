@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { Users, Search, Edit, Phone, MapPin, Calendar, UserCheck, UserX, Moon, Eye, RefreshCw, Mail } from 'lucide-react';
 import CustomerDetailDialog from '@/components/customers/CustomerDetailDialog';
+import { adminAction } from '@/lib/adminApi';
 
 interface Customer {
   id: string;
@@ -63,9 +64,12 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
 
   const syncFromSales = async () => {
     setSyncing(true);
-    const { error } = await supabase.rpc('sync_customers_from_sales', { p_shop_id: isAdmin ? null : shopId });
-    if (error) toast({ title: 'Sync failed', description: error.message, variant: 'destructive' });
-    else toast({ title: 'Synced', description: 'Customer list refreshed from sales' });
+    try {
+      await adminAction('sync_customers', { p_shop_id: isAdmin ? null : shopId });
+      toast({ title: 'Synced', description: 'Customer list refreshed from sales' });
+    } catch (e: any) {
+      toast({ title: 'Sync failed', description: e?.message || 'Unknown error', variant: 'destructive' });
+    }
     await fetchCustomers();
     setSyncing(false);
   };
@@ -133,13 +137,15 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ shopId, shops =
     }
     // If renaming, propagate via RPC across sales/debts/etc.
     if (trimmedNew.toLowerCase() !== editingCustomer.name.toLowerCase()) {
-      const { data: rpc, error: rErr } = await supabase.rpc('rename_customer', {
-        p_old: editingCustomer.name,
-        p_new: trimmedNew,
-        p_shop_id: editingCustomer.shop_id,
-      });
-      if (rErr) {
-        toast({ title: 'Rename failed', description: rErr.message, variant: 'destructive' });
+      let rpc: any;
+      try {
+        rpc = await adminAction('rename_customer', {
+          p_old: editingCustomer.name,
+          p_new: trimmedNew,
+          p_shop_id: editingCustomer.shop_id,
+        });
+      } catch (e: any) {
+        toast({ title: 'Rename failed', description: e?.message || 'Unknown error', variant: 'destructive' });
         return;
       }
       const r = (rpc as any) || {};
