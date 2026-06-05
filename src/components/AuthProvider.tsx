@@ -41,6 +41,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = () => {
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('sessionToken');
     setProfile(null);
   };
 

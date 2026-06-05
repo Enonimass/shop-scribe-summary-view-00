@@ -32,9 +32,10 @@ const AIInsights = () => {
     setMeta(null);
 
     try {
+      const token = localStorage.getItem('sessionToken');
       const { data, error } = await supabase.functions.invoke('ai-insights', {
         body: { shop_id: shopId || null },
-        headers: profile?.id ? { 'x-app-user-id': profile.id } : undefined,
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
 
       if (error) {
