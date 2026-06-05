@@ -28,7 +28,7 @@ const Auth = () => {
     try {
       // Use edge function for server-side password verification
       const { data, error } = await supabase.functions.invoke('login', {
-        body: { username, password },
+        body: { username, password, remember },
       });
 
       if (error || !data?.profile) {
