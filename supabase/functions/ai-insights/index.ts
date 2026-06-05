@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifySessionToken, extractBearer } from "../_shared/session.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,16 +20,18 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Require an authenticated app user. The client passes the stored profile id
-    // via the `x-app-user-id` header; we verify it matches a real profile.
-    const appUserId = req.headers.get("x-app-user-id") || "";
-    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRe.test(appUserId)) {
+    // Require a valid HMAC session token issued by the login function.
+    // The previous `x-app-user-id` header was spoofable because profile UUIDs
+    // are readable; the signed token cryptographically binds the identity.
+    const token = extractBearer(req);
+    const claims = await verifySessionToken(token);
+    if (!claims) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    const appUserId = claims.sub;
     const { data: callerProfile } = await supabase
       .from("profiles")
       .select("id, role, shop_id")
