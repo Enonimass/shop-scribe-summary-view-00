@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FileText, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { printCreditInvoice } from '@/lib/receipts';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 export const GOOD_DAYS = 30;
 export const LONG_DAYS = 90;
@@ -40,6 +41,8 @@ const DebtorsList: React.FC<Props> = ({ shopId, shops = [] }) => {
   const [payments, setPayments] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'customer' | 'sale'>('customer');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   // filters
   const [search, setSearch] = useState('');
@@ -113,6 +116,56 @@ const DebtorsList: React.FC<Props> = ({ shopId, shops = [] }) => {
     return acc;
   }, [enriched]);
 
+  // Group debts by customer for the aggregated debtors table.
+  const byCustomer = useMemo(() => {
+    const map = new Map<string, any>();
+    enriched.forEach((r) => {
+      const key = (r.customer_name || '').trim().toLowerCase() || '—';
+      const cur = map.get(key) || {
+        key,
+        customer_name: r.customer_name || '—',
+        sales: [] as any[],
+        balance: 0,
+        oldestAge: 0,
+        worst: 'good' as Bucket,
+        lastPayment: null as string | null,
+      };
+      cur.sales.push(r);
+      cur.balance += r._balance;
+      if (r._age > cur.oldestAge) cur.oldestAge = r._age;
+      const order: Record<Bucket, number> = { good: 0, long: 1, bad: 2 };
+      if (order[r._bucket as Bucket] > order[cur.worst]) cur.worst = r._bucket as Bucket;
+      const linkedPays = payments.filter((p) => p.sale_transaction_id === r.id);
+      linkedPays.forEach((p) => {
+        if (!cur.lastPayment || p.payment_date > cur.lastPayment) cur.lastPayment = p.payment_date;
+      });
+      map.set(key, cur);
+    });
+    let rows = Array.from(map.values());
+    if (search) {
+      const s = search.toLowerCase();
+      rows = rows.filter((r) => r.customer_name.toLowerCase().includes(s));
+    }
+    if (minAmt) rows = rows.filter((r) => r.balance >= Number(minAmt));
+    if (maxAmt) rows = rows.filter((r) => r.balance <= Number(maxAmt));
+    if (minAge) rows = rows.filter((r) => r.oldestAge >= Number(minAge));
+    if (maxAge) rows = rows.filter((r) => r.oldestAge <= Number(maxAge));
+    if (bucket !== 'all') rows = rows.filter((r) => r.worst === bucket);
+    rows.sort((a, b) => {
+      if (sortBy === 'balance') return b.balance - a.balance;
+      if (sortBy === 'due') return b.oldestAge - a.oldestAge;
+      return b.oldestAge - a.oldestAge;
+    });
+    return rows;
+  }, [enriched, payments, search, minAmt, maxAmt, minAge, maxAge, bucket, sortBy]);
+
+  // Distinct-debtor counts for the KPI cards (per bucket).
+  const debtorCounts = useMemo(() => {
+    const acc: Record<Bucket, number> = { good: 0, long: 0, bad: 0 };
+    byCustomer.forEach((r) => { acc[r.worst as Bucket]++; });
+    return acc;
+  }, [byCustomer]);
+
   const shopName = (id: string) => shops.find(s => s.shop_id === id)?.shop_name || id;
 
   const reprint = (sale: any) => {
@@ -141,7 +194,7 @@ const DebtorsList: React.FC<Props> = ({ shopId, shops = [] }) => {
               <div>
                 <div className="text-xs text-muted-foreground">{bucketLabel[b]} debts</div>
                 <div className="text-xl font-bold">{totals[b].c}</div>
-                <div className="text-xs">{fmtKes(totals[b].t)}</div>
+                <div className="text-xs">{fmtKes(totals[b].t)} · {debtorCounts[b]} debtor{debtorCounts[b] === 1 ? '' : 's'}</div>
               </div>
               <Badge variant={bucketVariant[b]}>{b === 'good' ? `≤${GOOD_DAYS}d` : b === 'long' ? `≤${LONG_DAYS}d` : `>${LONG_DAYS}d`}</Badge>
             </div>
@@ -182,6 +235,115 @@ const DebtorsList: React.FC<Props> = ({ shopId, shops = [] }) => {
         </CardContent>
       </Card>
 
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant={view === 'customer' ? 'default' : 'outline'} onClick={() => setView('customer')}>
+          By customer
+        </Button>
+        <Button size="sm" variant={view === 'sale' ? 'default' : 'outline'} onClick={() => setView('sale')}>
+          By sale
+        </Button>
+      </div>
+
+      {view === 'customer' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="h-4 w-4" /> Debtors ({byCustomer.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="text-sm text-muted-foreground">Loading…</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-8"></TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead className="text-right">Sales</TableHead>
+                      <TableHead className="text-right">Total balance</TableHead>
+                      <TableHead className="text-right">Oldest age</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Last payment</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {byCustomer.map((r) => (
+                      <React.Fragment key={r.key}>
+                        <TableRow
+                          className="cursor-pointer"
+                          onClick={() => setExpanded((s) => ({ ...s, [r.key]: !s[r.key] }))}
+                        >
+                          <TableCell>
+                            {expanded[r.key] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </TableCell>
+                          <TableCell className="font-medium">{r.customer_name}</TableCell>
+                          <TableCell className="text-right">{r.sales.length}</TableCell>
+                          <TableCell className="text-right font-semibold text-destructive">{fmtKes(r.balance)}</TableCell>
+                          <TableCell className="text-right">{r.oldestAge}d</TableCell>
+                          <TableCell>
+                            <Badge variant={bucketVariant[r.worst as Bucket]}>{bucketLabel[r.worst as Bucket]}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {r.lastPayment ? new Date(r.lastPayment).toLocaleDateString() : <span className="text-xs italic text-muted-foreground">none</span>}
+                          </TableCell>
+                        </TableRow>
+                        {expanded[r.key] && (
+                          <TableRow className="bg-surface-2/40 hover:bg-surface-2/60">
+                            <TableCell></TableCell>
+                            <TableCell colSpan={6} className="p-0">
+                              <div className="p-3">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Sale date</TableHead>
+                                      <TableHead>Due</TableHead>
+                                      <TableHead>Age</TableHead>
+                                      <TableHead>Status</TableHead>
+                                      <TableHead className="text-right">Billed</TableHead>
+                                      <TableHead className="text-right">Paid</TableHead>
+                                      <TableHead className="text-right">Balance</TableHead>
+                                      <TableHead></TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {r.sales.map((s: any) => (
+                                      <TableRow key={s.id}>
+                                        <TableCell>{new Date(s.sale_date).toLocaleDateString()}</TableCell>
+                                        <TableCell>{s.due_date ? new Date(s.due_date).toLocaleDateString() : <span className="text-xs italic text-muted-foreground">—</span>}</TableCell>
+                                        <TableCell>{s._age}d</TableCell>
+                                        <TableCell><Badge variant={bucketVariant[s._bucket as Bucket]}>{bucketLabel[s._bucket as Bucket]}</Badge></TableCell>
+                                        <TableCell className="text-right">{fmtKes(s.total_amount)}</TableCell>
+                                        <TableCell className="text-right">{fmtKes(s._paid)}</TableCell>
+                                        <TableCell className="text-right text-destructive font-semibold">{fmtKes(s._balance)}</TableCell>
+                                        <TableCell className="text-right">
+                                          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); reprint(s); }} title="Reprint invoice">
+                                            <FileText className="h-4 w-4" />
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    ))}
+                    {!byCustomer.length && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground">No matching debtors.</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><AlertTriangle className="h-4 w-4" /> Debtors ({filtered.length})</CardTitle></CardHeader>
         <CardContent>
@@ -221,6 +383,7 @@ const DebtorsList: React.FC<Props> = ({ shopId, shops = [] }) => {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 };

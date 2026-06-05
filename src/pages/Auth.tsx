@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,15 +7,19 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Store } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { setStored } from '@/lib/session';
 
 const Auth = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
   // Login form state - updated for simplified auth
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +28,7 @@ const Auth = () => {
     try {
       // Use edge function for server-side password verification
       const { data, error } = await supabase.functions.invoke('login', {
-        body: { username, password },
+        body: { username, password, remember },
       });
 
       if (error || !data?.profile) {
@@ -34,17 +38,19 @@ const Auth = () => {
           variant: "destructive",
         });
       } else {
-        // Store profile WITHOUT password in localStorage
-        localStorage.setItem('currentUser', JSON.stringify(data.profile));
+        // Store WITHOUT password. Default: sessionStorage only (cleared when
+        // the tab closes). "Keep me signed in" uses localStorage for persistence.
+        setStored('currentUser', JSON.stringify(data.profile), remember);
         if (data.session_token) {
-          localStorage.setItem('sessionToken', data.session_token);
+          setStored('sessionToken', data.session_token, remember);
         }
         
         toast({
           title: "Welcome back!",
           description: `Logged in as ${data.profile.display_name}`,
         });
-        navigate('/');
+        const next = searchParams.get('next');
+        navigate(next && next.startsWith('/') ? next : '/');
       }
     } catch (error) {
       toast({
@@ -97,6 +103,19 @@ const Auth = () => {
             <Button type="submit" variant="green-awesome" className="w-full" disabled={loading}>
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
+            <div className="flex items-center gap-2 pt-1">
+              <Checkbox
+                id="remember"
+                checked={remember}
+                onCheckedChange={(v) => setRemember(v === true)}
+              />
+              <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
+                Keep me signed in on this device
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Leave unchecked on shared computers — your session will end when you close the browser.
+            </p>
           </form>
         </CardContent>
       </Card>

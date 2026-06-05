@@ -12,7 +12,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { username, password } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { username, password, remember } = body || {};
 
     if (!username || !password) {
       return new Response(
@@ -58,11 +59,13 @@ Deno.serve(async (req) => {
     // Issue an HMAC-signed session token the app can use to call protected
     // edge functions (manage users, rename customers, etc.) without trusting
     // a client-supplied profile id.
+    // Default TTL is 8 hours. "Keep me signed in" extends it to 30 days.
+    const ttl = remember ? 60 * 60 * 24 * 30 : 60 * 60 * 8;
     const session_token = await issueSessionToken({
       sub: safeProfile.id,
       role: safeProfile.role,
       shop_id: safeProfile.shop_id ?? null,
-    });
+    }, ttl);
 
     return new Response(
       JSON.stringify({ profile: safeProfile, session_token }),

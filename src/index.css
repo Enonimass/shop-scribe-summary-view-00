@@ -6,14 +6,15 @@
 
 @layer base {
   :root {
-    --background: 120 20% 90%;
-    --foreground: 120 80% 10%;
+    /* Page background sits a shade lower than cards so cards stand out */
+    --background: 120 22% 96%;
+    --foreground: 120 60% 8%;
 
-    --card: 120 18% 93%;
-    --card-foreground: 120 80% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 120 60% 8%;
 
-    --popover: 120 18% 93%;
-    --popover-foreground: 120 80% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 120 60% 8%;
 
     --primary: 120 60% 25%;
     --primary-foreground: 0 0% 98%;
@@ -21,18 +22,25 @@
     --secondary: 75 65% 45%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 120 20% 92%;
-    --muted-foreground: 120 10% 40%;
+    --muted: 120 25% 88%;
+    --muted-foreground: 120 12% 32%;
 
     --accent: 75 65% 45%;
     --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 78% 52%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Stronger borders so cards, tables, and inputs visibly separate */
+    --border: 120 20% 78%;
+    --input: 120 22% 72%;
+    --ring: 142 76% 36%;
+
+    /* Surface levels used by tables (header / zebra rows) and chrome */
+    --surface-2: 120 22% 92%;
+    --surface-3: 120 18% 84%;
+    --shadow-card: 0 1px 2px hsl(120 60% 8% / 0.06), 0 4px 12px hsl(120 60% 8% / 0.05);
+    --shadow-pop: 0 4px 14px hsl(120 60% 8% / 0.12);
 
     --radius: 0.5rem;
 
@@ -65,33 +73,38 @@
   }
 
   .dark {
-    --background: 120 40% 8%;
+    --background: 120 40% 6%;
     --foreground: 120 20% 95%;
 
-    --card: 120 30% 12%;
+    --card: 120 32% 11%;
     --card-foreground: 120 20% 95%;
 
-    --popover: 120 30% 12%;
+    --popover: 120 32% 11%;
     --popover-foreground: 120 20% 95%;
 
-    --primary: 120 50% 35%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 142 60% 45%;
+    --primary-foreground: 142 87% 8%;
 
     --secondary: 75 55% 55%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary-foreground: 75 100% 8%;
 
-    --muted: 120 15% 20%;
-    --muted-foreground: 120 10% 70%;
+    --muted: 120 18% 18%;
+    --muted-foreground: 120 12% 72%;
 
     --accent: 75 55% 55%;
-    --accent-foreground: 0 0% 98%;
+    --accent-foreground: 75 100% 8%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 54%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 120 18% 26%;
+    --input: 120 18% 30%;
+    --ring: 142 69% 55%;
+
+    --surface-2: 120 28% 14%;
+    --surface-3: 120 22% 20%;
+    --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.4), 0 4px 14px hsl(0 0% 0% / 0.35);
+    --shadow-pop: 0 6px 22px hsl(0 0% 0% / 0.55);
     
     /* Dark mode green colors */
     --green-awesome: 142 69% 45%;
@@ -121,4 +134,11 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+@layer utilities {
+  .bg-surface-2 { background-color: hsl(var(--surface-2)); }
+  .bg-surface-3 { background-color: hsl(var(--surface-3)); }
+  .shadow-card { box-shadow: var(--shadow-card); }
+  .shadow-pop  { box-shadow: var(--shadow-pop); }
 }

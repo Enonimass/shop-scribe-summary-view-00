@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { AuthProvider, useAuth } from '../components/AuthProvider';
+import { useAuth } from '../components/AuthProvider';
 import LoginForm from '../components/LoginForm';
 import SellerDashboard from '../components/SellerDashboard';
 import AdminDashboard from '../components/AdminDashboard';
@@ -34,11 +34,8 @@ const AppContent = () => {
 };
 
 const Index = () => {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
+  // AuthProvider is mounted at the App level so route guards share its state.
+  return <AppContent />;
 };
 
 export default Index;
