@@ -42,7 +42,7 @@ export function decodeSessionToken(token: string | null | undefined): SessionCla
   if (!token || typeof token !== 'string' || !token.includes('.')) return null;
   try {
     const [payload] = token.split('.');
-    let s = payload.replaceAll('-', '+').replaceAll('_', '/');
+    let s = payload.replace(/-/g, '+').replace(/_/g, '/');
     while (s.length % 4) s += '=';
     const json = atob(s);
     const claims = JSON.parse(json) as SessionClaims;
