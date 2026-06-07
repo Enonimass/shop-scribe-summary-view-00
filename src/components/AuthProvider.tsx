@@ -14,6 +14,7 @@ interface UserProfile {
 
 interface AuthContextType {
   profile: UserProfile | null;
+  login: (profile: UserProfile) => void;
   logout: () => void;
   isAuthenticated: boolean;
   loading: boolean;
@@ -101,6 +102,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const value: AuthContextType = {
     profile,
+    login: (p: UserProfile) => setProfile(p),
     logout,
     isAuthenticated: !!profile && isTokenValid(getStored('sessionToken')),
     loading,
