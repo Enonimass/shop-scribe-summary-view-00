@@ -9,11 +9,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Store } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { setStored } from '@/lib/session';
+import { useAuth } from '@/components/AuthProvider';
 
 const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { login } = useAuth();
   const [loading, setLoading] = useState(false);
 
   // Login form state - updated for simplified auth
@@ -44,13 +46,15 @@ const Auth = () => {
         if (data.session_token) {
           setStored('sessionToken', data.session_token, remember);
         }
-        
+        login(data.profile);
+
         toast({
           title: "Welcome back!",
           description: `Logged in as ${data.profile.display_name}`,
         });
         const next = searchParams.get('next');
-        navigate(next && next.startsWith('/') ? next : '/');
+        const safeNext = next && next.startsWith('/') && !next.startsWith('/auth') ? next : '/';
+        navigate(safeNext);
       }
     } catch (error) {
       toast({
