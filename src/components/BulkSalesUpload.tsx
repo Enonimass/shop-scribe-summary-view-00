@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload, FileSpreadsheet, Check, AlertTriangle, Loader2 } from 'lucide-react';
@@ -20,6 +21,8 @@ interface ParsedRow {
   date: string;
   customer_name: string;
   product: string;
+  raw_product: string;
+  product_known: boolean;
   quantity: number;
   unit: string;
   valid: boolean;
@@ -31,7 +34,29 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState('');
+  const [knownProducts, setKnownProducts] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase
+        .from('inventory')
+        .select('product')
+        .eq('shop_id', shopId);
+      const unique = Array.from(new Set(((data as any[]) || []).map(r => String(r.product).trim()).filter(Boolean)));
+      unique.sort((a, b) => a.localeCompare(b));
+      setKnownProducts(unique);
+    };
+    if (shopId) load();
+  }, [shopId]);
+
+  const fixRowProduct = (index: number, product: string) => {
+    setParsedRows(prev => prev.map((r, i) => {
+      if (i !== index) return r;
+      const basicsOk = !!r.date && !!r.customer_name && !!product && r.quantity > 0;
+      return { ...r, product, product_known: true, valid: basicsOk, error: basicsOk ? undefined : r.error };
+    }));
+  };
 
   const PRODUCT_ALIASES: Record<string, string> = {
     'hydm': 'High yield dairy meal', 'high yield': 'High yield dairy meal',
@@ -136,13 +161,20 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
         }
 
         const product = resolveProduct(rawProduct);
+        const product_known = knownProducts.length === 0
+          ? true
+          : knownProducts.some(p => p.toLowerCase() === product.toLowerCase());
         const unit = resolveUnit(rawUnit, rawQty);
-        const valid = !!dateStr && !!rawCustomer && !!product && rawQty > 0;
-        const error = !valid ? 
-          (!dateStr ? 'Missing date' : !rawCustomer ? 'Missing customer' : !product ? 'Missing product' : 'Invalid quantity') 
-          : undefined;
+        const basicsOk = !!dateStr && !!rawCustomer && !!product && rawQty > 0;
+        const valid = basicsOk && product_known;
+        let error: string | undefined;
+        if (!basicsOk) {
+          error = !dateStr ? 'Missing date' : !rawCustomer ? 'Missing customer' : !product ? 'Missing product' : 'Invalid quantity';
+        } else if (!product_known) {
+          error = 'Unknown product — pick from list';
+        }
 
-        rows.push({ date: dateStr, customer_name: rawCustomer, product, quantity: rawQty, unit, valid, error });
+        rows.push({ date: dateStr, customer_name: rawCustomer, product, raw_product: rawProduct, product_known, quantity: rawQty, unit, valid, error });
       }
 
       setParsedRows(rows);
@@ -250,6 +282,12 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
           <div className="flex gap-3 mb-4">
             <Badge className="bg-green-600 text-white"><Check className="h-3 w-3 mr-1" />{validCount} valid</Badge>
             {errorCount > 0 && <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1" />{errorCount} errors</Badge>}
+            {parsedRows.some(r => !r.product_known) && (
+              <Badge className="bg-amber-600 text-white">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                {parsedRows.filter(r => !r.product_known).length} unknown product(s) — pick from list
+              </Badge>
+            )}
           </div>
 
           <div className="overflow-x-auto max-h-[50vh] overflow-y-auto">
@@ -269,7 +307,25 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
                   <TableRow key={i} className={!row.valid ? 'bg-destructive/10' : ''}>
                     <TableCell>{row.date}</TableCell>
                     <TableCell>{row.customer_name}</TableCell>
-                    <TableCell>{row.product}</TableCell>
+                    <TableCell>
+                      {row.product_known ? (
+                        row.product
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="text-xs text-muted-foreground">From file: <span className="italic">{row.raw_product || '(blank)'}</span></div>
+                          <Select value="" onValueChange={(v) => fixRowProduct(i, v)}>
+                            <SelectTrigger className="w-48 h-8">
+                              <SelectValue placeholder="Pick correct product…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {knownProducts.map(p => (
+                                <SelectItem key={p} value={p}>{p}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell>{row.quantity}</TableCell>
                     <TableCell>{row.unit}</TableCell>
                     <TableCell>
@@ -287,7 +343,7 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={handleUpload} disabled={uploading || validCount === 0}>
+            <Button onClick={handleUpload} disabled={uploading || validCount === 0 || parsedRows.some(r => !r.product_known)}>
               {uploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</> : `Import ${validCount} Records`}
             </Button>
           </DialogFooter>

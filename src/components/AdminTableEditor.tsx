@@ -31,6 +31,12 @@ interface SalesTransaction {
   sale_date: string;
   shop_id: string;
   sale_type: string;
+  payment_method_id?: string | null;
+  payment_method_name?: string | null;
+  is_credit?: boolean | null;
+  total_amount?: number | null;
+  amount_paid?: number | null;
+  due_date?: string | null;
   items: SalesItem[];
 }
 
@@ -39,12 +45,21 @@ interface SalesItem {
   product: string;
   quantity: number;
   unit: string;
+  unit_price?: number | null;
   transaction_id?: string;
+}
+
+interface PaymentMethodLite {
+  id: string;
+  name: string;
+  kind: string;
+  is_active: boolean;
 }
 
 const AdminTableEditor = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [salesTransactions, setSalesTransactions] = useState<SalesTransaction[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodLite[]>([]);
   const [editingInventory, setEditingInventory] = useState<string | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<string | null>(null);
   const [editingSalesItems, setEditingSalesItems] = useState<Record<string, SalesItem>>({});
@@ -66,6 +81,16 @@ const AdminTableEditor = () => {
   const fetchAllData = async () => {
     await fetchInventory();
     await fetchSalesTransactions();
+    await fetchPaymentMethods();
+  };
+
+  const fetchPaymentMethods = async () => {
+    const { data } = await supabase
+      .from('payment_methods')
+      .select('id, name, kind, is_active')
+      .eq('is_active', true)
+      .order('name');
+    setPaymentMethods((data as any) || []);
   };
 
   const fetchInventory = async () => {
@@ -127,7 +152,13 @@ const AdminTableEditor = () => {
       customer_name: transaction.customer_name,
       sale_date: transaction.sale_date,
       shop_id: transaction.shop_id,
-      sale_type: transaction.sale_type || 'local'
+      sale_type: transaction.sale_type || 'local',
+      payment_method_id: transaction.payment_method_id || '',
+      payment_method_name: transaction.payment_method_name || '',
+      is_credit: !!transaction.is_credit,
+      total_amount: transaction.total_amount ?? '',
+      amount_paid: transaction.amount_paid ?? '',
+      due_date: transaction.due_date || '',
     });
     
     const itemsMap: Record<string, SalesItem> = {};
@@ -158,9 +189,24 @@ const AdminTableEditor = () => {
   const saveTransactionEdit = async () => {
     if (!editingTransaction) return;
 
+    const originalTx = salesTransactions.find(t => t.id === editingTransaction);
+
+    const payload: any = {
+      customer_name: editValues.customer_name,
+      sale_date: editValues.sale_date,
+      shop_id: editValues.shop_id,
+      sale_type: editValues.sale_type || 'local',
+      payment_method_id: editValues.payment_method_id || null,
+      payment_method_name: editValues.payment_method_name || null,
+      is_credit: !!editValues.is_credit,
+      total_amount: editValues.total_amount === '' || editValues.total_amount == null ? null : Number(editValues.total_amount),
+      amount_paid: editValues.amount_paid === '' || editValues.amount_paid == null ? null : Number(editValues.amount_paid),
+      due_date: editValues.is_credit && editValues.due_date ? editValues.due_date : null,
+    };
+
     const { error: transError } = await supabase
       .from('sales_transactions')
-      .update(editValues)
+      .update(payload)
       .eq('id', editingTransaction);
 
     if (transError) {
@@ -168,14 +214,28 @@ const AdminTableEditor = () => {
       return;
     }
 
-    // Find original transaction for audit comparison
-    const originalTx = salesTransactions.find(t => t.id === editingTransaction);
+    if (originalTx && originalTx.payment_method_id !== payload.payment_method_id) {
+      logAudit({
+        action: 'sales_transaction.payment_method_change',
+        entity: 'sales_transactions',
+        entity_id: editingTransaction,
+        shop_id: originalTx.shop_id,
+        before: { payment_method_id: originalTx.payment_method_id, payment_method_name: originalTx.payment_method_name },
+        after: { payment_method_id: payload.payment_method_id, payment_method_name: payload.payment_method_name },
+      });
+    }
+
     for (const itemId in editingSalesItems) {
       const item = editingSalesItems[itemId];
       const originalItem = originalTx?.items.find((it: any) => it.id === itemId);
       const { error: itemError } = await supabase
         .from('sales_items')
-        .update({ product: item.product, quantity: item.quantity, unit: item.unit })
+        .update({
+          product: item.product,
+          quantity: Number(item.quantity),
+          unit: item.unit,
+          unit_price: item.unit_price === null || item.unit_price === undefined || (item.unit_price as any) === '' ? null : Number(item.unit_price),
+        } as any)
         .eq('id', itemId);
 
       if (itemError) {
@@ -474,6 +534,9 @@ const AdminTableEditor = () => {
                       <TableHead>Type</TableHead>
                       <TableHead>Products</TableHead>
                       <TableHead>Total Qty</TableHead>
+                      <TableHead>Payment</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Paid</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -557,11 +620,25 @@ const AdminTableEditor = () => {
                                           <SelectItem value="kgs">Kgs</SelectItem>
                                         </SelectContent>
                                       </Select>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        className="w-20"
+                                        placeholder="Price"
+                                        value={editingSalesItems[item.id]?.unit_price ?? item.unit_price ?? ''}
+                                        onChange={(e) => setEditingSalesItems({
+                                          ...editingSalesItems,
+                                          [item.id]: { ...editingSalesItems[item.id], id: item.id, product: editingSalesItems[item.id]?.product || item.product, quantity: editingSalesItems[item.id]?.quantity || item.quantity, unit: editingSalesItems[item.id]?.unit || item.unit, unit_price: e.target.value === '' ? null : Number(e.target.value) }
+                                        })}
+                                      />
                                     </div>
                                   ) : (
                                     <>
                                       <span className="font-medium">{item.product}</span>
                                       <span className="text-muted-foreground ml-1">{item.quantity} {item.unit}</span>
+                                      {item.unit_price != null && (
+                                        <span className="text-muted-foreground ml-1">@ {item.unit_price}</span>
+                                      )}
                                     </>
                                   )}
                                 </div>
@@ -569,6 +646,77 @@ const AdminTableEditor = () => {
                             </div>
                           </TableCell>
                           <TableCell className="font-bold">{totalQuantity}</TableCell>
+                          <TableCell>
+                            {editingTransaction === transaction.id ? (
+                              <div className="space-y-1">
+                                <Select
+                                  value={editValues.payment_method_id || 'none'}
+                                  onValueChange={(v) => {
+                                    if (v === 'none') {
+                                      setEditValues({ ...editValues, payment_method_id: '', payment_method_name: '', is_credit: false, due_date: '' });
+                                    } else {
+                                      const pm = paymentMethods.find(p => p.id === v);
+                                      setEditValues({
+                                        ...editValues,
+                                        payment_method_id: v,
+                                        payment_method_name: pm?.name || '',
+                                        is_credit: pm?.kind === 'credit',
+                                        due_date: pm?.kind === 'credit' ? (editValues.due_date || '') : '',
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="w-36"><SelectValue placeholder="Method" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">— None —</SelectItem>
+                                    {paymentMethods.map(pm => (
+                                      <SelectItem key={pm.id} value={pm.id}>
+                                        {pm.name}{pm.kind === 'credit' ? ' (Credit)' : ''}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {editValues.is_credit && (
+                                  <Input
+                                    type="date"
+                                    className="w-36"
+                                    placeholder="Due date"
+                                    value={editValues.due_date || ''}
+                                    onChange={(e) => setEditValues({ ...editValues, due_date: e.target.value })}
+                                  />
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-sm">
+                                <span>{transaction.payment_method_name || '—'}</span>
+                                {transaction.is_credit && transaction.due_date && (
+                                  <div className="text-xs text-muted-foreground">Due {new Date(transaction.due_date).toLocaleDateString()}</div>
+                                )}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingTransaction === transaction.id ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                className="w-24"
+                                value={editValues.total_amount ?? ''}
+                                onChange={(e) => setEditValues({ ...editValues, total_amount: e.target.value })}
+                              />
+                            ) : (transaction.total_amount ?? '—')}
+                          </TableCell>
+                          <TableCell>
+                            {editingTransaction === transaction.id ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                className="w-24"
+                                value={editValues.amount_paid ?? ''}
+                                onChange={(e) => setEditValues({ ...editValues, amount_paid: e.target.value })}
+                              />
+                            ) : (transaction.amount_paid ?? '—')}
+                          </TableCell>
                           <TableCell>
                             <div className="flex space-x-1">
                               {editingTransaction === transaction.id ? (
