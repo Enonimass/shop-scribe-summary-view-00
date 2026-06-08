@@ -152,7 +152,13 @@ const AdminTableEditor = () => {
       customer_name: transaction.customer_name,
       sale_date: transaction.sale_date,
       shop_id: transaction.shop_id,
-      sale_type: transaction.sale_type || 'local'
+      sale_type: transaction.sale_type || 'local',
+      payment_method_id: transaction.payment_method_id || '',
+      payment_method_name: transaction.payment_method_name || '',
+      is_credit: !!transaction.is_credit,
+      total_amount: transaction.total_amount ?? '',
+      amount_paid: transaction.amount_paid ?? '',
+      due_date: transaction.due_date || '',
     });
     
     const itemsMap: Record<string, SalesItem> = {};
