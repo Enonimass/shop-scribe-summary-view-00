@@ -140,13 +140,20 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
         }
 
         const product = resolveProduct(rawProduct);
+        const product_known = knownProducts.length === 0
+          ? true
+          : knownProducts.some(p => p.toLowerCase() === product.toLowerCase());
         const unit = resolveUnit(rawUnit, rawQty);
-        const valid = !!dateStr && !!rawCustomer && !!product && rawQty > 0;
-        const error = !valid ? 
-          (!dateStr ? 'Missing date' : !rawCustomer ? 'Missing customer' : !product ? 'Missing product' : 'Invalid quantity') 
-          : undefined;
+        const basicsOk = !!dateStr && !!rawCustomer && !!product && rawQty > 0;
+        const valid = basicsOk && product_known;
+        let error: string | undefined;
+        if (!basicsOk) {
+          error = !dateStr ? 'Missing date' : !rawCustomer ? 'Missing customer' : !product ? 'Missing product' : 'Invalid quantity';
+        } else if (!product_known) {
+          error = 'Unknown product — pick from list';
+        }
 
-        rows.push({ date: dateStr, customer_name: rawCustomer, product, quantity: rawQty, unit, valid, error });
+        rows.push({ date: dateStr, customer_name: rawCustomer, product, raw_product: rawProduct, product_known, quantity: rawQty, unit, valid, error });
       }
 
       setParsedRows(rows);
