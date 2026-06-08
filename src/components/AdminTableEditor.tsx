@@ -525,19 +525,19 @@ const AdminTableEditor = () => {
                 <CardTitle>Sales Transactions ({filteredTransactions.length})</CardTitle>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                <Table>
+                <Table className="text-xs [&_th]:px-2 [&_th]:py-2 [&_td]:px-2 [&_td]:py-1.5 [&_th]:whitespace-nowrap [&_td]:align-top">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Shop ID</TableHead>
-                      <TableHead>Type</TableHead>
+                      <TableHead className="w-[92px]">Date</TableHead>
+                      <TableHead className="w-[130px]">Customer</TableHead>
+                      <TableHead className="w-[90px]">Shop</TableHead>
+                      <TableHead className="w-[60px]">Type</TableHead>
                       <TableHead>Products</TableHead>
-                      <TableHead>Total Qty</TableHead>
-                      <TableHead>Payment</TableHead>
-                      <TableHead>Total</TableHead>
-                      <TableHead>Paid</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead className="w-[56px] text-right">Qty</TableHead>
+                      <TableHead className="w-[120px]">Payment</TableHead>
+                      <TableHead className="w-[72px] text-right">Total</TableHead>
+                      <TableHead className="w-[72px] text-right">Paid</TableHead>
+                      <TableHead className="w-[70px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
