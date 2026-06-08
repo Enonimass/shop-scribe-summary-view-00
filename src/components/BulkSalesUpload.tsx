@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload, FileSpreadsheet, Check, AlertTriangle, Loader2 } from 'lucide-react';
@@ -20,6 +21,8 @@ interface ParsedRow {
   date: string;
   customer_name: string;
   product: string;
+  raw_product: string;
+  product_known: boolean;
   quantity: number;
   unit: string;
   valid: boolean;
@@ -31,6 +34,7 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState('');
+  const [knownProducts, setKnownProducts] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const PRODUCT_ALIASES: Record<string, string> = {
