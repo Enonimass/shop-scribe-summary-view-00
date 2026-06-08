@@ -282,6 +282,12 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
           <div className="flex gap-3 mb-4">
             <Badge className="bg-green-600 text-white"><Check className="h-3 w-3 mr-1" />{validCount} valid</Badge>
             {errorCount > 0 && <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1" />{errorCount} errors</Badge>}
+            {parsedRows.some(r => !r.product_known) && (
+              <Badge className="bg-amber-600 text-white">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                {parsedRows.filter(r => !r.product_known).length} unknown product(s) — pick from list
+              </Badge>
+            )}
           </div>
 
           <div className="overflow-x-auto max-h-[50vh] overflow-y-auto">
@@ -301,7 +307,25 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
                   <TableRow key={i} className={!row.valid ? 'bg-destructive/10' : ''}>
                     <TableCell>{row.date}</TableCell>
                     <TableCell>{row.customer_name}</TableCell>
-                    <TableCell>{row.product}</TableCell>
+                    <TableCell>
+                      {row.product_known ? (
+                        row.product
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="text-xs text-muted-foreground">From file: <span className="italic">{row.raw_product || '(blank)'}</span></div>
+                          <Select value="" onValueChange={(v) => fixRowProduct(i, v)}>
+                            <SelectTrigger className="w-48 h-8">
+                              <SelectValue placeholder="Pick correct product…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {knownProducts.map(p => (
+                                <SelectItem key={p} value={p}>{p}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell>{row.quantity}</TableCell>
                     <TableCell>{row.unit}</TableCell>
                     <TableCell>
@@ -319,7 +343,7 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={handleUpload} disabled={uploading || validCount === 0}>
+            <Button onClick={handleUpload} disabled={uploading || validCount === 0 || parsedRows.some(r => !r.product_known)}>
               {uploading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Uploading...</> : `Import ${validCount} Records`}
             </Button>
           </DialogFooter>
