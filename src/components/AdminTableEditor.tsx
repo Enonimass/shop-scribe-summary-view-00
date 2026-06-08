@@ -189,9 +189,24 @@ const AdminTableEditor = () => {
   const saveTransactionEdit = async () => {
     if (!editingTransaction) return;
 
+    const originalTx = salesTransactions.find(t => t.id === editingTransaction);
+
+    const payload: any = {
+      customer_name: editValues.customer_name,
+      sale_date: editValues.sale_date,
+      shop_id: editValues.shop_id,
+      sale_type: editValues.sale_type || 'local',
+      payment_method_id: editValues.payment_method_id || null,
+      payment_method_name: editValues.payment_method_name || null,
+      is_credit: !!editValues.is_credit,
+      total_amount: editValues.total_amount === '' || editValues.total_amount == null ? null : Number(editValues.total_amount),
+      amount_paid: editValues.amount_paid === '' || editValues.amount_paid == null ? null : Number(editValues.amount_paid),
+      due_date: editValues.is_credit && editValues.due_date ? editValues.due_date : null,
+    };
+
     const { error: transError } = await supabase
       .from('sales_transactions')
-      .update(editValues)
+      .update(payload)
       .eq('id', editingTransaction);
 
     if (transError) {
@@ -199,14 +214,28 @@ const AdminTableEditor = () => {
       return;
     }
 
-    // Find original transaction for audit comparison
-    const originalTx = salesTransactions.find(t => t.id === editingTransaction);
+    if (originalTx && originalTx.payment_method_id !== payload.payment_method_id) {
+      logAudit({
+        action: 'sales_transaction.payment_method_change',
+        entity: 'sales_transactions',
+        entity_id: editingTransaction,
+        shop_id: originalTx.shop_id,
+        before: { payment_method_id: originalTx.payment_method_id, payment_method_name: originalTx.payment_method_name },
+        after: { payment_method_id: payload.payment_method_id, payment_method_name: payload.payment_method_name },
+      });
+    }
+
     for (const itemId in editingSalesItems) {
       const item = editingSalesItems[itemId];
       const originalItem = originalTx?.items.find((it: any) => it.id === itemId);
       const { error: itemError } = await supabase
         .from('sales_items')
-        .update({ product: item.product, quantity: item.quantity, unit: item.unit })
+        .update({
+          product: item.product,
+          quantity: Number(item.quantity),
+          unit: item.unit,
+          unit_price: item.unit_price === null || item.unit_price === undefined || (item.unit_price as any) === '' ? null : Number(item.unit_price),
+        } as any)
         .eq('id', itemId);
 
       if (itemError) {
