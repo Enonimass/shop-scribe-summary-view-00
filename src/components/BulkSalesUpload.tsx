@@ -37,6 +37,27 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
   const [knownProducts, setKnownProducts] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  React.useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase
+        .from('inventory')
+        .select('product')
+        .eq('shop_id', shopId);
+      const unique = Array.from(new Set(((data as any[]) || []).map(r => String(r.product).trim()).filter(Boolean)));
+      unique.sort((a, b) => a.localeCompare(b));
+      setKnownProducts(unique);
+    };
+    if (shopId) load();
+  }, [shopId]);
+
+  const fixRowProduct = (index: number, product: string) => {
+    setParsedRows(prev => prev.map((r, i) => {
+      if (i !== index) return r;
+      const basicsOk = !!r.date && !!r.customer_name && !!product && r.quantity > 0;
+      return { ...r, product, product_known: true, valid: basicsOk, error: basicsOk ? undefined : r.error };
+    }));
+  };
+
   const PRODUCT_ALIASES: Record<string, string> = {
     'hydm': 'High yield dairy meal', 'high yield': 'High yield dairy meal',
     'dm': 'Dairy meal', 'dairy': 'Dairy meal',
