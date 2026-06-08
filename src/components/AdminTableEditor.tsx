@@ -620,11 +620,25 @@ const AdminTableEditor = () => {
                                           <SelectItem value="kgs">Kgs</SelectItem>
                                         </SelectContent>
                                       </Select>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        className="w-20"
+                                        placeholder="Price"
+                                        value={editingSalesItems[item.id]?.unit_price ?? item.unit_price ?? ''}
+                                        onChange={(e) => setEditingSalesItems({
+                                          ...editingSalesItems,
+                                          [item.id]: { ...editingSalesItems[item.id], id: item.id, product: editingSalesItems[item.id]?.product || item.product, quantity: editingSalesItems[item.id]?.quantity || item.quantity, unit: editingSalesItems[item.id]?.unit || item.unit, unit_price: e.target.value === '' ? null : Number(e.target.value) }
+                                        })}
+                                      />
                                     </div>
                                   ) : (
                                     <>
                                       <span className="font-medium">{item.product}</span>
                                       <span className="text-muted-foreground ml-1">{item.quantity} {item.unit}</span>
+                                      {item.unit_price != null && (
+                                        <span className="text-muted-foreground ml-1">@ {item.unit_price}</span>
+                                      )}
                                     </>
                                   )}
                                 </div>
@@ -632,6 +646,77 @@ const AdminTableEditor = () => {
                             </div>
                           </TableCell>
                           <TableCell className="font-bold">{totalQuantity}</TableCell>
+                          <TableCell>
+                            {editingTransaction === transaction.id ? (
+                              <div className="space-y-1">
+                                <Select
+                                  value={editValues.payment_method_id || 'none'}
+                                  onValueChange={(v) => {
+                                    if (v === 'none') {
+                                      setEditValues({ ...editValues, payment_method_id: '', payment_method_name: '', is_credit: false, due_date: '' });
+                                    } else {
+                                      const pm = paymentMethods.find(p => p.id === v);
+                                      setEditValues({
+                                        ...editValues,
+                                        payment_method_id: v,
+                                        payment_method_name: pm?.name || '',
+                                        is_credit: pm?.kind === 'credit',
+                                        due_date: pm?.kind === 'credit' ? (editValues.due_date || '') : '',
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="w-36"><SelectValue placeholder="Method" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">— None —</SelectItem>
+                                    {paymentMethods.map(pm => (
+                                      <SelectItem key={pm.id} value={pm.id}>
+                                        {pm.name}{pm.kind === 'credit' ? ' (Credit)' : ''}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {editValues.is_credit && (
+                                  <Input
+                                    type="date"
+                                    className="w-36"
+                                    placeholder="Due date"
+                                    value={editValues.due_date || ''}
+                                    onChange={(e) => setEditValues({ ...editValues, due_date: e.target.value })}
+                                  />
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-sm">
+                                <span>{transaction.payment_method_name || '—'}</span>
+                                {transaction.is_credit && transaction.due_date && (
+                                  <div className="text-xs text-muted-foreground">Due {new Date(transaction.due_date).toLocaleDateString()}</div>
+                                )}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingTransaction === transaction.id ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                className="w-24"
+                                value={editValues.total_amount ?? ''}
+                                onChange={(e) => setEditValues({ ...editValues, total_amount: e.target.value })}
+                              />
+                            ) : (transaction.total_amount ?? '—')}
+                          </TableCell>
+                          <TableCell>
+                            {editingTransaction === transaction.id ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                className="w-24"
+                                value={editValues.amount_paid ?? ''}
+                                onChange={(e) => setEditValues({ ...editValues, amount_paid: e.target.value })}
+                              />
+                            ) : (transaction.amount_paid ?? '—')}
+                          </TableCell>
                           <TableCell>
                             <div className="flex space-x-1">
                               {editingTransaction === transaction.id ? (
