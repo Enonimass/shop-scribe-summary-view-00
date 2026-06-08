@@ -645,7 +645,7 @@ const AdminTableEditor = () => {
                               ))}
                             </div>
                           </TableCell>
-                          <TableCell className="font-bold">{totalQuantity}</TableCell>
+                          <TableCell className="text-right font-semibold tabular-nums">{totalQuantity}</TableCell>
                           <TableCell>
                             {editingTransaction === transaction.id ? (
                               <div className="space-y-1">
@@ -695,23 +695,23 @@ const AdminTableEditor = () => {
                               </div>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="text-right tabular-nums">
                             {editingTransaction === transaction.id ? (
                               <Input
                                 type="number"
                                 step="0.01"
-                                className="w-24"
+                                className="w-20 h-8 text-right"
                                 value={editValues.total_amount ?? ''}
                                 onChange={(e) => setEditValues({ ...editValues, total_amount: e.target.value })}
                               />
                             ) : (transaction.total_amount ?? '—')}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="text-right tabular-nums">
                             {editingTransaction === transaction.id ? (
                               <Input
                                 type="number"
                                 step="0.01"
-                                className="w-24"
+                                className="w-20 h-8 text-right"
                                 value={editValues.amount_paid ?? ''}
                                 onChange={(e) => setEditValues({ ...editValues, amount_paid: e.target.value })}
                               />
