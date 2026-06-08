@@ -534,6 +534,9 @@ const AdminTableEditor = () => {
                       <TableHead>Type</TableHead>
                       <TableHead>Products</TableHead>
                       <TableHead>Total Qty</TableHead>
+                      <TableHead>Payment</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Paid</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
