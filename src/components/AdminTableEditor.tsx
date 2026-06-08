@@ -31,6 +31,12 @@ interface SalesTransaction {
   sale_date: string;
   shop_id: string;
   sale_type: string;
+  payment_method_id?: string | null;
+  payment_method_name?: string | null;
+  is_credit?: boolean | null;
+  total_amount?: number | null;
+  amount_paid?: number | null;
+  due_date?: string | null;
   items: SalesItem[];
 }
 
@@ -39,12 +45,21 @@ interface SalesItem {
   product: string;
   quantity: number;
   unit: string;
+  unit_price?: number | null;
   transaction_id?: string;
+}
+
+interface PaymentMethodLite {
+  id: string;
+  name: string;
+  kind: string;
+  is_active: boolean;
 }
 
 const AdminTableEditor = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [salesTransactions, setSalesTransactions] = useState<SalesTransaction[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodLite[]>([]);
   const [editingInventory, setEditingInventory] = useState<string | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<string | null>(null);
   const [editingSalesItems, setEditingSalesItems] = useState<Record<string, SalesItem>>({});
@@ -66,6 +81,16 @@ const AdminTableEditor = () => {
   const fetchAllData = async () => {
     await fetchInventory();
     await fetchSalesTransactions();
+    await fetchPaymentMethods();
+  };
+
+  const fetchPaymentMethods = async () => {
+    const { data } = await supabase
+      .from('payment_methods')
+      .select('id, name, kind, is_active')
+      .eq('is_active', true)
+      .order('name');
+    setPaymentMethods((data as any) || []);
   };
 
   const fetchInventory = async () => {
