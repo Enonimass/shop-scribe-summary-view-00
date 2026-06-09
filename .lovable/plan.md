@@ -1,49 +1,110 @@
-## Goal
+# Kimp Feeds — multi-feature improvement plan
 
-1. Make every sales-transaction field editable from the admin sales editor — including payment method, amount paid, totals, due date, plus item unit price (currently only product name, quantity, unit, customer, date, shop, and sale type are editable).
-2. In the bulk Excel/CSV upload, validate every product name against the shop's known product list. Rows with unknown products are flagged; the user must pick the correct product from a dropdown of known products before they can upload (no free-text typing).
+## Goals
 
-## Changes
+1. Make Products/Qty visible & editable in the admin Sales Transactions editor.
+2. One source of truth for products. No free-text product input anywhere except `InventoryTab` (admin).
+3. Merge duplicate products (`Pig grower` / `Pig Grower`) and prevent future duplicates (case-insensitive uniqueness).
+4. Move the shop selector to the **top navigation** as the single global control. Remove per-tab shop dropdowns.
+5. Bulk sales upload also imports/uses **default unit prices** from the price table.
+6. End-of-day reconciliation: cash sales + bank-paid sales + credit + debt-paid = total sales. Alert when cash is left undeposited.
+7. New analytics: price-change contribution, customers-per-product per period, and sales analysis broken down by unit (bags / 50kg / kg / 70kg-equivalent).
 
-### 1. `src/components/AdminTableEditor.tsx` — full edit of transactions
+---
 
-Add these fields to the per-row inline editor for `sales_transactions`:
+## 1. Fix empty Products / Qty columns in `AdminTableEditor`
 
-- Payment method — `Select` populated from `payment_methods` table (active only). Updates both `payment_method_id` and `payment_method_name`, and sets `is_credit` from the chosen method's `kind`.
-- Total amount — numeric input (`total_amount`).
-- Amount paid — numeric input (`amount_paid`).
-- Due date — date input (`due_date`), only shown when the chosen method is credit.
+**Root cause:** `fetchSalesTransactions` queries `sales_items` without a filter, hitting Supabase's default 1000-row cap. Items for older transactions are dropped, so those rows show blank Products and 0 Qty.
 
-Extend `startEditingTransaction` and `saveTransactionEdit` to round-trip these columns. Keep the existing audit logging pattern; add an audit entry when payment method changes.
+**Fix:** batch-fetch `sales_items` by `transaction_id` in chunks of 200 (matches the existing "Data Fetching Strategy"), then attach to transactions.
 
-Add per-item unit price editing in the same row block:
+## 2. Enforce product picker everywhere (no free-text)
 
-- New numeric input for `unit_price` in the items sub-table.
-- `saveTransactionEdit` writes `unit_price` alongside `product`, `quantity`, `unit`. `line_total` is derived in the DB — leave it untouched here.
+Replace every free-text product input outside `InventoryTab` with a `ProductCombobox` backed by `inventory.product` for the active shop. Affected files:
 
-No schema changes. The columns already exist (`payment_method_id`, `payment_method_name`, `is_credit`, `total_amount`, `amount_paid`, `due_date`, `unit_price`).
+- `AdminTableEditor.tsx` — sales item product input → combobox.
+- `SalesTab.tsx` — new-sale flow.
+- `BulkSalesUpload.tsx` — already validates (recent change); keep dropdown enforcement for unknown rows.
+- `PriceManager.tsx` — product field.
+- `factory/FactoryInventory.tsx`, `logistics/DeliveryNoteManager.tsx`, `logistics/TripManager.tsx`, `money/DebtPaymentForm.tsx` (where product appears).
+- Find/Replace stays in admin only.
 
-### 2. `src/components/BulkSalesUpload.tsx` — product-name validation against known list
+New shared component: `src/components/ProductCombobox.tsx` (uses existing `Command` + `Popover`, fetches products for `shopId`, supports unit-aware selection).
 
-Behavior:
+## 3. Merge duplicate products (case-insensitive uniqueness)
 
-1. On dialog open, fetch the shop's known products in one query: `inventory.product` for the current `shopId`, lowercased into a `Set`. Also keep a sorted display list for the dropdown.
-2. After parsing the file, each row keeps its existing checks plus a new check: `productKnown = knownProducts.has(resolvedProduct.toLowerCase())`. If not known, mark the row invalid with error "Unknown product — pick from list".
-3. In the preview table, replace the static "Product" cell with:
-   - Known product → plain text (as today).
-   - Unknown product → `Select` dropdown listing known products, plus the original raw value shown above it (e.g. "From file: <raw>"). Selecting a product updates that row's `product` and clears the error.
-4. Disable the "Import" button while any row has `valid === false` due to an unknown product. (Other invalid reasons — missing date / customer / qty — keep current behaviour: those rows are simply skipped.)
-5. Keep `PRODUCT_ALIASES` resolution as the first pass; only rows still unresolved after alias lookup require the dropdown.
+**Data cleanup (migration):**
 
-No backend changes; everything is client-side using the existing `inventory` query.
+- Pick canonical spelling per `(shop_id, lower(product))` as the most-recent or admin-preferred capitalisation; rewrite `inventory`, `sales_items`, `product_prices`, `product_category_items`, `delivery_note_items`, `trip_stop_items`, `factory_inventory` to use the canonical name.
+- Merge any duplicate `inventory` rows that collide on `(shop_id, lower(product), lower(unit))` by summing `quantity`, keeping the higher `threshold`/`desired_quantity`.
+- Add a partial unique index: `unique (shop_id, lower(product), lower(unit))` on `inventory`. Same on `product_prices`.
 
-### 3. UX polish
+**Going forward:**
 
-- Show a small legend above the preview table: green badge "OK", red badge "Unknown product — choose from list", grey badge "Skipped (missing field)".
-- Toast on import completion already exists; extend the message to include how many product names were corrected via dropdown.
+- All writes go through the combobox; new product creation lives only in `InventoryTab`. The "Add product" form there validates against existing case-insensitive name and refuses to create a duplicate.
+
+## 4. Global shop selector in top nav
+
+- New `src/components/ShopSelectorTopBar.tsx` rendered inside `App.tsx` (or `Index.tsx` layout) above the tabs nav, persisted in `localStorage` and exposed via a `ShopContext` (`useShop()` hook returning `{ shopId, setShopId, shops }`).
+- For admins, the value `"all"` keeps the aggregated view.
+- Refactor each consumer to read from `useShop()` instead of its own dropdown:
+  - `AdminDashboard.tsx` (remove inline "Select Shop" card),
+  - `AdminOverview`, `CustomerAnalytics`, `ProductAnalytics`, `PriceManager`, `DailyReport`, `DebtorsList`, `TripManager`, `BulkSalesUpload`, `AdminTableEditor`, etc.
+- Sellers are still pinned to their own `shop_id` (selector hidden / disabled).
+
+## 5. Bulk upload — include default prices
+
+- When parsing the upload, resolve `unit_price` for each `(product, unit)` from `product_prices` (using `getEffectiveUnitPrice` from `src/lib/units.ts`).
+- If the file already provides a price column, that wins; otherwise default-fill from the price table and show it in the preview (greyed) so the user can override.
+- Write `unit_price` into `sales_items`; `line_total` and `total_amount` are summed and saved on the transaction.
+
+## 6. End-of-day cash deposit reconciliation
+
+**Model** (matches the user's equation `sales = bank + credit + debt_paid`):
+
+- Use existing `payment_methods` table — each bank account is a method with `kind = 'bank'`; "Cash" stays as `kind = 'cash'`; credit stays as `kind = 'credit'`.
+- New table `cash_deposits` (per shop, per date): `id, shop_id, deposit_date, bank_method_id, amount, note`.
+- Daily reconciliation view in `DailyReport.tsx`:
+  - **Sales total** for the day (sum of `sales_transactions.total_amount`).
+  - **Bank component** = sum of sales paid directly to a bank method + sum of `cash_deposits` for the day.
+  - **Credit component** = sum of unpaid credit sales.
+  - **Debt-paid component** = sum of `debt_payments` for the day.
+  - **Reconciled?** `sales == bank + credit + debt_paid`; otherwise show the gap as **"Undeposited cash"** with an alert badge and a "Record deposit" button that inserts into `cash_deposits`.
+- Admin/accountant gets a dashboard banner if any prior-day undeposited cash > 0.
+
+## 7. New analytics
+
+All live under `ProductAnalytics` / `CustomerAnalytics` / a new "Monthly Analysis" tab.
+
+### 7a. Price-change contribution
+- Compare `product_prices` history (add `effective_from` column if not present — schema check needed) between two periods (or use last-change diff).
+- Per product: `Δprice × units_sold_after = revenue contribution`. Rank products by absolute contribution. Show table + bar chart.
+
+### 7b. Customers per product per period
+- For each product, count **distinct customers** (not transactions) in the selected period. A customer who buys product A four times counts as 1.
+- Period picker reuses `PeriodPicker`.
+
+### 7c. Sales analysis by unit
+- Break down sales by canonical unit key (`bags`, `50kg`, `20kg`, `10kg`, `kg`) using `PIVOT_UNITS` from `src/lib/units.ts`.
+- Also show the 70kg-equivalent total per product (existing convention).
+- Monthly Analysis tab combines: customer segments (existing), product mix by unit, price-change contribution.
+
+---
+
+## Technical notes
+
+- **Schema migrations needed:**
+  - `cash_deposits` table (+ GRANTs, RLS by shop, audit triggers).
+  - Add case-insensitive unique indexes on `inventory` and `product_prices`.
+  - Data-cleanup SQL to merge duplicate product names (run once, idempotent).
+  - Add `effective_from timestamptz default now()` to `product_prices` if missing, to support price-change analytics.
+- **ShopContext** lives in `src/context/ShopContext.tsx`; `useShop()` is the only API consumers use. `localStorage` key: `kf.selectedShop`.
+- **ProductCombobox** props: `{ shopId, value, unit?, onChange, allowEmpty? }`. Internally caches the product list per shop.
+- **AdminTableEditor batched fetch:** chunk `transaction.id`s into groups of 200 and `.in('transaction_id', chunk)` per call; concat results.
+- **Cash deposit alert:** computed client-side in `DailyReport` from already-fetched sales + `cash_deposits` queries; no edge function required.
 
 ## Out of scope
 
-- No changes to the seller-facing `SalesTab` create flow.
-- No changes to RLS, edge functions, or schema.
-- No changes to the existing alias map (still applied before validation).
+- No changes to auth, RLS posture, or the AI insights edge function.
+- No new exports beyond what the new analytics views already emit via existing CSV/PDF utilities.
+- Logistics trip workflow stays as-is apart from swapping product inputs for the combobox.
