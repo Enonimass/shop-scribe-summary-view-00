@@ -39,4 +39,6 @@ const LoginForm = () => {
   );
 };
 
+POWERED BY MIDORAX DYNAMICS
+
 export default LoginForm;
