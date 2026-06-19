@@ -8,7 +8,7 @@ const LoginForm = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-light to-green-awesome p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-green-light to-green-awesome p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 w-16 h-16">
@@ -46,6 +46,13 @@ const LoginForm = () => {
           </div>
         </CardContent>
       </Card>
+      <div className="mt-8">
+        <img 
+          src="src/assets/Midorax logo].webp" 
+          alt="Midorax Dynamics Logo" 
+          className="h-16 object-contain"
+        />
+      </div>
     </div>
   );
 };
