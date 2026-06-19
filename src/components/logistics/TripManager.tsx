@@ -19,7 +19,7 @@ import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
 interface Shop { shop_id: string; shop_name: string }
 interface Props { shops: Shop[] }
 
-const UNITS = ['bags', '50kg Bags', 'kg'];
+const UNITS = ['bags', '50kg Bags', '20kg Bags', '10kg Bags', '5kg Bags', 'kg'];
 const STATUS: Record<string, { label: string; cls: string }> = {
   draft: { label: 'Draft', cls: 'bg-yellow-500 text-white' },
   dispatched: { label: 'Dispatched', cls: 'bg-blue-500 text-white' },

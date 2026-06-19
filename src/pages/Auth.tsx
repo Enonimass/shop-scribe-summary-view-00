@@ -121,6 +121,11 @@ const Auth = () => {
               Leave unchecked on shared computers — your session will end when you close the browser.
             </p>
           </form>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            POWERED BY <a href="https://midoraxdynamics.com" target="_blank" rel="noopener noreferrer" className="font-semibold underline">
+              MIDORAX DYNAMICS
+            </a>
+          </p>
         </CardContent>
       </Card>
     </div>
