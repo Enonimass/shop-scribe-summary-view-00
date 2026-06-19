@@ -33,12 +33,21 @@ const LoginForm = () => {
           >
             Super Admin Sign In
           </Button>
+          <div className="mt-6 text-center text-xs text-gray-500">
+            POWERED BY{' '}
+            <a
+              href="https://www.midoraxdynamics.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-700 hover:text-gray-900 font-semibold underline"
+            >
+              MIDORAX DYNAMICS
+            </a>
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 };
-
-POWERED BY MIDORAX DYNAMICS
 
 export default LoginForm;
