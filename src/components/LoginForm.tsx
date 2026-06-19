@@ -8,7 +8,7 @@ const LoginForm = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-light to-green-awesome p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-green-light to-green-awesome p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 w-16 h-16">
@@ -33,8 +33,26 @@ const LoginForm = () => {
           >
             Super Admin Sign In
           </Button>
+          <div className="mt-6 text-center text-xs text-gray-500">
+            POWERED BY{' '}
+            <a
+              href="https://www.midoraxdynamics.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-700 hover:text-gray-900 font-semibold underline"
+            >
+              MIDORAX DYNAMICS
+            </a>
+          </div>
         </CardContent>
       </Card>
+      <div className="mt-8">
+        <img 
+          src="src/assets/Midorax logo].webp" 
+          alt="Midorax Dynamics Logo" 
+          className="h-16 object-contain"
+        />
+      </div>
     </div>
   );
 };
