@@ -21,7 +21,7 @@ interface Row {
   threshold: number;
 }
 
-const UNITS = ['bags', '50kg Bags', 'kg'];
+const UNITS = ['bags', '50kg Bags','20 kg Bags', 'kg'];
 
 const FactoryInventory: React.FC = () => {
   const [rows, setRows] = useState<Row[]>([]);

@@ -22,6 +22,13 @@ interface InventoryItem {
   shop_id: string;
 }
 
+  const getLocalCategoryColor = (id?: string) => {
+    if (!id) return undefined;
+    try {
+      const stored = JSON.parse(localStorage.getItem('categoryColors') || '{}');
+      return stored[id];
+    } catch (e) { return undefined; }
+  };
 const InventoryTab = ({ shopId }: { shopId: string }) => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [availableProducts, setAvailableProducts] = useState<string[]>([]);
@@ -30,13 +37,33 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
   const [newQuantity, setNewQuantity] = useState('');
   const [newUnit, setNewUnit] = useState('bags');
   const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<{id: string; name: string; color?: string}[]>([]);
+  const [productToCategory, setProductToCategory] = useState<Record<string, string>>({});
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   useEffect(() => {
     if (shopId) {
       fetchInventory();
     }
+    fetchCategoryMapping();
     fetchAvailableProducts();
   }, [shopId]);
+
+  const fetchCategoryMapping = async () => {
+    try {
+      const { data: cats } = await supabase.from('product_categories').select('*') as any;
+      const { data: items } = await supabase.from('product_category_items').select('*') as any;
+      const catsArr = (cats || []).map((c: any) => ({ id: c.id, name: c.name, color: c.color }));
+      const map: Record<string, string> = {};
+      (items || []).forEach((it: any) => {
+        map[it.product_name] = it.category_id;
+      });
+      setCategories(catsArr);
+      setProductToCategory(map);
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const fetchAvailableProducts = async () => {
     const { data, error } = await supabase
@@ -234,6 +261,20 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
           <p className="text-gray-600">Track your products and stock levels</p>
         </div>
         <div className="flex flex-wrap gap-2">
+            <div className="w-48">
+              <Label>Category</Label>
+              <Select value={selectedCategory} onValueChange={(v) => setSelectedCategory(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           <ExportButtons
             filename={`inventory-${new Date().toISOString().split('T')[0]}`}
             getData={() => ({
@@ -321,6 +362,7 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="bags">Bags</SelectItem>
+                    <SelectItem value="5kg">5 kg</SelectItem>
                     <SelectItem value="50kg">50 kg</SelectItem>
                     <SelectItem value="kg">kg</SelectItem>
                   </SelectContent>
@@ -354,9 +396,14 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pivotProducts.map(({ product, units }) => (
+              {pivotProducts
+                .filter(({ product }) => selectedCategory === 'all' ? true : (productToCategory[product] === selectedCategory))
+                .map(({ product, units }) => (
                 <TableRow key={product}>
-                  <TableCell className="font-medium">{product}</TableCell>
+                  <TableCell className="font-medium flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: (categories.find(c => c.id === productToCategory[product])?.color) || getLocalCategoryColor(productToCategory[product]) || '#9ca3af' }} />
+                    {product}
+                  </TableCell>
                   {PIVOT_UNITS.map(u => (
                     <TableCell key={u.key} className="text-right">
                       {units[u.key] ? formatBags(units[u.key]) : <span className="text-muted-foreground">—</span>}
@@ -392,9 +439,14 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {inventory.map((item) => (
+              {inventory
+                .filter(item => selectedCategory === 'all' ? true : (productToCategory[item.product] === selectedCategory))
+                .map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="font-medium">{item.product}</TableCell>
+                  <TableCell className="font-medium flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: (categories.find(c => c.id === productToCategory[item.product])?.color) || getLocalCategoryColor(productToCategory[item.product]) || '#9ca3af' }} />
+                    {item.product}
+                  </TableCell>
                   <TableCell>{item.unit}</TableCell>
                   <TableCell className="text-right">{item.quantity}</TableCell>
                   <TableCell className="text-right">{item.threshold}</TableCell>

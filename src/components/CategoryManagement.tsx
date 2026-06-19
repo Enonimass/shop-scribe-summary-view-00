@@ -15,6 +15,7 @@ interface Category {
   id: string;
   name: string;
   products: string[];
+  color?: string;
 }
 
 const CategoryManagement: React.FC = () => {
@@ -23,6 +24,7 @@ const CategoryManagement: React.FC = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryColor, setNewCategoryColor] = useState('#6ee7b7');
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -39,6 +41,7 @@ const CategoryManagement: React.FC = () => {
     const mapped: Category[] = (cats || []).map((cat: any) => ({
       id: cat.id,
       name: cat.name,
+      color: cat.color,
       products: (items || []).filter((i: any) => i.category_id === cat.id).map((i: any) => i.product_name),
     }));
     setCategories(mapped);
@@ -60,7 +63,9 @@ const CategoryManagement: React.FC = () => {
       return;
     }
 
-    const { data: cat, error } = await supabase.from('product_categories').insert({ name: newCategoryName.trim() } as any).select().single();
+    const payload: any = { name: newCategoryName.trim() };
+    if (newCategoryColor) payload.color = newCategoryColor;
+    const { data: cat, error } = await supabase.from('product_categories').insert(payload as any).select().single();
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
       return;
@@ -71,6 +76,13 @@ const CategoryManagement: React.FC = () => {
         selectedProducts.map(p => ({ category_id: (cat as any).id, product_name: p })) as any
       );
     }
+
+    // persist color locally as fallback
+    try {
+      const stored = JSON.parse(localStorage.getItem('categoryColors' ) || '{}');
+      stored[(cat as any).id] = newCategoryColor;
+      localStorage.setItem('categoryColors', JSON.stringify(stored));
+    } catch (e) {}
 
     toast({ title: 'Success', description: `Category "${newCategoryName}" created` });
     setShowCreateDialog(false);
@@ -83,13 +95,16 @@ const CategoryManagement: React.FC = () => {
     setEditingCategory(category);
     setNewCategoryName(category.name);
     setSelectedProducts(category.products);
+    setNewCategoryColor(category.color || getLocalCategoryColor(category.id) || '#6ee7b7');
   };
 
   const handleSaveEdit = async () => {
     if (!editingCategory || !newCategoryName.trim()) return;
 
     // Update name
-    await supabase.from('product_categories').update({ name: newCategoryName.trim() } as any).eq('id', editingCategory.id);
+    const payload: any = { name: newCategoryName.trim() };
+    if (newCategoryColor) payload.color = newCategoryColor;
+    await supabase.from('product_categories').update(payload as any).eq('id', editingCategory.id);
 
     // Replace products: delete all, re-insert
     await supabase.from('product_category_items').delete().eq('category_id', editingCategory.id);
@@ -102,8 +117,14 @@ const CategoryManagement: React.FC = () => {
     toast({ title: 'Success', description: 'Category updated' });
     setEditingCategory(null);
     setNewCategoryName('');
+    setNewCategoryColor('#6ee7b7');
     setSelectedProducts([]);
     fetchCategories();
+    try {
+      const stored = JSON.parse(localStorage.getItem('categoryColors' ) || '{}');
+      stored[editingCategory.id] = newCategoryColor;
+      localStorage.setItem('categoryColors', JSON.stringify(stored));
+    } catch (e) {}
   };
 
   const handleDeleteCategory = async (category: Category) => {
@@ -121,6 +142,13 @@ const CategoryManagement: React.FC = () => {
 
   const dialogOpen = showCreateDialog || !!editingCategory;
 
+  const getLocalCategoryColor = (id: string) => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('categoryColors') || '{}');
+      return stored[id];
+    } catch (e) { return undefined; }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -129,7 +157,7 @@ const CategoryManagement: React.FC = () => {
             <Tag className="h-5 w-5" />
             Product Categories
           </CardTitle>
-          <Button onClick={() => { setShowCreateDialog(true); setNewCategoryName(''); setSelectedProducts([]); }}>
+          <Button onClick={() => { setShowCreateDialog(true); setNewCategoryName(''); setSelectedProducts([]); setNewCategoryColor('#6ee7b7'); }}>
             <Plus className="h-4 w-4 mr-1" /> New Category
           </Button>
         </div>
@@ -143,7 +171,7 @@ const CategoryManagement: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Category</TableHead>
+                  <TableHead>Category</TableHead>
                 <TableHead>Products</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -151,11 +179,14 @@ const CategoryManagement: React.FC = () => {
             <TableBody>
               {categories.map(cat => (
                 <TableRow key={cat.id}>
-                  <TableCell className="font-medium">{cat.name}</TableCell>
+                    <TableCell className="font-medium flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color || getLocalCategoryColor(cat.id) || '#6ee7b7' }} />
+                      {cat.name}
+                    </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {cat.products.length > 0 ? cat.products.map(p => (
-                        <Badge key={p} variant="secondary">{p}</Badge>
+                          <Badge key={p} variant="secondary">{p}</Badge>
                       )) : (
                         <span className="text-muted-foreground text-xs">No products</span>
                       )}
@@ -188,6 +219,10 @@ const CategoryManagement: React.FC = () => {
             <div className="space-y-2">
               <Label>Category Name</Label>
               <Input value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="e.g. Dairy, Poultry" />
+            </div>
+            <div className="space-y-2">
+              <Label>Color</Label>
+              <input type="color" value={newCategoryColor} onChange={e => setNewCategoryColor(e.target.value)} className="w-12 h-8 p-0 border-0" />
             </div>
             <div className="space-y-2">
               <Label>Select Products</Label>

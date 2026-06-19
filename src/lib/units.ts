@@ -3,6 +3,7 @@ export const BAG_KG = 70;
 export const toBagEquivalent = (quantity: number, unit: string): number => {
   const u = (unit || '').toLowerCase();
   if (u === '50kg' || u === '50kg bags') return quantity * (50 / 70);
+  if (u === '5kg' || u === '5kg bags') return quantity * (5 / 70);
   if (u === '20kg' || u === '20kg bags') return quantity * (20 / 70);
   if (u === '10kg' || u === '10kg bags') return quantity * (10 / 70);
   if (u === 'kg' || u === 'kgs') return quantity / 70;
@@ -12,6 +13,7 @@ export const toBagEquivalent = (quantity: number, unit: string): number => {
 export const toKg = (quantity: number, unit: string): number => {
   const u = (unit || '').toLowerCase();
   if (u === '50kg' || u === '50kg bags') return quantity * 50;
+  if (u === '5kg' || u === '5kg bags') return quantity * 5;
   if (u === '20kg' || u === '20kg bags') return quantity * 20;
   if (u === '10kg' || u === '10kg bags') return quantity * 10;
   if (u === 'kg' || u === 'kgs') return quantity;
@@ -34,12 +36,14 @@ export const PIVOT_UNITS: { key: string; label: string; matches: (u: string) => 
   { key: '50kg', label: '50kg', matches: (u) => /^(50kg|50kg bags?)$/i.test(u || '') },
   { key: '20kg', label: '20kg', matches: (u) => /^(20kg|20kg bags?)$/i.test(u || '') },
   { key: '10kg', label: '10kg', matches: (u) => /^(10kg|10kg bags?)$/i.test(u || '') },
+  { key: '5kg', label: '5kg', matches: (u) => /^(5kg|5kg bags?)$/i.test(u || '') },
   { key: 'kg',   label: 'kg',   matches: (u) => /^(kg|kgs)$/i.test(u || '') },
 ];
 
 /** kg-weight per one unit of each pivot key. */
 export const KG_PER_UNIT_KEY: Record<string, number> = {
   '70kg': 70, '50kg': 50, '20kg': 20, '10kg': 10, 'kg': 1,
+  '5kg': 5,
 };
 
 export const canonicalUnitKey = (u: string): string | null => {
@@ -83,6 +87,13 @@ export const getEffectiveUnitPrice = (
     const candidates = ['10kg', '20kg', '50kg', '70kg']
       .map(k => ({ k, row: findByKey(k), size: KG_PER_UNIT_KEY[k] }))
       .filter(c => c.row && Number(c.row!.price) > 0);
+    // prefer the smallest pack available (5kg first if present)
+    if (KG_PER_UNIT_KEY['5kg']) {
+      const with5 = ['5kg', '10kg', '20kg', '50kg', '70kg']
+        .map(k => ({ k, row: findByKey(k), size: KG_PER_UNIT_KEY[k] }))
+        .filter(c => c.row && Number(c.row!.price) > 0);
+      if (with5.length) return { value: Number(with5[0].row!.price) / with5[0].size, derived: true };
+    }
     if (candidates.length) {
       const best = candidates[0];
       return { value: Number(best.row!.price) / best.size, derived: true };
