@@ -48,6 +48,8 @@ interface Sale {
   items: SaleItem[];
   customerName: string;
   date: string;
+  paymentMethodName?: string;
+  amountPaid?: number;
   // Legacy support for old single-item sales
   product?: string;
   quantity?: number;
@@ -234,6 +236,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       items: (allItems || []).filter(item => item.transaction_id === transaction.id),
       customerName: transaction.customer_name,
       date: transaction.sale_date,
+      paymentMethodName: (transaction as any).payment_method_name,
+      amountPaid: Number((transaction as any).amount_paid || 0),
       saleType: (transaction as any).sale_type || 'local'
     }));
 
@@ -469,6 +473,33 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       }
     });
 
+  const filteredSaleRows = filteredAndSortedSales.flatMap(sale => {
+    const allItems = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
+    const displayItems = allItems.filter(item => {
+      const matchesProduct = filterProduct === 'all-products' || item.product === filterProduct;
+      const matchesUnit = filterUnit === 'all-units' || item.unit === filterUnit;
+      return matchesProduct && matchesUnit;
+    });
+    const saleTotal = displayItems.reduce((sum, item) => {
+      const unitPrice = Number(item.unit_price ?? lookupPrice(item.product, item.unit));
+      return sum + unitPrice * Number(item.quantity || 0);
+    }, 0);
+
+    return displayItems.map(item => {
+      const unitPrice = Number(item.unit_price ?? lookupPrice(item.product, item.unit));
+      return {
+        sale,
+        item,
+        unitPrice,
+        lineTotal: unitPrice * Number(item.quantity || 0),
+        saleTotal,
+      };
+    });
+  });
+
+  const filteredPaidTotal = filteredAndSortedSales.reduce((sum, sale) => sum + Number(sale.amountPaid || 0), 0);
+  const filteredLineTotal = filteredSaleRows.reduce((sum, row) => sum + row.lineTotal, 0);
+
   // Get unique products from inventory for filtering
   const getUniqueProducts = () => {
     return [...new Set(inventory.map(item => item.product))].sort();
@@ -631,21 +662,22 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
               filename={`sales-records-${new Date().toISOString().split('T')[0]}`}
               getData={() => ({
                 title: 'Sales Records Report',
-                headers: ['Date', 'Customer', 'Product', 'Quantity', 'Unit'],
-                rows: filteredAndSortedSales.flatMap(sale => {
-                  const items = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
-                  return items.map((item: any) => [
-                    new Date(sale.date).toLocaleDateString(),
-                    sale.customerName,
-                    item.product,
-                    item.quantity,
-                    item.unit,
-                  ]);
-                }),
+                headers: ['Date', 'Customer', 'Product', 'Quantity', 'Unit', 'Unit Price', 'Line Total', 'Sale Total', 'Paid'],
+                rows: filteredSaleRows.map(row => [
+                  new Date(row.sale.date).toLocaleDateString(),
+                  row.sale.customerName,
+                  row.item.product,
+                  row.item.quantity,
+                  row.item.unit,
+                  row.unitPrice,
+                  row.lineTotal,
+                  row.saleTotal,
+                  Number(row.sale.amountPaid || 0),
+                ]),
                 summary: {
-                  'Total Sales Quantity': totalSales,
-                  'Unique Customers': uniqueCustomersCount,
-                  'Total Records': sales.length,
+                  'Filtered Line Total': filteredLineTotal,
+                  'Filtered Sale Paid Total': filteredPaidTotal,
+                  'Total Records': filteredAndSortedSales.length,
                 },
               })}
             />
@@ -1130,45 +1162,44 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead>Products</TableHead>
-                  <TableHead>Total Quantity</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Unit</TableHead>
+                  <TableHead className="text-right">Unit Price</TableHead>
+                  <TableHead className="text-right">Line Total</TableHead>
+                  <TableHead className="text-right">Sale Total</TableHead>
+                  <TableHead className="text-right">Paid</TableHead>
+                  <TableHead>Payment Method</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAndSortedSales.map((sale) => {
-                  const allItems = sale.items || [{ product: sale.product || '', quantity: sale.quantity || 0, unit: sale.unit || '' }];
-                  // Filter items based on selected product and unit
-                  const displayItems = allItems.filter(item => {
-                    const matchesProduct = filterProduct === 'all-products' || item.product === filterProduct;
-                    const matchesUnit = filterUnit === 'all-units' || item.unit === filterUnit;
-                    return matchesProduct && matchesUnit;
-                  });
-                  const totalQuantity = displayItems.reduce((sum, item) => sum + toBagEquivalent(item.quantity, item.unit), 0);
-                  
-                  if (displayItems.length === 0) return null;
-                  
-                  return (
-                    <TableRow key={sale.id} className={sale.saleType === 'away' ? 'bg-orange-50' : ''}>
-                      <TableCell>{new Date(sale.date).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {sale.customerName}
-                          {sale.saleType === 'away' && <Badge className="bg-orange-500 text-white text-xs">Away</Badge>}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          {displayItems.map((item, index) => (
-                            <div key={index} className="text-sm">
-                              {item.product} - {item.quantity} {item.unit}
-                            </div>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>{formatBagEquivalent(totalQuantity)} bags</TableCell>
-                    </TableRow>
-                  );
-                })}
+                {filteredSaleRows.map((row, index) => (
+                  <TableRow key={`${row.sale.id}-${index}`} className={row.sale.saleType === 'away' ? 'bg-orange-50' : ''}>
+                    <TableCell>{new Date(row.sale.date).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {row.sale.customerName}
+                        {row.sale.saleType === 'away' && <Badge className="bg-orange-500 text-white text-xs">Away</Badge>}
+                      </div>
+                    </TableCell>
+                    <TableCell>{row.item.product}</TableCell>
+                    <TableCell className="text-right">{row.item.quantity}</TableCell>
+                    <TableCell className="text-right">{row.item.unit}</TableCell>
+                    <TableCell className="text-right">{row.unitPrice.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{row.lineTotal.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{row.saleTotal.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{Number(row.sale.amountPaid || 0).toLocaleString()}</TableCell>
+                    <TableCell>{row.sale.paymentMethodName || '-'}</TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="bg-muted/40 font-semibold">
+                  <TableCell colSpan={5}>Totals</TableCell>
+                  <TableCell />
+                  <TableCell className="text-right">{filteredLineTotal.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">—</TableCell>
+                  <TableCell className="text-right">{filteredPaidTotal.toLocaleString()}</TableCell>
+                  <TableCell />
+                </TableRow>
               </TableBody>
             </Table>
           </CardContent>
