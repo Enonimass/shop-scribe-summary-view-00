@@ -1,110 +1,91 @@
-# Kimp Feeds — multi-feature improvement plan
 
-## Goals
+## Plan
 
-1. Make Products/Qty visible & editable in the admin Sales Transactions editor.
-2. One source of truth for products. No free-text product input anywhere except `InventoryTab` (admin).
-3. Merge duplicate products (`Pig grower` / `Pig Grower`) and prevent future duplicates (case-insensitive uniqueness).
-4. Move the shop selector to the **top navigation** as the single global control. Remove per-tab shop dropdowns.
-5. Bulk sales upload also imports/uses **default unit prices** from the price table.
-6. End-of-day reconciliation: cash sales + bank-paid sales + credit + debt-paid = total sales. Alert when cash is left undeposited.
-7. New analytics: price-change contribution, customers-per-product per period, and sales analysis broken down by unit (bags / 50kg / kg / 70kg-equivalent).
+### 1. Revenue vs Money In — clarity card
+On Admin overview + Accountant dashboard, add a small breakdown card for the selected period:
 
----
+```
+Revenue (invoiced)     KES 2,331,777
+  = Cash Sales           1,841,263
+  + Credit Issued          490,514
 
-## 1. Fix empty Products / Qty columns in `AdminTableEditor`
+Money In (collected)   KES 1,933,420
+  = Cash Sales           1,841,263
+  + Debt Payments           92,157
 
-**Root cause:** `fetchSalesTransactions` queries `sales_items` without a filter, hitting Supabase's default 1000-row cap. Items for older transactions are dropped, so those rows show blank Products and 0 Qty.
+Outstanding from period    398,357  (credit issued − debt payments on those sales)
+```
+No math changes — just an explanatory panel so the gap is obvious.
 
-**Fix:** batch-fetch `sales_items` by `transaction_id` in chunks of 200 (matches the existing "Data Fetching Strategy"), then attach to transactions.
+### 2. Case-insensitive customer & product names
+- New DB trigger on `sales_transactions`, `debt_payments`, `customers`, `sales_items`: normalize `customer_name` / `product` by looking up an existing matching row with `lower(name) = lower(new.name)` in the same shop; if found, snap to the canonical casing.
+- One-off data cleanup: pick the most-used casing per (shop, lowered-name) as canonical, update all historical rows to it, then merge duplicate `customers` rows.
+- Frontend already uses `ProductCombobox` in most places; extend to remaining spots (SalesTab, PriceManager, FactoryInventory, DeliveryNoteManager, TripManager, DebtPaymentForm) so free-text can't reintroduce case duplicates.
 
-## 2. Enforce product picker everywhere (no free-text)
+### 3. Accountant module — parity with outlets/admin
+New tab set for Accountant:
+- **Inventory (simplified)**: same pivot table used by admin — rows = products, columns = units (70kg / 50kg / 20kg / 10kg / kg), with category filter and shop filter. Read-only.
+- **Daily Report**: same `DailyReport` component used by outlets/admin, plus the two additions in §4.
 
-Replace every free-text product input outside `InventoryTab` with a `ProductCombobox` backed by `inventory.product` for the active shop. Affected files:
+### 4. Daily Report enhancements (all roles)
+Add two sections to `src/components/money/DailyReport.tsx`:
 
-- `AdminTableEditor.tsx` — sales item product input → combobox.
-- `SalesTab.tsx` — new-sale flow.
-- `BulkSalesUpload.tsx` — already validates (recent change); keep dropdown enforcement for unknown rows.
-- `PriceManager.tsx` — product field.
-- `factory/FactoryInventory.tsx`, `logistics/DeliveryNoteManager.tsx`, `logistics/TripManager.tsx`, `money/DebtPaymentForm.tsx` (where product appears).
-- Find/Replace stays in admin only.
+**a) Customers who bought today**
+```
+Mark        1× High Yield (70kg), 4× Super (50kg)
+Jane        2× Pig Grower (10kg)
+```
+Grouped from `sales_transactions` + `sales_items` for the date, using canonical customer name.
 
-New shared component: `src/components/ProductCombobox.tsx` (uses existing `Command` + `Popover`, fetches products for `shopId`, supports unit-aware selection).
+**b) Money by product × unit (pivot)**
+Rows = product, columns = units, cell = revenue (qty × unit_price) for that day, with row totals and grand total.
 
-## 3. Merge duplicate products (case-insensitive uniqueness)
+### 5. FPS ↔ Kiambu — single shop
+Merge into one `shop_id` (keep the Kiambu id, retire FPS id):
+- Data migration: `UPDATE` all rows in `inventory`, `sales_transactions`, `sales_items`, `debt_payments`, `customers`, `product_prices`, `delivery_notes`, `delivery_note_items`, `trips`, `trip_stops`, `factory_inventory`, `audit_logs`, `profiles` from `fps_shop_id` → `kiambu_shop_id`.
+- Collapse duplicate `inventory` rows (`SUM(quantity)` per product+unit) before re-adding the unique constraint.
+- Remove the FPS shop from `profiles.shops` lists and the shop selector.
+- FactoryInventory (production intake) stays, but writes to the merged shop's inventory.
 
-**Data cleanup (migration):**
+### 6. One-click delivery to outlets
+Current flow: create delivery note → confirm at source → confirm at destination → adds to inventory. New flow:
+- Logistics/admin creates a delivery note and clicks **Send** → in a single transaction: mark note as `added_to_inventory`, deduct source stock, add destination stock, auto-generate the delivery-note PDF.
+- Delivery note is still saved (audit trail preserved), just no second-side confirmation required.
+- Remove the two-step confirmation UI from `DeliveryNoteManager`; keep the list/history view.
 
-- Pick canonical spelling per `(shop_id, lower(product))` as the most-recent or admin-preferred capitalisation; rewrite `inventory`, `sales_items`, `product_prices`, `product_category_items`, `delivery_note_items`, `trip_stop_items`, `factory_inventory` to use the canonical name.
-- Merge any duplicate `inventory` rows that collide on `(shop_id, lower(product), lower(unit))` by summing `quantity`, keeping the higher `threshold`/`desired_quantity`.
-- Add a partial unique index: `unique (shop_id, lower(product), lower(unit))` on `inventory`. Same on `product_prices`.
+### 7. FPS production intake — weekly report (admin only)
+New read-only report in Admin dashboard → Factory section:
 
-**Going forward:**
+```
+Product/Unit   Mon   Tue   Wed   Thu   Fri   Sat   Sun
+ Opening        …
+ Added          …
+ Sold/Out       …
+ Closing        …
+```
+- Week picker (prev/next), one table per product+unit, or a single table with product+unit rows and 7-day columns.
+- Sources: `factory_inventory` movements for Added, `delivery_notes` out for Out, computed Opening/Closing.
+- Keep the existing manual-entry form for adding intake unchanged.
 
-- All writes go through the combobox; new product creation lives only in `InventoryTab`. The "Add product" form there validates against existing case-insensitive name and refuses to create a duplicate.
+### Files to touch
 
-## 4. Global shop selector in top nav
+**DB migration (single migration):**
+- Trigger + backfill for case normalization on customers/products.
+- Merge FPS shop_id → Kiambu shop_id across all tables; dedupe inventory.
+- Nothing else schema-wise.
 
-- New `src/components/ShopSelectorTopBar.tsx` rendered inside `App.tsx` (or `Index.tsx` layout) above the tabs nav, persisted in `localStorage` and exposed via a `ShopContext` (`useShop()` hook returning `{ shopId, setShopId, shops }`).
-- For admins, the value `"all"` keeps the aggregated view.
-- Refactor each consumer to read from `useShop()` instead of its own dropdown:
-  - `AdminDashboard.tsx` (remove inline "Select Shop" card),
-  - `AdminOverview`, `CustomerAnalytics`, `ProductAnalytics`, `PriceManager`, `DailyReport`, `DebtorsList`, `TripManager`, `BulkSalesUpload`, `AdminTableEditor`, etc.
-- Sellers are still pinned to their own `shop_id` (selector hidden / disabled).
+**Frontend:**
+- `src/components/money/DailyReport.tsx` — customers-today section + money-by-product×unit pivot.
+- `src/components/AccountantDashboard.tsx` — add Inventory tab (reuse admin pivot) + Daily Report tab.
+- `src/components/admin/AdminOverview.tsx` + `AccountantDashboard.tsx` — Revenue vs Money In breakdown card.
+- `src/components/admin/` — new `ProductionIntakeWeekly.tsx` weekly grid, wired into admin factory tab.
+- `src/components/logistics/DeliveryNoteManager.tsx` — collapse confirmations into single Send action; keep history.
+- `src/components/SalesTab.tsx`, `PriceManager.tsx`, `FactoryInventory.tsx`, `DeliveryNoteManager.tsx`, `TripManager.tsx`, `DebtPaymentForm.tsx` — replace free-text product inputs with `ProductCombobox`.
+- Shop selector components — remove FPS option after merge.
 
-## 5. Bulk upload — include default prices
+### Out of scope for this pass
+- Global top-bar shop selector (still per-tab for now).
+- New price-change / customers-per-product analytics tabs.
+- Cash-deposit reconciliation.
 
-- When parsing the upload, resolve `unit_price` for each `(product, unit)` from `product_prices` (using `getEffectiveUnitPrice` from `src/lib/units.ts`).
-- If the file already provides a price column, that wins; otherwise default-fill from the price table and show it in the preview (greyed) so the user can override.
-- Write `unit_price` into `sales_items`; `line_total` and `total_amount` are summed and saved on the transaction.
-
-## 6. End-of-day cash deposit reconciliation
-
-**Model** (matches the user's equation `sales = bank + credit + debt_paid`):
-
-- Use existing `payment_methods` table — each bank account is a method with `kind = 'bank'`; "Cash" stays as `kind = 'cash'`; credit stays as `kind = 'credit'`.
-- New table `cash_deposits` (per shop, per date): `id, shop_id, deposit_date, bank_method_id, amount, note`.
-- Daily reconciliation view in `DailyReport.tsx`:
-  - **Sales total** for the day (sum of `sales_transactions.total_amount`).
-  - **Bank component** = sum of sales paid directly to a bank method + sum of `cash_deposits` for the day.
-  - **Credit component** = sum of unpaid credit sales.
-  - **Debt-paid component** = sum of `debt_payments` for the day.
-  - **Reconciled?** `sales == bank + credit + debt_paid`; otherwise show the gap as **"Undeposited cash"** with an alert badge and a "Record deposit" button that inserts into `cash_deposits`.
-- Admin/accountant gets a dashboard banner if any prior-day undeposited cash > 0.
-
-## 7. New analytics
-
-All live under `ProductAnalytics` / `CustomerAnalytics` / a new "Monthly Analysis" tab.
-
-### 7a. Price-change contribution
-- Compare `product_prices` history (add `effective_from` column if not present — schema check needed) between two periods (or use last-change diff).
-- Per product: `Δprice × units_sold_after = revenue contribution`. Rank products by absolute contribution. Show table + bar chart.
-
-### 7b. Customers per product per period
-- For each product, count **distinct customers** (not transactions) in the selected period. A customer who buys product A four times counts as 1.
-- Period picker reuses `PeriodPicker`.
-
-### 7c. Sales analysis by unit
-- Break down sales by canonical unit key (`bags`, `50kg`, `20kg`, `10kg`, `kg`) using `PIVOT_UNITS` from `src/lib/units.ts`.
-- Also show the 70kg-equivalent total per product (existing convention).
-- Monthly Analysis tab combines: customer segments (existing), product mix by unit, price-change contribution.
-
----
-
-## Technical notes
-
-- **Schema migrations needed:**
-  - `cash_deposits` table (+ GRANTs, RLS by shop, audit triggers).
-  - Add case-insensitive unique indexes on `inventory` and `product_prices`.
-  - Data-cleanup SQL to merge duplicate product names (run once, idempotent).
-  - Add `effective_from timestamptz default now()` to `product_prices` if missing, to support price-change analytics.
-- **ShopContext** lives in `src/context/ShopContext.tsx`; `useShop()` is the only API consumers use. `localStorage` key: `kf.selectedShop`.
-- **ProductCombobox** props: `{ shopId, value, unit?, onChange, allowEmpty? }`. Internally caches the product list per shop.
-- **AdminTableEditor batched fetch:** chunk `transaction.id`s into groups of 200 and `.in('transaction_id', chunk)` per call; concat results.
-- **Cash deposit alert:** computed client-side in `DailyReport` from already-fetched sales + `cash_deposits` queries; no edge function required.
-
-## Out of scope
-
-- No changes to auth, RLS posture, or the AI insights edge function.
-- No new exports beyond what the new analytics views already emit via existing CSV/PDF utilities.
-- Logistics trip workflow stays as-is apart from swapping product inputs for the combobox.
+Reply **approve** to build, or tell me which items to drop/reorder.
