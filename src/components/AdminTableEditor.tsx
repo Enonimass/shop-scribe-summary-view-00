@@ -14,6 +14,7 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { logAudit } from '@/lib/audit';
+import ProductCombobox from './ProductCombobox';
 
 interface InventoryItem {
   id: string;
@@ -107,31 +108,42 @@ const AdminTableEditor = () => {
   };
 
   const fetchSalesTransactions = async () => {
-    const { data: transactions, error: transError } = await supabase
-      .from('sales_transactions')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (transError) {
-      console.error('Error fetching transactions:', transError);
-      return;
+    // Page transactions to bypass the 1000-row cap.
+    const pageSize = 1000;
+    let from = 0;
+    const allTx: any[] = [];
+    while (true) {
+      const { data, error } = await supabase
+        .from('sales_transactions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (error) { console.error('Error fetching transactions:', error); break; }
+      allTx.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
     }
 
-    const { data: allItems, error: itemsError } = await supabase
-      .from('sales_items')
-      .select('*');
-
-    if (itemsError) {
-      console.error('Error fetching sales items:', itemsError);
-      return;
+    // Batch-fetch sales_items in chunks of 200 transaction IDs so older
+    // rows aren't silently dropped by the default 1000-row limit.
+    const txIds = allTx.map(t => t.id);
+    const allItems: any[] = [];
+    for (let i = 0; i < txIds.length; i += 200) {
+      const chunk = txIds.slice(i, i + 200);
+      if (chunk.length === 0) break;
+      const { data: items, error: itemsError } = await supabase
+        .from('sales_items')
+        .select('*')
+        .in('transaction_id', chunk);
+      if (itemsError) { console.error('Error fetching sales items:', itemsError); continue; }
+      allItems.push(...(items || []));
     }
 
-    const transactionsWithItems = (transactions || []).map(transaction => ({
-      ...transaction,
-      items: (allItems || []).filter(item => item.transaction_id === transaction.id)
-    }));
-
-    setSalesTransactions(transactionsWithItems);
+    const byTx: Record<string, any[]> = {};
+    for (const it of allItems) {
+      (byTx[it.transaction_id] ||= []).push(it);
+    }
+    setSalesTransactions(allTx.map(t => ({ ...t, items: byTx[t.id] || [] })));
   };
 
   const startEditingInventory = (item: InventoryItem) => {
