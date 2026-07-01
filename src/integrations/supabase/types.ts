@@ -544,10 +544,14 @@ export type Database = {
           due_date: string | null
           fulfilled_by_shop_id: string | null
           fulfilled_by_shop_name: string | null
+          "https://supabase.com/dashboard/project/pmnidfxwqseoynsflnqt/edi":
+            | string
+            | null
           id: string
           is_credit: boolean
           payment_method_id: string | null
           payment_method_name: string | null
+          product: string | null
           sale_date: string
           sale_type: string
           shop_id: string
@@ -561,10 +565,14 @@ export type Database = {
           due_date?: string | null
           fulfilled_by_shop_id?: string | null
           fulfilled_by_shop_name?: string | null
+          "https://supabase.com/dashboard/project/pmnidfxwqseoynsflnqt/edi"?:
+            | string
+            | null
           id?: string
           is_credit?: boolean
           payment_method_id?: string | null
           payment_method_name?: string | null
+          product?: string | null
           sale_date?: string
           sale_type?: string
           shop_id: string
@@ -578,10 +586,14 @@ export type Database = {
           due_date?: string | null
           fulfilled_by_shop_id?: string | null
           fulfilled_by_shop_name?: string | null
+          "https://supabase.com/dashboard/project/pmnidfxwqseoynsflnqt/edi"?:
+            | string
+            | null
           id?: string
           is_credit?: boolean
           payment_method_id?: string | null
           payment_method_name?: string | null
+          product?: string | null
           sale_date?: string
           sale_type?: string
           shop_id?: string
