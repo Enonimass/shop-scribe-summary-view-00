@@ -601,12 +601,16 @@ const AdminTableEditor = () => {
                                 <div key={item.id} className="text-sm">
                                   {editingTransaction === transaction.id ? (
                                     <div className="flex gap-1 items-center flex-wrap">
-                                      <Input
-                                        className="w-28"
+                                      <ProductCombobox
+                                        className="w-40"
+                                        products={inventory
+                                          .filter(inv => inv.shop_id === (editValues.shop_id || transaction.shop_id))
+                                          .map(inv => inv.product)
+                                          .filter((p, idx, arr) => arr.indexOf(p) === idx)}
                                         value={editingSalesItems[item.id]?.product || item.product}
-                                        onChange={(e) => setEditingSalesItems({
+                                        onChange={(v) => setEditingSalesItems({
                                           ...editingSalesItems,
-                                          [item.id]: { ...editingSalesItems[item.id], id: item.id, product: e.target.value, quantity: editingSalesItems[item.id]?.quantity || item.quantity, unit: editingSalesItems[item.id]?.unit || item.unit }
+                                          [item.id]: { ...editingSalesItems[item.id], id: item.id, product: v, quantity: editingSalesItems[item.id]?.quantity || item.quantity, unit: editingSalesItems[item.id]?.unit || item.unit }
                                         })}
                                       />
                                       <Input
