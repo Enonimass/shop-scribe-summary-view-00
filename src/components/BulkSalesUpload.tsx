@@ -25,6 +25,7 @@ interface ParsedRow {
   product_known: boolean;
   quantity: number;
   unit: string;
+  unit_price?: number | null;
   valid: boolean;
   error?: string;
 }
@@ -35,17 +36,29 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState('');
   const [knownProducts, setKnownProducts] = useState<string[]>([]);
+  // Default price lookup keyed as `${lower(product)}||${lower(unit)}`
+  const [priceMap, setPriceMap] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     const load = async () => {
-      const { data } = await supabase
+      const { data: invData } = await supabase
         .from('inventory')
         .select('product')
         .eq('shop_id', shopId);
-      const unique = Array.from(new Set(((data as any[]) || []).map(r => String(r.product).trim()).filter(Boolean)));
+      const unique = Array.from(new Set(((invData as any[]) || []).map(r => String(r.product).trim()).filter(Boolean)));
       unique.sort((a, b) => a.localeCompare(b));
       setKnownProducts(unique);
+
+      const { data: priceData } = await supabase
+        .from('product_prices')
+        .select('product, unit, price')
+        .eq('shop_id', shopId);
+      const pm: Record<string, number> = {};
+      for (const p of (priceData as any[]) || []) {
+        pm[`${String(p.product).toLowerCase()}||${String(p.unit).toLowerCase()}`] = Number(p.price);
+      }
+      setPriceMap(pm);
     };
     if (shopId) load();
   }, [shopId]);
@@ -54,7 +67,13 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
     setParsedRows(prev => prev.map((r, i) => {
       if (i !== index) return r;
       const basicsOk = !!r.date && !!r.customer_name && !!product && r.quantity > 0;
-      return { ...r, product, product_known: true, valid: basicsOk, error: basicsOk ? undefined : r.error };
+      const key = `${product.toLowerCase()}||${r.unit.toLowerCase()}`;
+      const defaultPrice = priceMap[key];
+      return {
+        ...r, product, product_known: true, valid: basicsOk,
+        unit_price: r.unit_price ?? (defaultPrice != null ? defaultPrice : null),
+        error: basicsOk ? undefined : r.error,
+      };
     }));
   };
 
@@ -173,8 +192,14 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
         } else if (!product_known) {
           error = 'Unknown product — pick from list';
         }
-
-        rows.push({ date: dateStr, customer_name: rawCustomer, product, raw_product: rawProduct, product_known, quantity: rawQty, unit, valid, error });
+        const priceKey = `${product.toLowerCase()}||${unit.toLowerCase()}`;
+        const defaultPrice = priceMap[priceKey];
+        rows.push({
+          date: dateStr, customer_name: rawCustomer, product, raw_product: rawProduct, product_known,
+          quantity: rawQty, unit,
+          unit_price: defaultPrice != null ? defaultPrice : null,
+          valid, error,
+        });
       }
 
       setParsedRows(rows);
@@ -220,6 +245,7 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
           product: item.product,
           quantity: item.quantity,
           unit: item.unit,
+          ...(item.unit_price != null ? { unit_price: item.unit_price } : {}),
         }));
 
         await supabase.from('sales_items').insert(salesItems as any);
