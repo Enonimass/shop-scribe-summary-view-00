@@ -325,6 +325,7 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
                   <TableHead>Product</TableHead>
                   <TableHead>Qty</TableHead>
                   <TableHead>Unit</TableHead>
+                  <TableHead>Price</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -354,6 +355,19 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
                     </TableCell>
                     <TableCell>{row.quantity}</TableCell>
                     <TableCell>{row.unit}</TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="h-8 w-24"
+                        placeholder="—"
+                        value={row.unit_price ?? ''}
+                        onChange={(e) => {
+                          const v = e.target.value === '' ? null : Number(e.target.value);
+                          setParsedRows(prev => prev.map((r, idx) => idx === i ? { ...r, unit_price: v } : r));
+                        }}
+                      />
+                    </TableCell>
                     <TableCell>
                       {row.valid ? (
                         <Badge className="bg-green-600 text-white">OK</Badge>
