@@ -212,6 +212,25 @@ const AccountantDashboard: React.FC = () => {
           <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Debt paid in period</div><div className="text-2xl font-bold">{fmtKes(kpis.debtPaid)}</div></CardContent></Card>
         </div>
 
+        <Card>
+          <CardHeader><CardTitle className="text-base">Revenue vs Money-In breakdown</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="space-y-1">
+              <div className="font-semibold">Revenue (invoiced) — {fmtKes(kpis.revenue)}</div>
+              <div className="flex justify-between border-b py-1"><span>Cash sales (paid part)</span><span className="tabular-nums">{fmtKes(kpis.cashSales)}</span></div>
+              <div className="flex justify-between py-1"><span>+ Credit issued (unpaid part)</span><span className="tabular-nums text-orange-600">{fmtKes(kpis.creditIssued)}</span></div>
+            </div>
+            <div className="space-y-1">
+              <div className="font-semibold">Money in (collected) — {fmtKes(kpis.moneyIn)}</div>
+              <div className="flex justify-between border-b py-1"><span>Cash sales (paid part)</span><span className="tabular-nums">{fmtKes(kpis.cashSales)}</span></div>
+              <div className="flex justify-between py-1"><span>+ Debt payments received</span><span className="tabular-nums text-green-600">{fmtKes(kpis.debtPaid)}</span></div>
+            </div>
+            <div className="md:col-span-2 text-xs text-muted-foreground border-t pt-2">
+              Gap = Credit issued this period − Debt payments received. Credit becomes Money-In only when the customer pays.
+            </div>
+          </CardContent>
+        </Card>
+
         <Tabs value={tab} onValueChange={setTab}>
           <MobileTabsNav
             value={tab}
@@ -410,6 +429,33 @@ const AccountantDashboard: React.FC = () => {
                 />
               </CardHeader>
               <CardContent>
+                <div className="mb-6">
+                  <div className="text-sm font-semibold mb-2">Stock by Product</div>
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead>Product</TableHead>
+                      {PIVOT_UNITS.map(u => <TableHead key={u.key} className="text-right">{u.label}</TableHead>)}
+                      <TableHead className="text-right">Total (70kg eq.)</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {inventoryPivot.map(({ product, units }) => (
+                        <TableRow key={product}>
+                          <TableCell className="font-medium">{product}</TableCell>
+                          {PIVOT_UNITS.map(u => (
+                            <TableCell key={u.key} className="text-right tabular-nums">
+                              {units[u.key] ? units[u.key] : <span className="text-muted-foreground">—</span>}
+                            </TableCell>
+                          ))}
+                          <TableCell className="text-right font-semibold">{formatBags(productBagEq(units))}</TableCell>
+                        </TableRow>
+                      ))}
+                      {inventoryPivot.length === 0 && (
+                        <TableRow><TableCell colSpan={PIVOT_UNITS.length + 2} className="text-center text-muted-foreground">No stock.</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="text-sm font-semibold mb-2">Thresholds &amp; Detail</div>
                 <Table>
                   <TableHeader><TableRow>
                     <TableHead>Shop</TableHead><TableHead>Product</TableHead><TableHead>Unit</TableHead>
@@ -473,6 +519,10 @@ const AccountantDashboard: React.FC = () => {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="daily">
+            <DailyReport shops={shops} defaultShop={shopFilter === 'all' ? undefined : shopFilter} allowAll />
           </TabsContent>
         </Tabs>
       </main>
