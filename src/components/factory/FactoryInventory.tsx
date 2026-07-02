@@ -12,6 +12,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 import { PIVOT_UNITS, canonicalUnitKey, toBagEquivalent, formatBags } from '@/lib/units';
+import { useAuth } from '@/components/AuthProvider';
+import ProductionIntakeWeekly from './ProductionIntakeWeekly';
 
 interface Row {
   id: string;
@@ -24,11 +26,14 @@ interface Row {
 const UNITS = ['bags', '50kg Bags','20 kg Bags', 'kg'];
 
 const FactoryInventory: React.FC = () => {
+  const { profile } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [products, setProducts] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
   const [form, setForm] = useState({ product: '', unit: 'bags', quantity: '0', threshold: '0' });
+  const [showIntake, setShowIntake] = useState(false);
+  const [intake, setIntake] = useState({ product: '', unit: 'bags', quantity: '', intake_date: new Date().toISOString().split('T')[0], note: '' });
 
   const fetchAll = async () => {
     const { data } = await supabase.from('factory_inventory').select('*').order('product');
@@ -81,6 +86,35 @@ const FactoryInventory: React.FC = () => {
     fetchAll();
   };
 
+  const receiveFromProduction = async () => {
+    const qty = Number(intake.quantity);
+    if (!intake.product || !intake.unit || !qty || qty <= 0) {
+      toast({ title: 'Missing info', description: 'Product, unit and positive quantity are required', variant: 'destructive' });
+      return;
+    }
+    // Log intake event
+    await supabase.from('factory_intake_log').insert({
+      product: intake.product,
+      unit: intake.unit,
+      quantity: qty,
+      intake_date: intake.intake_date,
+      note: intake.note || null,
+      recorded_by: profile?.username || null,
+    });
+    // Increment factory_inventory
+    const existing = rows.find(r => r.product === intake.product && r.unit === intake.unit);
+    if (existing) {
+      await supabase.from('factory_inventory').update({ quantity: Number(existing.quantity) + qty }).eq('id', existing.id);
+    } else {
+      await supabase.from('factory_inventory').insert({ product: intake.product, unit: intake.unit, quantity: qty, threshold: 0 });
+    }
+    logAudit({ action: 'factory_inventory.intake', entity: 'factory_intake_log', after: { ...intake, quantity: qty } });
+    toast({ title: 'Received', description: `${qty} ${intake.unit} of ${intake.product} added` });
+    setShowIntake(false);
+    setIntake({ product: '', unit: 'bags', quantity: '', intake_date: new Date().toISOString().split('T')[0], note: '' });
+    fetchAll();
+  };
+
   const lowCount = rows.filter(r => r.quantity <= r.threshold).length;
 
   const pivotProducts = React.useMemo(() => {
@@ -110,9 +144,13 @@ const FactoryInventory: React.FC = () => {
 
   return (
     <div className="space-y-4">
+    <ProductionIntakeWeekly />
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Factory className="h-5 w-5" /> Factory Stock by Product</CardTitle>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="flex items-center gap-2"><Factory className="h-5 w-5" /> Factory Stock by Product</CardTitle>
+          <Button size="sm" onClick={() => setShowIntake(true)}><Plus className="h-4 w-4 mr-1" /> Receive from production</Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
@@ -225,6 +263,50 @@ const FactoryInventory: React.FC = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
             <Button onClick={save}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showIntake} onOpenChange={setShowIntake}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Receive stock from production</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Product</Label>
+              <Select value={intake.product} onValueChange={(v) => setIntake({ ...intake, product: v })}>
+                <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                <SelectContent>
+                  {products.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Unit</Label>
+              <Select value={intake.unit} onValueChange={(v) => setIntake({ ...intake, unit: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Quantity received</Label>
+                <Input type="number" value={intake.quantity} onChange={(e) => setIntake({ ...intake, quantity: e.target.value })} />
+              </div>
+              <div>
+                <Label>Date</Label>
+                <Input type="date" value={intake.intake_date} onChange={(e) => setIntake({ ...intake, intake_date: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label>Note (optional)</Label>
+              <Input value={intake.note} onChange={(e) => setIntake({ ...intake, note: e.target.value })} placeholder="Batch #, remarks…" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowIntake(false)}>Cancel</Button>
+            <Button onClick={receiveFromProduction}>Record intake</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
