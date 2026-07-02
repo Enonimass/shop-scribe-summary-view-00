@@ -174,6 +174,24 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
         </Card>
       </div>
       <Card>
+        <CardHeader><CardTitle className="text-base">Revenue vs Money-In breakdown</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div className="space-y-1">
+            <div className="font-semibold">Revenue (invoiced) — KES {Math.round(data.revenue).toLocaleString()}</div>
+            <div className="flex justify-between border-b py-1"><span>Cash sales (paid part)</span><span className="tabular-nums">KES {Math.round(data.collected).toLocaleString()}</span></div>
+            <div className="flex justify-between py-1"><span>+ Credit issued (unpaid part)</span><span className="tabular-nums text-orange-600">KES {Math.round(data.credit).toLocaleString()}</span></div>
+          </div>
+          <div className="space-y-1">
+            <div className="font-semibold">Money in (collected) — KES {Math.round(data.collected + data.debtPaid).toLocaleString()}</div>
+            <div className="flex justify-between border-b py-1"><span>Cash sales (paid part)</span><span className="tabular-nums">KES {Math.round(data.collected).toLocaleString()}</span></div>
+            <div className="flex justify-between py-1"><span>+ Debt payments received</span><span className="tabular-nums text-green-600">KES {Math.round(data.debtPaid).toLocaleString()}</span></div>
+          </div>
+          <div className="md:col-span-2 text-xs text-muted-foreground border-t pt-2">
+            Gap = Credit issued this period − Debt payments received. Credit becomes Money-In only when the customer pays.
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
         <CardHeader><CardTitle className="text-base">Bags sold per product — {period.label}</CardTitle></CardHeader>
         <CardContent>
           {(!data.bagsByProduct || data.bagsByProduct.length === 0) ? (
