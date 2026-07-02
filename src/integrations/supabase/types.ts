@@ -247,6 +247,39 @@ export type Database = {
         }
         Relationships: []
       }
+      factory_intake_log: {
+        Row: {
+          created_at: string
+          id: string
+          intake_date: string
+          note: string | null
+          product: string
+          quantity: number
+          recorded_by: string | null
+          unit: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          intake_date?: string
+          note?: string | null
+          product: string
+          quantity: number
+          recorded_by?: string | null
+          unit: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          intake_date?: string
+          note?: string | null
+          product?: string
+          quantity?: number
+          recorded_by?: string | null
+          unit?: string
+        }
+        Relationships: []
+      }
       factory_inventory: {
         Row: {
           created_at: string
@@ -826,6 +859,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      canonical_customer_name: {
+        Args: { p_name: string; p_shop_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

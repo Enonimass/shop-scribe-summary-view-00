@@ -112,7 +112,12 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
         delivered_by: formDeliveredBy,
         notes: formNotes || null,
         created_by: profile?.username || null,
-        status: 'draft',
+        status: 'added_to_inventory',
+        logistics_confirmed_at: new Date().toISOString(),
+        logistics_confirmed_by: profile?.username || 'auto',
+        seller_confirmed_at: new Date().toISOString(),
+        seller_confirmed_by: profile?.username || 'auto',
+        added_to_inventory_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -136,7 +141,24 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
       return;
     }
 
-    toast({ title: 'Created', description: `Delivery note ${formNoteNo} created` });
+    // Auto-add to receiving shop's inventory in one shot
+    for (const it of validItems) {
+      const qty = Number(it.quantity);
+      const { data: existing } = await supabase
+        .from('inventory')
+        .select('*')
+        .eq('shop_id', formShopId)
+        .eq('product', it.product)
+        .eq('unit', it.unit)
+        .maybeSingle();
+      if (existing) {
+        await supabase.from('inventory').update({ quantity: Number(existing.quantity) + qty }).eq('id', existing.id);
+      } else {
+        await supabase.from('inventory').insert({ shop_id: formShopId, product: it.product, quantity: qty, unit: it.unit, threshold: 15, desired_quantity: 25 });
+      }
+    }
+
+    toast({ title: 'Delivered', description: `Note ${formNoteNo} recorded and stock updated` });
     setShowCreate(false);
     resetForm();
     fetchNotes();
