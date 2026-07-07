@@ -6,6 +6,7 @@ import SellerDashboard from '../components/SellerDashboard';
 import AdminDashboard from '../components/AdminDashboard';
 import LogisticsDashboard from '../components/LogisticsDashboard';
 import AccountantDashboard from '../components/AccountantDashboard';
+import ExecutiveDashboard from '../components/ExecutiveDashboard';
 
 const AppContent = () => {
   const { profile, isAuthenticated, loading } = useAuth();
@@ -28,6 +29,10 @@ const AppContent = () => {
 
   if (profile?.role === 'accountant') {
     return <AccountantDashboard />;
+  }
+
+  if (profile?.role === 'executive') {
+    return <ExecutiveDashboard />;
   }
 
   return <SellerDashboard />;

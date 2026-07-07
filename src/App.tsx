@@ -51,7 +51,7 @@ const App = () => (
             <Route
               path="/ai-insights"
               element={
-                <RequireAuth roles={["admin", "accountant", "seller"]}>
+                <RequireAuth roles={["admin", "accountant", "seller", "executive"]}>
                   <AIInsights />
                 </RequireAuth>
               }
