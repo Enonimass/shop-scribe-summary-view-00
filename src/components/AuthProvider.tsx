@@ -4,7 +4,7 @@ import { getStored, clearSession, isTokenValid } from '@/lib/session';
 interface UserProfile {
   id: string;
   username: string;
-  role: 'seller' | 'admin' | 'logistics' | 'accountant';
+  role: 'seller' | 'admin' | 'logistics' | 'accountant' | 'executive';
   display_name: string;
   shop_id?: string;
   shop_name?: string;
