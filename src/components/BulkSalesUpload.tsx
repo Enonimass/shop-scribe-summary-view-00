@@ -369,6 +369,27 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
             )}
           </div>
 
+          <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 border rounded-lg bg-muted/20">
+            <div className="space-y-1">
+              <Label>Payment method (whole batch)</Label>
+              <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
+                <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
+                <SelectContent>
+                  {paymentMethods.map((m: any) => (
+                    <SelectItem key={m.id} value={m.id}>{m.name}{m.kind === 'credit' ? ' (Credit)' : ''}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Cash methods mark each transaction as fully paid. Credit leaves it outstanding.</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Batch total</Label>
+              <div className="h-10 flex items-center px-3 rounded-md border bg-background text-sm font-bold">
+                KES {parsedRows.filter(r => r.valid).reduce((s, r) => s + Number(r.unit_price ?? resolvePrice(r.product, r.unit)) * Number(r.quantity), 0).toLocaleString()}
+              </div>
+            </div>
+          </div>
+
           <div className="overflow-x-auto max-h-[50vh] overflow-y-auto">
             <Table>
               <TableHeader>
