@@ -276,6 +276,27 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
     const method = paymentMethods.find(m => m.id === paymentMethodId);
     const isCredit = method?.kind === 'credit';
 
+    // Block if any line is missing a unit price — force user to set price or override.
+    const missingPrice = validItems.find(it => !(Number(it.unit_price ?? lookupPrice(it.product, it.unit)) > 0));
+    if (missingPrice) {
+      toast({
+        title: 'Missing price',
+        description: `Set a unit price for ${missingPrice.product} (${missingPrice.unit}) — or add it in Money → Prices.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Require Amount Paid for non-credit sales (blank was silently defaulting to full).
+    if (!isCredit && (amountPaid === '' || amountPaid === null || amountPaid === undefined)) {
+      toast({
+        title: 'Enter amount paid',
+        description: 'Type the money received. Use a Credit method if the customer is not paying now.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const effectiveFulfillShopId = fulfillShopId || shopId;
     const fulfillShop = shops.find(s => s.shop_id === effectiveFulfillShopId);
     const stockSource = effectiveFulfillShopId === shopId ? inventory : fulfillInventory;
