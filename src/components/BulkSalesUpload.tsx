@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload, FileSpreadsheet, Check, AlertTriangle, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { getEffectiveUnitPrice, canonicalUnitKey } from '@/lib/units';
 
 interface BulkSalesUploadProps {
   shopId: string;
@@ -38,6 +39,9 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
   const [knownProducts, setKnownProducts] = useState<string[]>([]);
   // Default price lookup keyed as `${lower(product)}||${lower(unit)}`
   const [priceMap, setPriceMap] = useState<Record<string, number>>({});
+  const [priceRows, setPriceRows] = useState<any[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [paymentMethodId, setPaymentMethodId] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -59,19 +63,34 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
         pm[`${String(p.product).toLowerCase()}||${String(p.unit).toLowerCase()}`] = Number(p.price);
       }
       setPriceMap(pm);
+      setPriceRows((priceData as any[]) || []);
+
+      const { data: pmData } = await supabase.from('payment_methods').select('*').eq('is_active', true).order('name');
+      setPaymentMethods(pmData || []);
+      if (pmData && pmData.length) setPaymentMethodId(pmData[0].id);
     };
     if (shopId) load();
   }, [shopId]);
+
+  // Resolve unit price using the same rules as SalesTab (per-kg ↔ pack derivations).
+  const resolvePrice = (product: string, unit: string): number => {
+    const k = canonicalUnitKey(unit);
+    if (k) {
+      const eff = getEffectiveUnitPrice(priceRows as any, product, k);
+      if (eff && eff.value > 0) return eff.value;
+    }
+    const direct = priceMap[`${product.toLowerCase()}||${unit.toLowerCase()}`];
+    return direct > 0 ? direct : 0;
+  };
 
   const fixRowProduct = (index: number, product: string) => {
     setParsedRows(prev => prev.map((r, i) => {
       if (i !== index) return r;
       const basicsOk = !!r.date && !!r.customer_name && !!product && r.quantity > 0;
-      const key = `${product.toLowerCase()}||${r.unit.toLowerCase()}`;
-      const defaultPrice = priceMap[key];
+      const defaultPrice = resolvePrice(product, r.unit);
       return {
         ...r, product, product_known: true, valid: basicsOk,
-        unit_price: r.unit_price ?? (defaultPrice != null ? defaultPrice : null),
+        unit_price: r.unit_price ?? (defaultPrice > 0 ? defaultPrice : null),
         error: basicsOk ? undefined : r.error,
       };
     }));
