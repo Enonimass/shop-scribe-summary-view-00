@@ -11,6 +11,7 @@ import PurchasingPower from '@/components/analytics/PurchasingPower';
 import WeeklyPurchasing from '@/components/analytics/WeeklyPurchasing';
 import PeriodPicker, { buildPreset, type Period } from '@/components/PeriodPicker';
 import DebtorsList from '@/components/money/DebtorsList';
+import BackfillSalesPrices from '@/components/admin/BackfillSalesPrices';
 
 interface Props {
   selectedShop: string; // 'all' or shop_id
@@ -225,6 +226,7 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
       </div>
       <PurchasingPower shops={shops} shopFilter={selectedShop} hideShopSelect />
       <WeeklyPurchasing shops={shops} shopFilter={selectedShop} hideShopSelect />
+      <BackfillSalesPrices shops={shops} />
       <Dialog open={showDebtors} onOpenChange={setShowDebtors}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Debtors</DialogTitle></DialogHeader>

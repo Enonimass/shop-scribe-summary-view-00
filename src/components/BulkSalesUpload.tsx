@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload, FileSpreadsheet, Check, AlertTriangle, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { getEffectiveUnitPrice, canonicalUnitKey } from '@/lib/units';
 
 interface BulkSalesUploadProps {
   shopId: string;
@@ -38,6 +39,9 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
   const [knownProducts, setKnownProducts] = useState<string[]>([]);
   // Default price lookup keyed as `${lower(product)}||${lower(unit)}`
   const [priceMap, setPriceMap] = useState<Record<string, number>>({});
+  const [priceRows, setPriceRows] = useState<any[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [paymentMethodId, setPaymentMethodId] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -59,19 +63,34 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
         pm[`${String(p.product).toLowerCase()}||${String(p.unit).toLowerCase()}`] = Number(p.price);
       }
       setPriceMap(pm);
+      setPriceRows((priceData as any[]) || []);
+
+      const { data: pmData } = await supabase.from('payment_methods').select('*').eq('is_active', true).order('name');
+      setPaymentMethods(pmData || []);
+      if (pmData && pmData.length) setPaymentMethodId(pmData[0].id);
     };
     if (shopId) load();
   }, [shopId]);
+
+  // Resolve unit price using the same rules as SalesTab (per-kg ↔ pack derivations).
+  const resolvePrice = (product: string, unit: string): number => {
+    const k = canonicalUnitKey(unit);
+    if (k) {
+      const eff = getEffectiveUnitPrice(priceRows as any, product, k);
+      if (eff && eff.value > 0) return eff.value;
+    }
+    const direct = priceMap[`${product.toLowerCase()}||${unit.toLowerCase()}`];
+    return direct > 0 ? direct : 0;
+  };
 
   const fixRowProduct = (index: number, product: string) => {
     setParsedRows(prev => prev.map((r, i) => {
       if (i !== index) return r;
       const basicsOk = !!r.date && !!r.customer_name && !!product && r.quantity > 0;
-      const key = `${product.toLowerCase()}||${r.unit.toLowerCase()}`;
-      const defaultPrice = priceMap[key];
+      const defaultPrice = resolvePrice(product, r.unit);
       return {
         ...r, product, product_known: true, valid: basicsOk,
-        unit_price: r.unit_price ?? (defaultPrice != null ? defaultPrice : null),
+        unit_price: r.unit_price ?? (defaultPrice > 0 ? defaultPrice : null),
         error: basicsOk ? undefined : r.error,
       };
     }));
@@ -192,12 +211,11 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
         } else if (!product_known) {
           error = 'Unknown product — pick from list';
         }
-        const priceKey = `${product.toLowerCase()}||${unit.toLowerCase()}`;
-        const defaultPrice = priceMap[priceKey];
+        const defaultPrice = resolvePrice(product, unit);
         rows.push({
           date: dateStr, customer_name: rawCustomer, product, raw_product: rawProduct, product_known,
           quantity: rawQty, unit,
-          unit_price: defaultPrice != null ? defaultPrice : null,
+          unit_price: defaultPrice > 0 ? defaultPrice : null,
           valid, error,
         });
       }
@@ -217,6 +235,23 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
       toast({ title: 'No valid rows', description: 'Fix errors before uploading', variant: 'destructive' });
       return;
     }
+    if (!paymentMethodId) {
+      toast({ title: 'Pick a payment method', description: 'Applies to every row in this batch.', variant: 'destructive' });
+      return;
+    }
+    const method = paymentMethods.find(m => m.id === paymentMethodId);
+    const isCredit = method?.kind === 'credit';
+
+    // Ensure every valid row has a unit price (either from file or resolved).
+    const missing = validRows.find(r => !(Number(r.unit_price ?? resolvePrice(r.product, r.unit)) > 0));
+    if (missing) {
+      toast({
+        title: 'Missing price',
+        description: `No price for ${missing.product} (${missing.unit}). Set it in Money → Prices, then retry.`,
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setUploading(true);
     try {
@@ -231,22 +266,40 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
       let insertedCount = 0;
       for (const [key, items] of Object.entries(txMap)) {
         const { date, customer_name } = items[0];
-        
+
+        const totalAmount = items.reduce((s, it) => {
+          const up = Number(it.unit_price ?? resolvePrice(it.product, it.unit));
+          return s + up * Number(it.quantity);
+        }, 0);
+        const amountPaid = isCredit ? 0 : totalAmount;
+
         const { data: tx, error: txErr } = await supabase.from('sales_transactions').insert({
           customer_name,
           shop_id: shopId,
           sale_date: date,
+          payment_method_id: paymentMethodId,
+          payment_method_name: method?.name,
+          is_credit: isCredit,
+          total_amount: totalAmount,
+          amount_paid: amountPaid,
         } as any).select().single();
 
         if (txErr || !tx) continue;
 
-        const salesItems = items.map(item => ({
-          transaction_id: tx.id,
-          product: item.product,
-          quantity: item.quantity,
-          unit: item.unit,
-          ...(item.unit_price != null ? { unit_price: item.unit_price } : {}),
-        }));
+        const salesItems = items.map(item => {
+          const resolved = resolvePrice(item.product, item.unit);
+          const up = Number(item.unit_price ?? resolved);
+          return {
+            transaction_id: tx.id,
+            product: item.product,
+            quantity: item.quantity,
+            unit: item.unit,
+            unit_price: up,
+            original_price: resolved || up,
+            price_overridden: resolved > 0 && Number(up) !== Number(resolved),
+            line_total: up * Number(item.quantity),
+          };
+        });
 
         await supabase.from('sales_items').insert(salesItems as any);
         insertedCount += items.length;
@@ -314,6 +367,27 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
                 {parsedRows.filter(r => !r.product_known).length} unknown product(s) — pick from list
               </Badge>
             )}
+          </div>
+
+          <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 border rounded-lg bg-muted/20">
+            <div className="space-y-1">
+              <Label>Payment method (whole batch)</Label>
+              <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
+                <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
+                <SelectContent>
+                  {paymentMethods.map((m: any) => (
+                    <SelectItem key={m.id} value={m.id}>{m.name}{m.kind === 'credit' ? ' (Credit)' : ''}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Cash methods mark each transaction as fully paid. Credit leaves it outstanding.</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Batch total</Label>
+              <div className="h-10 flex items-center px-3 rounded-md border bg-background text-sm font-bold">
+                KES {parsedRows.filter(r => r.valid).reduce((s, r) => s + Number(r.unit_price ?? resolvePrice(r.product, r.unit)) * Number(r.quantity), 0).toLocaleString()}
+              </div>
+            </div>
           </div>
 
           <div className="overflow-x-auto max-h-[50vh] overflow-y-auto">
