@@ -235,6 +235,23 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
       toast({ title: 'No valid rows', description: 'Fix errors before uploading', variant: 'destructive' });
       return;
     }
+    if (!paymentMethodId) {
+      toast({ title: 'Pick a payment method', description: 'Applies to every row in this batch.', variant: 'destructive' });
+      return;
+    }
+    const method = paymentMethods.find(m => m.id === paymentMethodId);
+    const isCredit = method?.kind === 'credit';
+
+    // Ensure every valid row has a unit price (either from file or resolved).
+    const missing = validRows.find(r => !(Number(r.unit_price ?? resolvePrice(r.product, r.unit)) > 0));
+    if (missing) {
+      toast({
+        title: 'Missing price',
+        description: `No price for ${missing.product} (${missing.unit}). Set it in Money → Prices, then retry.`,
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setUploading(true);
     try {
@@ -249,22 +266,40 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
       let insertedCount = 0;
       for (const [key, items] of Object.entries(txMap)) {
         const { date, customer_name } = items[0];
-        
+
+        const totalAmount = items.reduce((s, it) => {
+          const up = Number(it.unit_price ?? resolvePrice(it.product, it.unit));
+          return s + up * Number(it.quantity);
+        }, 0);
+        const amountPaid = isCredit ? 0 : totalAmount;
+
         const { data: tx, error: txErr } = await supabase.from('sales_transactions').insert({
           customer_name,
           shop_id: shopId,
           sale_date: date,
+          payment_method_id: paymentMethodId,
+          payment_method_name: method?.name,
+          is_credit: isCredit,
+          total_amount: totalAmount,
+          amount_paid: amountPaid,
         } as any).select().single();
 
         if (txErr || !tx) continue;
 
-        const salesItems = items.map(item => ({
-          transaction_id: tx.id,
-          product: item.product,
-          quantity: item.quantity,
-          unit: item.unit,
-          ...(item.unit_price != null ? { unit_price: item.unit_price } : {}),
-        }));
+        const salesItems = items.map(item => {
+          const resolved = resolvePrice(item.product, item.unit);
+          const up = Number(item.unit_price ?? resolved);
+          return {
+            transaction_id: tx.id,
+            product: item.product,
+            quantity: item.quantity,
+            unit: item.unit,
+            unit_price: up,
+            original_price: resolved || up,
+            price_overridden: resolved > 0 && Number(up) !== Number(resolved),
+            line_total: up * Number(item.quantity),
+          };
+        });
 
         await supabase.from('sales_items').insert(salesItems as any);
         insertedCount += items.length;
