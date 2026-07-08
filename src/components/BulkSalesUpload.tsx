@@ -211,12 +211,11 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
         } else if (!product_known) {
           error = 'Unknown product — pick from list';
         }
-        const priceKey = `${product.toLowerCase()}||${unit.toLowerCase()}`;
-        const defaultPrice = priceMap[priceKey];
+        const defaultPrice = resolvePrice(product, unit);
         rows.push({
           date: dateStr, customer_name: rawCustomer, product, raw_product: rawProduct, product_known,
           quantity: rawQty, unit,
-          unit_price: defaultPrice != null ? defaultPrice : null,
+          unit_price: defaultPrice > 0 ? defaultPrice : null,
           valid, error,
         });
       }
