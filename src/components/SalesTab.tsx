@@ -95,13 +95,47 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
   const [filterSaleType, setFilterSaleType] = useState('all-types');
 
-  // Get unique customers from existing sales
-  const getUniqueCustomers = () => {
-    const customers = sales.map(sale => sale.customerName);
-    return [...new Set(customers)].filter(Boolean).sort();
-  };
+  // Sales limited to the currently-selected date range. Product / customer
+  // filter dropdowns derive from this slice so they only offer options that
+  // actually appear in the visible window.
+  const salesInRange = React.useMemo(() => sales.filter(sale => {
+    if (dateFrom && sale.date < dateFrom) return false;
+    if (dateTo && sale.date > dateTo) return false;
+    return true;
+  }), [sales, dateFrom, dateTo]);
 
-  const uniqueCustomers = getUniqueCustomers();
+  const uniqueCustomers = React.useMemo(() => {
+    const names = salesInRange.map(s => s.customerName).filter(Boolean) as string[];
+    return [...new Set(names)].sort();
+  }, [salesInRange]);
+
+  const uniqueProductsInRange = React.useMemo(() => {
+    const products = salesInRange.flatMap(sale =>
+      (sale.items?.length ? sale.items.map(i => i.product) : [sale.product || ''])
+    ).filter(Boolean) as string[];
+    return [...new Set(products)].sort();
+  }, [salesInRange]);
+
+  const uniqueUnitsInRange = React.useMemo(() => {
+    const units = salesInRange.flatMap(sale =>
+      (sale.items?.length ? sale.items.map(i => i.unit) : [sale.unit || ''])
+    ).filter(Boolean) as string[];
+    return [...new Set(units)].sort();
+  }, [salesInRange]);
+
+  // If the active filter selection is no longer represented in the date
+  // window, auto-clear it so the user isn't stuck on an empty view.
+  useEffect(() => {
+    if (filterProduct !== 'all-products' && !uniqueProductsInRange.includes(filterProduct)) {
+      setFilterProduct('all-products');
+    }
+    if (filterCustomer !== 'all-customers' && !uniqueCustomers.includes(filterCustomer)) {
+      setFilterCustomer('all-customers');
+    }
+    if (filterUnit !== 'all-units' && !uniqueUnitsInRange.includes(filterUnit)) {
+      setFilterUnit('all-units');
+    }
+  }, [uniqueProductsInRange, uniqueCustomers, uniqueUnitsInRange, filterProduct, filterCustomer, filterUnit]);
 
   useEffect(() => {
     if (shopId) {
