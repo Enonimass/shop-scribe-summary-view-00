@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { logAudit } from '@/lib/audit';
 import ProductCombobox from './ProductCombobox';
+import { CANONICAL_UNITS, normalizeUnit } from '@/lib/units';
 
 interface InventoryItem {
   id: string;
@@ -183,9 +184,12 @@ const AdminTableEditor = () => {
   const saveInventoryEdit = async () => {
     if (!editingInventory) return;
 
+    const cleaned = { ...editValues } as any;
+    if (cleaned.unit) cleaned.unit = normalizeUnit(cleaned.unit);
+
     const { error } = await supabase
       .from('inventory')
-      .update(editValues)
+      .update(cleaned)
       .eq('id', editingInventory);
 
     if (error) {
@@ -240,13 +244,25 @@ const AdminTableEditor = () => {
     for (const itemId in editingSalesItems) {
       const item = editingSalesItems[itemId];
       const originalItem = originalTx?.items.find((it: any) => it.id === itemId);
+      const normUnit = normalizeUnit(item.unit);
+      const priceVal =
+        item.unit_price === null || item.unit_price === undefined || (item.unit_price as any) === ''
+          ? null
+          : Number(item.unit_price);
+      const qtyVal = Number(item.quantity);
+      const lineTotal = priceVal != null ? priceVal * qtyVal : null;
       const { error: itemError } = await supabase
         .from('sales_items')
         .update({
           product: item.product,
-          quantity: Number(item.quantity),
-          unit: item.unit,
-          unit_price: item.unit_price === null || item.unit_price === undefined || (item.unit_price as any) === '' ? null : Number(item.unit_price),
+          quantity: qtyVal,
+          unit: normUnit,
+          unit_price: priceVal,
+          line_total: lineTotal,
+          price_overridden:
+            priceVal != null && originalItem && (originalItem as any).original_price != null
+              ? Number(priceVal) !== Number((originalItem as any).original_price)
+              : undefined,
         } as any)
         .eq('id', itemId);
 
@@ -265,6 +281,21 @@ const AdminTableEditor = () => {
         });
       }
     }
+
+    // Recompute transaction total_amount from the freshly-saved items so the money
+    // pivot, KPI cards and receipts stay in sync after an edit.
+    const { data: freshItems } = await supabase
+      .from('sales_items')
+      .select('quantity, unit_price, line_total')
+      .eq('transaction_id', editingTransaction);
+    const recomputedTotal = (freshItems || []).reduce((s: number, it: any) => {
+      const lt = Number(it.line_total ?? 0);
+      return s + (lt || Number(it.unit_price || 0) * Number(it.quantity || 0));
+    }, 0);
+    await supabase
+      .from('sales_transactions')
+      .update({ total_amount: recomputedTotal })
+      .eq('id', editingTransaction);
 
     toast({ title: "Success", description: "Transaction updated successfully" });
     setEditingTransaction(null);
