@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import ExportButtons from './ExportButtons';
 import DebtorsList from './money/DebtorsList';
 import DailyReport from './money/DailyReport';
+import AccountantReports from './accountant/AccountantReports';
 import { PIVOT_UNITS, canonicalUnitKey, toBagEquivalent, formatBags } from '@/lib/units';
 import { FileBarChart } from 'lucide-react';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
@@ -242,6 +243,7 @@ const AccountantDashboard: React.FC = () => {
               { value: 'stock', label: 'Shop stock', icon: <Package className="h-4 w-4" /> },
               { value: 'factory', label: 'Factory stock', icon: <Factory className="h-4 w-4" /> },
               { value: 'daily', label: 'Daily', icon: <FileBarChart className="h-4 w-4" /> },
+              { value: 'reports', label: 'Reports', icon: <TrendingUp className="h-4 w-4" /> },
             ]}
           />
           <TabsList className="hidden md:flex flex-wrap h-auto">
@@ -251,6 +253,7 @@ const AccountantDashboard: React.FC = () => {
             <TabsTrigger value="stock"><Package className="h-4 w-4 mr-1" /> Shop stock</TabsTrigger>
             <TabsTrigger value="factory"><Factory className="h-4 w-4 mr-1" /> Factory stock</TabsTrigger>
             <TabsTrigger value="daily"><FileBarChart className="h-4 w-4 mr-1" /> Daily</TabsTrigger>
+            <TabsTrigger value="reports"><TrendingUp className="h-4 w-4 mr-1" /> Reports</TabsTrigger>
           </TabsList>
 
           <TabsContent value="sales">
@@ -523,6 +526,10 @@ const AccountantDashboard: React.FC = () => {
 
           <TabsContent value="daily">
             <DailyReport shops={shops} defaultShop={shopFilter === 'all' ? undefined : shopFilter} allowAll />
+          </TabsContent>
+
+          <TabsContent value="reports">
+            <AccountantReports shopFilter={shopFilter} />
           </TabsContent>
         </Tabs>
       </main>
