@@ -1,0 +1,1 @@
+REVOKE SELECT (password) ON public.profiles FROM anon, authenticated, PUBLIC;
