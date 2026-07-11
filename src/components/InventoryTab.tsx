@@ -10,7 +10,7 @@ import ExportButtons from './ExportButtons';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import UnitConverter from './UnitConverter';
-import { PIVOT_UNITS, canonicalUnitKey, toBagEquivalent, formatBags } from '@/lib/units';
+import { PIVOT_UNITS, canonicalUnitKey, toBagEquivalent, formatBags, CANONICAL_UNITS } from '@/lib/units';
 
 interface InventoryItem {
   id: string;
@@ -361,10 +361,9 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="bags">Bags</SelectItem>
-                    <SelectItem value="5kg">5 kg</SelectItem>
-                    <SelectItem value="50kg">50 kg</SelectItem>
-                    <SelectItem value="kg">kg</SelectItem>
+                    {CANONICAL_UNITS.map(u => (
+                      <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

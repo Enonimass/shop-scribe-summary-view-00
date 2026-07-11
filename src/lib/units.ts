@@ -58,6 +58,27 @@ export const dbUnitForKey = (key: string): string => {
   return key; // 50kg, 20kg, 10kg
 };
 
+/**
+ * Canonical list of units the app accepts everywhere the user can pick a unit.
+ * All writes should use one of these values so the DB never accumulates
+ * case-duplicated columns like `bags`, `Bags`, `BAGS`.
+ */
+export const CANONICAL_UNITS: { value: string; label: string }[] = [
+  { value: 'bags', label: 'Bags (70kg)' },
+  { value: '50kg', label: '50 kg' },
+  { value: '20kg', label: '20 kg' },
+  { value: '10kg', label: '10 kg' },
+  { value: '5kg',  label: '5 kg' },
+  { value: 'kg',   label: 'kg' },
+];
+
+/** Normalize any user-typed / legacy unit string to a canonical DB value. */
+export const normalizeUnit = (u: string): string => {
+  const key = canonicalUnitKey(u);
+  if (key) return dbUnitForKey(key);
+  return (u || '').trim();
+};
+
 export interface PriceRow { product: string; unit: string; price: number | string; }
 
 /**

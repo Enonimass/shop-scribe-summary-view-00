@@ -14,6 +14,7 @@ import { useAuth } from '@/components/AuthProvider';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
+import { CANONICAL_UNITS } from '@/lib/units';
 
 interface Shop { shop_id: string; shop_name: string }
 interface LineItem { product: string; quantity: string; unit: string }
@@ -435,9 +436,9 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
                     <Select value={it.unit} onValueChange={v => updateItem(i, 'unit', v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="bags">Bags</SelectItem>
-                        <SelectItem value="50kg">50 kg</SelectItem>
-                        <SelectItem value="kg">kg</SelectItem>
+                        {CANONICAL_UNITS.map(u => (
+                          <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

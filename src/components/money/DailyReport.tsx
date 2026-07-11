@@ -8,7 +8,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 interface Shop { shop_id: string; shop_name: string; }
 
-import { toBagEquivalent, formatBags } from '@/lib/units';
+import { toBagEquivalent, formatBags, canonicalUnitKey, dbUnitForKey } from '@/lib/units';
+
+// Group any legacy / mixed-case unit string into a single canonical bucket
+// (`bags`, `50kg`, `20kg`, `10kg`, `5kg`, `kg`) so the pivot never shows
+// duplicate columns like `BAGS` / `Bags` / `bags`.
+const bucketUnit = (u: string): string => {
+  const k = canonicalUnitKey(u);
+  return k ? dbUnitForKey(k) : (u || '').trim();
+};
 
 const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; defaultShop?: string; allowAll?: boolean }) => {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -35,6 +43,15 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
       setItems(allItems);
     };
     load();
+
+    // Refetch whenever sales/items/debts change so edits appear immediately.
+    const channel = supabase
+      .channel(`daily-report-${shopId}-${date}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_transactions' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_items' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'debt_payments' }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [shopId, date]);
 
   // Per-product per-unit pivot, with bag-equivalent total
@@ -42,10 +59,11 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
     const products = new Map<string, Map<string, number>>();
     const unitSet = new Set<string>();
     items.forEach(it => {
-      unitSet.add(it.unit);
+      const u = bucketUnit(it.unit);
+      unitSet.add(u);
       if (!products.has(it.product)) products.set(it.product, new Map());
       const m = products.get(it.product)!;
-      m.set(it.unit, (m.get(it.unit) || 0) + Number(it.quantity || 0));
+      m.set(u, (m.get(u) || 0) + Number(it.quantity || 0));
     });
     const units = Array.from(unitSet).sort();
     const rows = Array.from(products.entries()).map(([product, m]) => {
@@ -106,10 +124,14 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
     const products = new Map<string, Map<string, number>>();
     const unitSet = new Set<string>();
     items.forEach(it => {
-      unitSet.add(it.unit);
+      const u = bucketUnit(it.unit);
+      unitSet.add(u);
       if (!products.has(it.product)) products.set(it.product, new Map());
       const m = products.get(it.product)!;
-      m.set(it.unit, (m.get(it.unit) || 0) + Number(it.line_total || (Number(it.quantity||0) * Number(it.unit_price||0))));
+      // Always recompute from qty × unit_price — stored line_total can be stale
+      // after a sales edit and would keep this pivot out of sync with quantities.
+      const money = Number(it.quantity || 0) * Number(it.unit_price || 0);
+      m.set(u, (m.get(u) || 0) + money);
     });
     const units = [...unitSet].sort();
     const rows = [...products.entries()].map(([product, m]) => {
