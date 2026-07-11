@@ -555,21 +555,11 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const filteredPaidTotal = filteredAndSortedSales.reduce((sum, sale) => sum + Number(sale.amountPaid || 0), 0);
   const filteredLineTotal = filteredSaleRows.reduce((sum, row) => sum + row.lineTotal, 0);
 
-  // Get unique products from inventory for filtering
-  const getUniqueProducts = () => {
-    return [...new Set(inventory.map(item => item.product))].sort();
-  };
-
-  // Get unique units from sales for filtering
-  const getUniqueUnits = () => {
-    const units = sales.flatMap(sale => {
-      if (sale.items) {
-        return sale.items.map(item => item.unit);
-      }
-      return sale.unit ? [sale.unit] : [];
-    });
-    return [...new Set(units)].filter(Boolean).sort();
-  };
+  // Product / unit lists shown in the filter dropdowns come from the
+  // date-scoped slice (`salesInRange`) so users only see options that
+  // actually appear in the selected window.
+  const getUniqueProducts = () => uniqueProductsInRange;
+  const getUniqueUnits = () => uniqueUnitsInRange;
 
   // Calculate filtered totals - only for matching product AND unit
   // 50kg bags are converted to bag equivalents (5/7 per 50kg bag)
