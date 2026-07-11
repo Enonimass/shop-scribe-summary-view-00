@@ -517,9 +517,9 @@ const AdminTableEditor = () => {
                             <Select value={editValues.unit} onValueChange={(value) => setEditValues({...editValues, unit: value})}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="bags">Bags</SelectItem>
-                                <SelectItem value="50kg Bags">50kg Bags</SelectItem>
-                                <SelectItem value="kgs">Kgs</SelectItem>
+                                {CANONICAL_UNITS.map(u => (
+                                  <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           ) : item.unit}
@@ -662,9 +662,9 @@ const AdminTableEditor = () => {
                                       >
                                         <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                          <SelectItem value="bags">Bags</SelectItem>
-                                          <SelectItem value="50kg Bags">50kg Bags</SelectItem>
-                                          <SelectItem value="kgs">Kgs</SelectItem>
+                                          {CANONICAL_UNITS.map(u => (
+                                            <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                                          ))}
                                         </SelectContent>
                                       </Select>
                                       <Input
