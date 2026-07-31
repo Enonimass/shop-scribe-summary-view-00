@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 interface Shop { shop_id: string; shop_name: string; }
 
-import { toBagEquivalent, formatBags, canonicalUnitKey, dbUnitForKey } from '@/lib/units';
+import { toBagEquivalent, formatBags, canonicalUnitKey, dbUnitForKey, PIVOT_UNITS } from '@/lib/units';
 
 // Group any legacy / mixed-case unit string into a single canonical bucket
 // (`bags`, `50kg`, `20kg`, `10kg`, `5kg`, `kg`) so the pivot never shows
@@ -65,7 +65,12 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
       const m = products.get(it.product)!;
       m.set(u, (m.get(u) || 0) + Number(it.quantity || 0));
     });
-    const units = Array.from(unitSet).sort();
+    // Order units according to canonical pivot order so columns appear
+    // descending from bags -> 50kg -> 20kg -> 10kg -> 5kg -> kg.
+    const preferredOrder = PIVOT_UNITS.map(p => dbUnitForKey(p.key));
+    const units = preferredOrder.filter(u => unitSet.has(u)).concat(
+      Array.from(unitSet).filter(u => !preferredOrder.includes(u)).sort(),
+    );
     const rows = Array.from(products.entries()).map(([product, m]) => {
       const byUnit: Record<string, number> = {};
       let bagEq = 0;
@@ -133,7 +138,10 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
       const money = Number(it.quantity || 0) * Number(it.unit_price || 0);
       m.set(u, (m.get(u) || 0) + money);
     });
-    const units = [...unitSet].sort();
+    const preferredOrderMoney = PIVOT_UNITS.map(p => dbUnitForKey(p.key));
+    const units = preferredOrderMoney.filter(u => unitSet.has(u)).concat(
+      [...unitSet].filter(u => !preferredOrderMoney.includes(u)).sort(),
+    );
     const rows = [...products.entries()].map(([product, m]) => {
       const byUnit: Record<string, number> = {};
       let total = 0;
