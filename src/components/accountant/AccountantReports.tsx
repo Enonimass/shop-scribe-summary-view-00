@@ -24,6 +24,22 @@ const monthWeekStart = (d: Date) => {
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const monthStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
 const monthEnd   = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
+/** Calendar chunk containing `d`: 1-7, 8-14, 15-21, 22-28, 29-end of month. */
+const chunkOf = (d: Date) => {
+  const start = monthWeekStart(d);
+  const end = new Date(Math.min(addDays(start, 6).getTime(), monthEnd(start).getTime()));
+  const index = Math.floor((start.getDate() - 1) / 7) + 1;
+  return { start, end, index };
+};
+const prevChunkStart = (start: Date) => {
+  if (start.getDate() === 1) return monthWeekStart(monthEnd(addDays(monthStart(start), -1)));
+  return addDays(start, -7);
+};
+const nextChunkStart = (start: Date) => {
+  const next = addDays(start, 7);
+  if (next.getMonth() !== start.getMonth()) return monthStart(next);
+  return monthWeekStart(next);
+};
 const clampWeekAnchor = (week: Date, month: Date) => {
   const start = monthStart(month);
   const end = monthWeekStart(monthEnd(month));
@@ -54,7 +70,15 @@ const AccountantReports: React.FC<Props> = ({ shopFilter }) => {
   const [monthAnchor, setMonthAnchor] = useState<Date>(() => monthStart(new Date()));
   const [weekAnchor, setWeekAnchor] = useState<Date>(() => monthWeekStart(new Date()));
 
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => iso(addDays(weekAnchor, i))), [weekAnchor]);
+  const chunk = useMemo(() => chunkOf(weekAnchor), [weekAnchor]);
+  const weekDays = useMemo(() => {
+    const len = Math.round((startOfDay(chunk.end).getTime() - startOfDay(chunk.start).getTime()) / 86400000) + 1;
+    return Array.from({ length: len }, (_, i) => iso(addDays(chunk.start, i)));
+  }, [chunk]);
+  const chunkLabel = useMemo(() => {
+    const m = chunk.start.toLocaleDateString(undefined, { month: 'short' });
+    return `Week ${chunk.index} (${chunk.start.getDate()}–${chunk.end.getDate()} ${m})`;
+  }, [chunk]);
 
   const [weekRows, setWeekRows] = useState<any[]>([]);
   const [monthRows, setMonthRows] = useState<any[]>([]);
@@ -87,7 +111,7 @@ const AccountantReports: React.FC<Props> = ({ shopFilter }) => {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const rows = await loadItems(weekDays[0], weekDays[6]);
+      const rows = await loadItems(weekDays[0], weekDays[weekDays.length - 1]);
       setWeekRows(rows);
       setLoading(false);
     })();
@@ -172,11 +196,11 @@ const AccountantReports: React.FC<Props> = ({ shopFilter }) => {
       {/* WEEKLY */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
-          <CardTitle className="text-base">Weekly performance — {weekDays[0]} → {weekDays[6]}</CardTitle>
+          <CardTitle className="text-base">Weekly performance — {chunkLabel} · {weekDays[0]} → {weekDays[weekDays.length - 1]}</CardTitle>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => setWeekAnchor(addDays(weekAnchor, -7))}><ChevronLeft className="h-4 w-4" /></Button>
+            <Button size="sm" variant="outline" onClick={() => setWeekAnchor(prevChunkStart(chunk.start))}><ChevronLeft className="h-4 w-4" /></Button>
             <Button size="sm" variant="outline" onClick={() => setWeekAnchor(monthWeekStart(new Date()))}>This week</Button>
-            <Button size="sm" variant="outline" onClick={() => setWeekAnchor(addDays(weekAnchor, 7))}><ChevronRight className="h-4 w-4" /></Button>
+            <Button size="sm" variant="outline" onClick={() => setWeekAnchor(nextChunkStart(chunk.start))}><ChevronRight className="h-4 w-4" /></Button>
             <div className="flex items-center gap-1">
               <Label className="text-xs">Week chunk starts</Label>
               <Input type="date" className="h-8 w-36" value={iso(weekAnchor)} onChange={e => { const d = new Date(e.target.value); if (!isNaN(d.getTime())) setWeekAnchor(monthWeekStart(d)); }} />
