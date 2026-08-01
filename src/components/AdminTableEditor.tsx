@@ -66,6 +66,13 @@ const AdminTableEditor = () => {
   const [editingTransaction, setEditingTransaction] = useState<string | null>(null);
   const [editingSalesItems, setEditingSalesItems] = useState<Record<string, SalesItem>>({});
   const [deletedSalesItemIds, setDeletedSalesItemIds] = useState<string[]>([]);
+  const [debtPayments, setDebtPayments] = useState<any[]>([]);
+  const [debtCustomerName, setDebtCustomerName] = useState('');
+  const [debtAmount, setDebtAmount] = useState('');
+  const [debtShopId, setDebtShopId] = useState('');
+  const [debtDate, setDebtDate] = useState(new Date().toISOString().slice(0, 10));
+  const [debtDueDate, setDebtDueDate] = useState('');
+  const [debtNotes, setDebtNotes] = useState('');
   const [editValues, setEditValues] = useState<any>({});
   const [customerFilter, setCustomerFilter] = useState('');
   const [shopFilter, setShopFilter] = useState('');
@@ -85,6 +92,7 @@ const AdminTableEditor = () => {
     await fetchInventory();
     await fetchSalesTransactions();
     await fetchPaymentMethods();
+    await fetchDebtPayments();
   };
 
   const fetchPaymentMethods = async () => {
@@ -94,6 +102,18 @@ const AdminTableEditor = () => {
       .eq('is_active', true)
       .order('name');
     setPaymentMethods((data as any) || []);
+  };
+
+  const fetchDebtPayments = async () => {
+    const { data, error } = await supabase
+      .from('debt_payments')
+      .select('*')
+      .order('payment_date', { ascending: false });
+    if (error) {
+      console.error('Error fetching debt payments:', error);
+    } else {
+      setDebtPayments(data || []);
+    }
   };
 
   const fetchInventory = async () => {
@@ -358,6 +378,54 @@ const AdminTableEditor = () => {
     setDeletedSalesItemIds((prev) => prev.includes(itemId) ? prev : [...prev, itemId]);
   };
 
+  const saveDebtRecord = async () => {
+    const trimmedName = debtCustomerName.trim();
+    const amountValue = Number(debtAmount);
+    if (!trimmedName) {
+      toast({ title: "Missing field", description: "Customer name is required", variant: "destructive" });
+      return;
+    }
+    if (!debtShopId) {
+      toast({ title: "Missing field", description: "Shop is required", variant: "destructive" });
+      return;
+    }
+    if (!debtAmount || Number.isNaN(amountValue) || amountValue <= 0) {
+      toast({ title: "Missing field", description: "Amount must be greater than zero", variant: "destructive" });
+      return;
+    }
+
+    const payload: any = {
+      shop_id: debtShopId,
+      customer_name: trimmedName,
+      amount: amountValue,
+      payment_date: debtDate || new Date().toISOString().slice(0, 10),
+      notes: debtNotes.trim() || null,
+    };
+    if (debtDueDate) payload.due_date = debtDueDate;
+
+    const { error } = await supabase.from('debt_payments').insert(payload);
+    if (error) {
+      toast({ title: "Error", description: error.message || "Failed to save debt record", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Success", description: "Debt record added successfully" });
+    // Ensure debtor exists in customers table for the shop (create if missing)
+    try {
+      await supabase.from('customers').upsert({ name: trimmedName, shop_id: debtShopId }, { onConflict: 'name,shop_id' }).select();
+    } catch (e) {
+      // Non-fatal: log and continue
+      console.error('Failed to upsert customer for debtor:', e);
+    }
+    setDebtCustomerName('');
+    setDebtAmount('');
+    setDebtShopId('');
+    setDebtDate(new Date().toISOString().slice(0, 10));
+    setDebtDueDate('');
+    setDebtNotes('');
+    fetchDebtPayments();
+  };
+
   // Find and replace
   const handleFind = async () => {
     if (!findText.trim()) return;
@@ -501,6 +569,7 @@ const AdminTableEditor = () => {
           <TabsList>
             <TabsTrigger value="inventory">Inventory Management</TabsTrigger>
             <TabsTrigger value="sales">Sales Transactions</TabsTrigger>
+            <TabsTrigger value="debts">Debt Records</TabsTrigger>
             <TabsTrigger value="products">Product Management</TabsTrigger>
           </TabsList>
 
@@ -581,6 +650,96 @@ const AdminTableEditor = () => {
                     ))}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="debts">
+            <Card className="bg-white/80 backdrop-blur-sm border-green-200">
+              <CardHeader>
+                <CardTitle>Debt Records</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <Card className="border border-dashed border-slate-200 bg-slate-50 p-4">
+                    <CardHeader>
+                      <CardTitle className="text-base">Add New Debt</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-1 gap-3">
+                        <div className="space-y-1">
+                          <Label>Customer Name</Label>
+                          <Input value={debtCustomerName} onChange={(e) => setDebtCustomerName(e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Shop ID</Label>
+                          <Select value={debtShopId} onValueChange={setDebtShopId}>
+                            <SelectTrigger><SelectValue placeholder="Select shop" /></SelectTrigger>
+                            <SelectContent>
+                              {uniqueShops.map(shop => (
+                                <SelectItem key={shop} value={shop}>{shop}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Amount</Label>
+                          <Input type="number" step="0.01" value={debtAmount} onChange={(e) => setDebtAmount(e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Date (when debt was taken)</Label>
+                          <Input type="date" value={debtDate} onChange={(e) => setDebtDate(e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Due Date (optional)</Label>
+                          <Input type="date" value={debtDueDate} onChange={(e) => setDebtDueDate(e.target.value)} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Notes (optional)</Label>
+                          <Input value={debtNotes} onChange={(e) => setDebtNotes(e.target.value)} />
+                        </div>
+                        <Button onClick={saveDebtRecord}>Save Debt Record</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border border-dashed border-slate-200 bg-white p-4">
+                    <CardHeader>
+                      <CardTitle className="text-base">Recent Debt Records</CardTitle>
+                    </CardHeader>
+                    <CardContent className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Customer</TableHead>
+                            <TableHead>Shop</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                            <TableHead>Due Date</TableHead>
+                            <TableHead>Notes</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {debtPayments.map((debt) => (
+                            <TableRow key={debt.id}>
+                              <TableCell>{new Date(debt.payment_date).toLocaleDateString()}</TableCell>
+                              <TableCell>{debt.customer_name}</TableCell>
+                              <TableCell>{debt.shop_id}</TableCell>
+                              <TableCell className="text-right">{Number(debt.amount).toLocaleString()}</TableCell>
+                              <TableCell>{debt.due_date ? new Date(debt.due_date).toLocaleDateString() : '—'}</TableCell>
+                              <TableCell>{debt.notes || '—'}</TableCell>
+                            </TableRow>
+                          ))}
+                          {debtPayments.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-muted-foreground">No debt records yet.</TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

@@ -14,16 +14,23 @@ interface Props { shopFilter: string }
 
 const iso = (d: Date) => d.toISOString().split('T')[0];
 const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
-/** Monday-anchored week start for a given date. */
-const weekStart = (d: Date) => {
+const monthWeekStart = (d: Date) => {
   const x = startOfDay(d);
-  const day = (x.getDay() + 6) % 7; // Mon=0 … Sun=6
-  x.setDate(x.getDate() - day);
+  const day = x.getDate();
+  const weekStartDay = day <= 7 ? 1 : day <= 14 ? 8 : day <= 21 ? 15 : day <= 28 ? 22 : 29;
+  x.setDate(weekStartDay);
   return x;
 };
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const monthStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
 const monthEnd   = (d: Date) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
+const clampWeekAnchor = (week: Date, month: Date) => {
+  const start = monthStart(month);
+  const end = monthWeekStart(monthEnd(month));
+  if (week < start) return start;
+  if (week > end) return end;
+  return week;
+};
 const fmtKes = (n: number) => `KES ${Math.round(n).toLocaleString()}`;
 
 const fetchAllPages = async <T,>(build: () => any): Promise<T[]> => {
@@ -44,8 +51,8 @@ const fetchAllPages = async <T,>(build: () => any): Promise<T[]> => {
  *  • Monthly report: bags/money per product with MoM deltas + debt snapshot.
  */
 const AccountantReports: React.FC<Props> = ({ shopFilter }) => {
-  const [weekAnchor, setWeekAnchor] = useState<Date>(() => weekStart(new Date()));
   const [monthAnchor, setMonthAnchor] = useState<Date>(() => monthStart(new Date()));
+  const [weekAnchor, setWeekAnchor] = useState<Date>(() => monthWeekStart(new Date()));
 
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => iso(addDays(weekAnchor, i))), [weekAnchor]);
 
@@ -72,6 +79,10 @@ const AccountantReports: React.FC<Props> = ({ shopFilter }) => {
     }
     return allItems.map(it => ({ ...it, sale_date: dateById.get(it.transaction_id) }));
   };
+
+  useEffect(() => {
+    setWeekAnchor(monthWeekStart(monthAnchor));
+  }, [monthAnchor]);
 
   useEffect(() => {
     (async () => {
@@ -164,11 +175,11 @@ const AccountantReports: React.FC<Props> = ({ shopFilter }) => {
           <CardTitle className="text-base">Weekly performance — {weekDays[0]} → {weekDays[6]}</CardTitle>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => setWeekAnchor(addDays(weekAnchor, -7))}><ChevronLeft className="h-4 w-4" /></Button>
-            <Button size="sm" variant="outline" onClick={() => setWeekAnchor(weekStart(new Date()))}>This week</Button>
+            <Button size="sm" variant="outline" onClick={() => setWeekAnchor(monthWeekStart(new Date()))}>This week</Button>
             <Button size="sm" variant="outline" onClick={() => setWeekAnchor(addDays(weekAnchor, 7))}><ChevronRight className="h-4 w-4" /></Button>
             <div className="flex items-center gap-1">
-              <Label className="text-xs">Week of</Label>
-              <Input type="date" className="h-8 w-36" value={iso(weekAnchor)} onChange={e => { const d = new Date(e.target.value); if (!isNaN(d.getTime())) setWeekAnchor(weekStart(d)); }} />
+              <Label className="text-xs">Week chunk starts</Label>
+              <Input type="date" className="h-8 w-36" value={iso(weekAnchor)} onChange={e => { const d = new Date(e.target.value); if (!isNaN(d.getTime())) setWeekAnchor(monthWeekStart(d)); }} />
             </div>
           </div>
         </CardHeader>
