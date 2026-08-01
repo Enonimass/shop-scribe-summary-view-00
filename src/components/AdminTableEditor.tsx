@@ -65,6 +65,7 @@ const AdminTableEditor = () => {
   const [editingInventory, setEditingInventory] = useState<string | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<string | null>(null);
   const [editingSalesItems, setEditingSalesItems] = useState<Record<string, SalesItem>>({});
+  const [deletedSalesItemIds, setDeletedSalesItemIds] = useState<string[]>([]);
   const [editValues, setEditValues] = useState<any>({});
   const [customerFilter, setCustomerFilter] = useState('');
   const [shopFilter, setShopFilter] = useState('');
@@ -179,6 +180,7 @@ const AdminTableEditor = () => {
       itemsMap[item.id] = { ...item };
     });
     setEditingSalesItems(itemsMap);
+    setDeletedSalesItemIds([]);
   };
 
   const saveInventoryEdit = async () => {
@@ -239,6 +241,18 @@ const AdminTableEditor = () => {
         before: { payment_method_id: originalTx.payment_method_id, payment_method_name: originalTx.payment_method_name },
         after: { payment_method_id: payload.payment_method_id, payment_method_name: payload.payment_method_name },
       });
+    }
+
+    if (deletedSalesItemIds.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('sales_items')
+        .delete()
+        .in('id', deletedSalesItemIds);
+
+      if (deleteError) {
+        toast({ title: "Error", description: "Failed to remove deleted sale item(s)", variant: "destructive" });
+        return;
+      }
     }
 
     for (const itemId in editingSalesItems) {
@@ -333,6 +347,15 @@ const AdminTableEditor = () => {
     setEditingTransaction(null);
     setEditValues({});
     setEditingSalesItems({});
+    setDeletedSalesItemIds([]);
+  };
+
+  const deleteSalesItem = (itemId: string) => {
+    setEditingSalesItems((prev) => {
+      const { [itemId]: removed, ...remaining } = prev;
+      return remaining;
+    });
+    setDeletedSalesItemIds((prev) => prev.includes(itemId) ? prev : [...prev, itemId]);
   };
 
   // Find and replace
@@ -585,7 +608,10 @@ const AdminTableEditor = () => {
                   </TableHeader>
                   <TableBody>
                     {filteredTransactions.map((transaction) => {
-                      const totalQuantity = transaction.items.reduce((sum, item) => sum + item.quantity, 0);
+                      const itemsForDisplay = editingTransaction === transaction.id
+                        ? Object.values(editingSalesItems)
+                        : transaction.items;
+                      const totalQuantity = itemsForDisplay.reduce((sum, item) => sum + item.quantity, 0);
                       
                       return (
                         <TableRow key={transaction.id}>
@@ -628,7 +654,7 @@ const AdminTableEditor = () => {
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1">
-                              {transaction.items.map((item) => (
+                              {itemsForDisplay.map((item) => (
                                 <div key={item.id} className="text-sm">
                                   {editingTransaction === transaction.id ? (
                                     <div className="flex gap-1 items-center flex-wrap">
@@ -678,6 +704,9 @@ const AdminTableEditor = () => {
                                           [item.id]: { ...editingSalesItems[item.id], id: item.id, product: editingSalesItems[item.id]?.product || item.product, quantity: editingSalesItems[item.id]?.quantity || item.quantity, unit: editingSalesItems[item.id]?.unit || item.unit, unit_price: e.target.value === '' ? null : Number(e.target.value) }
                                         })}
                                       />
+                                      <Button size="sm" variant="destructive" onClick={() => deleteSalesItem(item.id)}>
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
                                     </div>
                                   ) : (
                                     <>
