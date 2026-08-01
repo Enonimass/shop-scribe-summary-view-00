@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { logAudit } from '@/lib/audit';
 import ProductCombobox from './ProductCombobox';
 import { CANONICAL_UNITS, normalizeUnit } from '@/lib/units';
+import DebtorsManager from './admin/DebtorsManager';
 
 interface InventoryItem {
   id: string;
@@ -569,9 +570,14 @@ const AdminTableEditor = () => {
           <TabsList>
             <TabsTrigger value="inventory">Inventory Management</TabsTrigger>
             <TabsTrigger value="sales">Sales Transactions</TabsTrigger>
+            <TabsTrigger value="debtors">Debtors</TabsTrigger>
             <TabsTrigger value="debts">Debt Records</TabsTrigger>
             <TabsTrigger value="products">Product Management</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="debtors">
+            <DebtorsManager shops={uniqueShops} />
+          </TabsContent>
 
           <TabsContent value="inventory">
             <Card className="bg-white/80 backdrop-blur-sm border-green-200">
