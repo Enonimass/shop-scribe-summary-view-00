@@ -199,7 +199,7 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
     } else {
       const { data, error } = await supabase
         .from('sales_transactions')
-        .insert({ ...payload, amount_paid: 0 })
+        .insert(payload)
         .select('id')
         .single();
       setSaving(false);
@@ -399,7 +399,9 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this debt entry?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget ? `${deleteTarget.customer_name} — ${fmtKes(deleteTarget._balance)} outstanding. This cannot be undone.` : ''}
+              {deleteTarget
+                ? `${deleteTarget.customer_name} — ${fmtKes(deleteTarget._balance)} outstanding.${deleteTarget._manual ? '' : ' This debt came from a sale, so the sale and its products will be removed too.'} This cannot be undone.`
+                : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
