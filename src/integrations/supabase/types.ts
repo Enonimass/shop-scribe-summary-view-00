@@ -56,6 +56,60 @@ export type Database = {
         }
         Relationships: []
       }
+      change_requests: {
+        Row: {
+          admin_notes: string | null
+          created_at: string
+          entity: string
+          entity_id: string | null
+          entity_label: string | null
+          id: string
+          reason: string
+          requested_change: string
+          requester: string
+          requester_role: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          shop_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string
+          entity: string
+          entity_id?: string | null
+          entity_label?: string | null
+          id?: string
+          reason: string
+          requested_change: string
+          requester: string
+          requester_role: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          shop_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string
+          entity?: string
+          entity_id?: string | null
+          entity_label?: string | null
+          id?: string
+          reason?: string
+          requested_change?: string
+          requester?: string
+          requester_role?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          shop_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           created_at: string
