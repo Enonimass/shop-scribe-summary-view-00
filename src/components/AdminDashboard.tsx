@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart, TrendingUp, Tag, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart, DollarSign, LayoutDashboard, Factory } from 'lucide-react';
+import { LogOut, Shield, Users, Store, BarChart3, Search, ShoppingCart, TrendingUp, Tag, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart, DollarSign, LayoutDashboard, Factory, MessageSquarePlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import UserManagement from './UserManagement';
 import AdminTableEditor from './AdminTableEditor';
@@ -22,6 +22,7 @@ import DebtorsList from './money/DebtorsList';
 import AdminOverview from './admin/AdminOverview';
 import FactoryInventory from './factory/FactoryInventory';
 import TripManager from './logistics/TripManager';
+import ChangeRequests from './ChangeRequests';
 import { Label } from '@/components/ui/label';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
 import MobileTabsNav from './MobileTabsNav';
@@ -388,6 +389,7 @@ const AdminDashboard = () => {
               { value: 'debtors', label: 'Debtors', icon: <Wallet className="h-4 w-4" /> },
               { value: 'factory', label: 'Factory', icon: <Factory className="h-4 w-4" /> },
               { value: 'trips', label: 'Trips', icon: <Truck className="h-4 w-4" /> },
+              { value: 'requests', label: 'Change Requests', icon: <MessageSquarePlus className="h-4 w-4" /> },
             ]}
           />
           <TabsList className="hidden md:flex flex-wrap w-full gap-1 h-auto p-1">
@@ -453,6 +455,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="trips" className="flex items-center gap-1 text-xs sm:text-sm">
               <Truck className="h-3 w-3 sm:h-4 sm:w-4" />
               Trips
+            </TabsTrigger>
+            <TabsTrigger value="requests" className="flex items-center gap-1 text-xs sm:text-sm">
+              <MessageSquarePlus className="h-3 w-3 sm:h-4 sm:w-4" />
+              Requests
             </TabsTrigger>
           </TabsList>
 
@@ -885,6 +891,10 @@ const AdminDashboard = () => {
 
           <TabsContent value="trips">
             <TripManager shops={shops} />
+          </TabsContent>
+
+          <TabsContent value="requests">
+            <ChangeRequests isAdmin />
           </TabsContent>
         </Tabs>
       </div>

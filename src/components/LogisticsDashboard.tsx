@@ -3,12 +3,13 @@ import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { LogOut, Truck, Shield, BarChart3, Factory } from 'lucide-react';
+import { LogOut, Truck, Shield, BarChart3, Factory, MessageSquarePlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import DeliveryNoteManager from './logistics/DeliveryNoteManager';
 import MovementReport from './logistics/MovementReport';
 import TripManager from './logistics/TripManager';
 import FactoryInventory from './factory/FactoryInventory';
+import ChangeRequests from './ChangeRequests';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
 import MobileTabsNav from './MobileTabsNav';
 
@@ -84,6 +85,7 @@ const LogisticsDashboard = () => {
               { value: 'factory', label: 'Factory Stock', icon: <Factory className="h-4 w-4" /> },
               { value: 'deliveries', label: 'Delivery Notes', icon: <Truck className="h-4 w-4" /> },
               { value: 'movement', label: 'Movement Report', icon: <BarChart3 className="h-4 w-4" /> },
+              { value: 'requests', label: 'Change Requests', icon: <MessageSquarePlus className="h-4 w-4" /> },
             ]}
           />
           <TabsList className="hidden md:flex">
@@ -98,6 +100,9 @@ const LogisticsDashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="movement" className="flex items-center gap-1">
               <BarChart3 className="h-4 w-4" /> Movement Report
+            </TabsTrigger>
+            <TabsTrigger value="requests" className="flex items-center gap-1">
+              <MessageSquarePlus className="h-4 w-4" /> Change Requests
             </TabsTrigger>
           </TabsList>
 
@@ -115,6 +120,10 @@ const LogisticsDashboard = () => {
 
           <TabsContent value="movement">
             <MovementReport shops={shops} />
+          </TabsContent>
+
+          <TabsContent value="requests">
+            <ChangeRequests />
           </TabsContent>
         </Tabs>
       </div>

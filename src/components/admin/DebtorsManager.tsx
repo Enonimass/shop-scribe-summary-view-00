@@ -37,12 +37,14 @@ interface FormState {
   customer_name: string;
   shop_id: string;
   amount: string;
+  amount_paid: string;
   sale_date: string;
   due_date: string;
   notes: string;
+  manual?: boolean;
 }
 
-const emptyForm = (): FormState => ({ customer_name: '', shop_id: '', amount: '', sale_date: today(), due_date: '', notes: '' });
+const emptyForm = (): FormState => ({ customer_name: '', shop_id: '', amount: '', amount_paid: '0', sale_date: today(), due_date: '', notes: '', manual: true });
 
 /**
  * Admin CRUD over debtors. Manual entries are stored as credit sales_transactions
@@ -146,9 +148,11 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
       customer_name: r.customer_name || '',
       shop_id: r.shop_id || '',
       amount: String(Number(r.total_amount || 0)),
+      amount_paid: String(Number(r.amount_paid || 0)),
       sale_date: r.sale_date || today(),
       due_date: r.due_date || '',
       notes: r.product || '',
+      manual: !!r._manual,
     });
     setDialogOpen(true);
   };
@@ -161,28 +165,41 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
     if (!amount || Number.isNaN(amount) || amount <= 0) return toast({ title: 'Amount must be greater than zero', variant: 'destructive' });
 
     setSaving(true);
+    const paid = Number(form.amount_paid || 0);
     const payload: any = {
       customer_name: name,
       shop_id: form.shop_id,
       sale_date: form.sale_date || today(),
       due_date: form.due_date || null,
       total_amount: amount,
+      amount_paid: Number.isNaN(paid) ? 0 : paid,
       is_credit: true,
-      sale_type: OPENING_BALANCE_TYPE,
-      product: form.notes || null,
     };
+    if (form.manual !== false) {
+      // Only manual entries carry the opening-balance marker and free-text note.
+      payload.sale_type = OPENING_BALANCE_TYPE;
+      payload.product = form.notes || null;
+    }
 
     if (form.id) {
       const before = rows.find((r) => r.id === form.id);
       const { error } = await supabase.from('sales_transactions').update(payload).eq('id', form.id);
       setSaving(false);
       if (error) return toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
-      logAudit({ action: 'update', entity: 'debtor', entity_id: form.id, shop_id: form.shop_id, before, after: payload });
+      logAudit({
+        action: 'update',
+        entity: 'debtor',
+        entity_id: form.id,
+        shop_id: form.shop_id,
+        before,
+        after: payload,
+        notes: form.manual === false ? 'Edited a sale-generated debt from the Debtors tab' : 'Edited a manual debt entry',
+      });
       toast({ title: 'Debtor updated' });
     } else {
       const { data, error } = await supabase
         .from('sales_transactions')
-        .insert({ ...payload, amount_paid: 0 })
+        .insert(payload)
         .select('id')
         .single();
       setSaving(false);
@@ -205,7 +222,14 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
     if (!r) return;
     const { error } = await supabase.from('sales_transactions').delete().eq('id', r.id);
     if (error) return toast({ title: 'Delete failed', description: error.message, variant: 'destructive' });
-    logAudit({ action: 'delete', entity: 'debtor', entity_id: r.id, shop_id: r.shop_id, before: r });
+      logAudit({
+        action: 'delete',
+        entity: 'debtor',
+        entity_id: r.id,
+        shop_id: r.shop_id,
+        before: r,
+        notes: r._manual ? 'Deleted a manual debt entry' : 'Deleted a sale-generated debt (its sale items were removed too)',
+      });
     toast({ title: 'Debt entry deleted' });
     load();
   };
@@ -291,14 +315,10 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
                     <Badge variant={r._manual ? 'secondary' : 'outline'}>{r._manual ? 'Manual' : 'Sale'}</Badge>
                   </TableCell>
                   <TableCell>
-                    {r._manual ? (
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="outline" onClick={() => openEdit(r)}><Edit className="w-3.5 h-3.5" /></Button>
-                        <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(r)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                      </div>
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground">Edit in Sales</span>
-                    )}
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="outline" onClick={() => openEdit(r)}><Edit className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(r)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -314,6 +334,11 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
         <DialogContent>
           <DialogHeader><DialogTitle>{form.id ? 'Edit debtor' : 'Add debtor'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            {form.id && form.manual === false && (
+              <p className="text-xs rounded-md border border-amber-300 bg-amber-50 text-amber-800 p-2">
+                This debt came from a sale. Changing the amount here overrides the total calculated from its products — every edit is written to the audit log.
+              </p>
+            )}
             <div className="space-y-1">
               <Label>Customer name</Label>
               <Input
@@ -341,6 +366,10 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
                 <Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
               </div>
               <div className="space-y-1">
+                <Label>Paid on the sale (KES)</Label>
+                <Input type="number" step="0.01" value={form.amount_paid} onChange={(e) => setForm({ ...form, amount_paid: e.target.value })} />
+              </div>
+              <div className="space-y-1">
                 <Label>Date issued</Label>
                 <Input type="date" value={form.sale_date} onChange={(e) => setForm({ ...form, sale_date: e.target.value })} />
               </div>
@@ -348,10 +377,12 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
                 <Label>Due date</Label>
                 <Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
               </div>
-              <div className="space-y-1">
-                <Label>Note (optional)</Label>
-                <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-              </div>
+              {form.manual !== false && (
+                <div className="space-y-1">
+                  <Label>Note (optional)</Label>
+                  <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -368,7 +399,9 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this debt entry?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget ? `${deleteTarget.customer_name} — ${fmtKes(deleteTarget._balance)} outstanding. This cannot be undone.` : ''}
+              {deleteTarget
+                ? `${deleteTarget.customer_name} — ${fmtKes(deleteTarget._balance)} outstanding.${deleteTarget._manual ? '' : ' This debt came from a sale, so the sale and its products will be removed too.'} This cannot be undone.`
+                : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

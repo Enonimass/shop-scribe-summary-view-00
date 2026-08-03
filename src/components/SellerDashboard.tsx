@@ -12,7 +12,8 @@ import DeliveryNoteManager from './logistics/DeliveryNoteManager';
 import DebtPaymentForm from './money/DebtPaymentForm';
 import DailyReport from './money/DailyReport';
 import SellerSummary from './seller/SellerSummary';
-import { LogOut, Store, User, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart, LayoutDashboard } from 'lucide-react';
+import ChangeRequests from './ChangeRequests';
+import { LogOut, Store, User, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart, LayoutDashboard, MessageSquarePlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import MobileTabsNav, { MobileTabItem } from './MobileTabsNav';
 
@@ -122,6 +123,7 @@ const SellerDashboard = () => {
               { value: 'customer-analytics', label: 'Customer Analytics' },
               { value: 'debts', label: 'Debts', icon: <Wallet className="h-4 w-4" /> },
               { value: 'daily-report', label: 'Daily Report', icon: <FileBarChart className="h-4 w-4" /> },
+              { value: 'requests', label: 'Change Requests', icon: <MessageSquarePlus className="h-4 w-4" /> },
             ]}
           />
           <TabsList className="hidden md:flex flex-wrap w-full gap-1 h-auto p-1 bg-white/80 backdrop-blur-sm">
@@ -136,6 +138,7 @@ const SellerDashboard = () => {
             <TabsTrigger value="customer-analytics" className="text-xs sm:text-sm">Customer Analytics</TabsTrigger>
             <TabsTrigger value="debts" className="text-xs sm:text-sm flex items-center gap-1"><Wallet className="h-3 w-3" /> Debts</TabsTrigger>
             <TabsTrigger value="daily-report" className="text-xs sm:text-sm flex items-center gap-1"><FileBarChart className="h-3 w-3" /> Daily Report</TabsTrigger>
+            <TabsTrigger value="requests" className="text-xs sm:text-sm flex items-center gap-1"><MessageSquarePlus className="h-3 w-3" /> Change Requests</TabsTrigger>
           </TabsList>
 
           <TabsContent value="summary">
@@ -187,6 +190,10 @@ const SellerDashboard = () => {
               shops={[{ shop_id: shopId, shop_name: profile?.shop_name || '' }]}
               defaultShop={shopId}
             />
+          </TabsContent>
+
+          <TabsContent value="requests">
+            <ChangeRequests shopId={shopId} />
           </TabsContent>
         </Tabs>
       </div>
