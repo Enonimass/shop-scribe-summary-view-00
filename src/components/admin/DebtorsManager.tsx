@@ -315,14 +315,10 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
                     <Badge variant={r._manual ? 'secondary' : 'outline'}>{r._manual ? 'Manual' : 'Sale'}</Badge>
                   </TableCell>
                   <TableCell>
-                    {r._manual ? (
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="outline" onClick={() => openEdit(r)}><Edit className="w-3.5 h-3.5" /></Button>
-                        <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(r)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                      </div>
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground">Edit in Sales</span>
-                    )}
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="outline" onClick={() => openEdit(r)}><Edit className="w-3.5 h-3.5" /></Button>
+                      <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(r)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -338,6 +334,11 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
         <DialogContent>
           <DialogHeader><DialogTitle>{form.id ? 'Edit debtor' : 'Add debtor'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            {form.id && form.manual === false && (
+              <p className="text-xs rounded-md border border-amber-300 bg-amber-50 text-amber-800 p-2">
+                This debt came from a sale. Changing the amount here overrides the total calculated from its products — every edit is written to the audit log.
+              </p>
+            )}
             <div className="space-y-1">
               <Label>Customer name</Label>
               <Input
@@ -365,6 +366,10 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
                 <Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
               </div>
               <div className="space-y-1">
+                <Label>Paid on the sale (KES)</Label>
+                <Input type="number" step="0.01" value={form.amount_paid} onChange={(e) => setForm({ ...form, amount_paid: e.target.value })} />
+              </div>
+              <div className="space-y-1">
                 <Label>Date issued</Label>
                 <Input type="date" value={form.sale_date} onChange={(e) => setForm({ ...form, sale_date: e.target.value })} />
               </div>
@@ -372,10 +377,12 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
                 <Label>Due date</Label>
                 <Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
               </div>
-              <div className="space-y-1">
-                <Label>Note (optional)</Label>
-                <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-              </div>
+              {form.manual !== false && (
+                <div className="space-y-1">
+                  <Label>Note (optional)</Label>
+                  <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
