@@ -612,49 +612,10 @@ const AdminTableEditor = () => {
                 <CardTitle>Debt Records</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <Card className="border border-dashed border-slate-200 bg-slate-50 p-4">
-                    <CardHeader>
-                      <CardTitle className="text-base">Add New Debt</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="grid grid-cols-1 gap-3">
-                        <div className="space-y-1">
-                          <Label>Customer Name</Label>
-                          <Input value={debtCustomerName} onChange={(e) => setDebtCustomerName(e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Shop ID</Label>
-                          <Select value={debtShopId} onValueChange={setDebtShopId}>
-                            <SelectTrigger><SelectValue placeholder="Select shop" /></SelectTrigger>
-                            <SelectContent>
-                              {uniqueShops.map(shop => (
-                                <SelectItem key={shop} value={shop}>{shop}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Amount</Label>
-                          <Input type="number" step="0.01" value={debtAmount} onChange={(e) => setDebtAmount(e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Date (when debt was taken)</Label>
-                          <Input type="date" value={debtDate} onChange={(e) => setDebtDate(e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Due Date (optional)</Label>
-                          <Input type="date" value={debtDueDate} onChange={(e) => setDebtDueDate(e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Notes (optional)</Label>
-                          <Input value={debtNotes} onChange={(e) => setDebtNotes(e.target.value)} />
-                        </div>
-                        <Button onClick={saveDebtRecord}>Save Debt Record</Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-
+                <div className="grid grid-cols-1 gap-4">
+                  <p className="text-xs text-muted-foreground">
+                    Debts are added and edited in the <span className="font-medium">Debtors</span> tab. This list is read-only history of recorded debt payments.
+                  </p>
                   <Card className="border border-dashed border-slate-200 bg-white p-4">
                     <CardHeader>
                       <CardTitle className="text-base">Recent Debt Records</CardTitle>
