@@ -37,12 +37,14 @@ interface FormState {
   customer_name: string;
   shop_id: string;
   amount: string;
+  amount_paid: string;
   sale_date: string;
   due_date: string;
   notes: string;
+  manual?: boolean;
 }
 
-const emptyForm = (): FormState => ({ customer_name: '', shop_id: '', amount: '', sale_date: today(), due_date: '', notes: '' });
+const emptyForm = (): FormState => ({ customer_name: '', shop_id: '', amount: '', amount_paid: '0', sale_date: today(), due_date: '', notes: '', manual: true });
 
 /**
  * Admin CRUD over debtors. Manual entries are stored as credit sales_transactions
@@ -146,9 +148,11 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
       customer_name: r.customer_name || '',
       shop_id: r.shop_id || '',
       amount: String(Number(r.total_amount || 0)),
+      amount_paid: String(Number(r.amount_paid || 0)),
       sale_date: r.sale_date || today(),
       due_date: r.due_date || '',
       notes: r.product || '',
+      manual: !!r._manual,
     });
     setDialogOpen(true);
   };
@@ -161,23 +165,36 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
     if (!amount || Number.isNaN(amount) || amount <= 0) return toast({ title: 'Amount must be greater than zero', variant: 'destructive' });
 
     setSaving(true);
+    const paid = Number(form.amount_paid || 0);
     const payload: any = {
       customer_name: name,
       shop_id: form.shop_id,
       sale_date: form.sale_date || today(),
       due_date: form.due_date || null,
       total_amount: amount,
+      amount_paid: Number.isNaN(paid) ? 0 : paid,
       is_credit: true,
-      sale_type: OPENING_BALANCE_TYPE,
-      product: form.notes || null,
     };
+    if (form.manual !== false) {
+      // Only manual entries carry the opening-balance marker and free-text note.
+      payload.sale_type = OPENING_BALANCE_TYPE;
+      payload.product = form.notes || null;
+    }
 
     if (form.id) {
       const before = rows.find((r) => r.id === form.id);
       const { error } = await supabase.from('sales_transactions').update(payload).eq('id', form.id);
       setSaving(false);
       if (error) return toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
-      logAudit({ action: 'update', entity: 'debtor', entity_id: form.id, shop_id: form.shop_id, before, after: payload });
+      logAudit({
+        action: 'update',
+        entity: 'debtor',
+        entity_id: form.id,
+        shop_id: form.shop_id,
+        before,
+        after: payload,
+        notes: form.manual === false ? 'Edited a sale-generated debt from the Debtors tab' : 'Edited a manual debt entry',
+      });
       toast({ title: 'Debtor updated' });
     } else {
       const { data, error } = await supabase
@@ -205,7 +222,14 @@ const DebtorsManager: React.FC<Props> = ({ shops = [] }) => {
     if (!r) return;
     const { error } = await supabase.from('sales_transactions').delete().eq('id', r.id);
     if (error) return toast({ title: 'Delete failed', description: error.message, variant: 'destructive' });
-    logAudit({ action: 'delete', entity: 'debtor', entity_id: r.id, shop_id: r.shop_id, before: r });
+      logAudit({
+        action: 'delete',
+        entity: 'debtor',
+        entity_id: r.id,
+        shop_id: r.shop_id,
+        before: r,
+        notes: r._manual ? 'Deleted a manual debt entry' : 'Deleted a sale-generated debt (its sale items were removed too)',
+      });
     toast({ title: 'Debt entry deleted' });
     load();
   };
