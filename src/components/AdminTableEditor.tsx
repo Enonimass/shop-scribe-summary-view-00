@@ -68,12 +68,6 @@ const AdminTableEditor = () => {
   const [editingSalesItems, setEditingSalesItems] = useState<Record<string, SalesItem>>({});
   const [deletedSalesItemIds, setDeletedSalesItemIds] = useState<string[]>([]);
   const [debtPayments, setDebtPayments] = useState<any[]>([]);
-  const [debtCustomerName, setDebtCustomerName] = useState('');
-  const [debtAmount, setDebtAmount] = useState('');
-  const [debtShopId, setDebtShopId] = useState('');
-  const [debtDate, setDebtDate] = useState(new Date().toISOString().slice(0, 10));
-  const [debtDueDate, setDebtDueDate] = useState('');
-  const [debtNotes, setDebtNotes] = useState('');
   const [editValues, setEditValues] = useState<any>({});
   const [customerFilter, setCustomerFilter] = useState('');
   const [shopFilter, setShopFilter] = useState('');
