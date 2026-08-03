@@ -379,54 +379,6 @@ const AdminTableEditor = () => {
     setDeletedSalesItemIds((prev) => prev.includes(itemId) ? prev : [...prev, itemId]);
   };
 
-  const saveDebtRecord = async () => {
-    const trimmedName = debtCustomerName.trim();
-    const amountValue = Number(debtAmount);
-    if (!trimmedName) {
-      toast({ title: "Missing field", description: "Customer name is required", variant: "destructive" });
-      return;
-    }
-    if (!debtShopId) {
-      toast({ title: "Missing field", description: "Shop is required", variant: "destructive" });
-      return;
-    }
-    if (!debtAmount || Number.isNaN(amountValue) || amountValue <= 0) {
-      toast({ title: "Missing field", description: "Amount must be greater than zero", variant: "destructive" });
-      return;
-    }
-
-    const payload: any = {
-      shop_id: debtShopId,
-      customer_name: trimmedName,
-      amount: amountValue,
-      payment_date: debtDate || new Date().toISOString().slice(0, 10),
-      notes: debtNotes.trim() || null,
-    };
-    if (debtDueDate) payload.due_date = debtDueDate;
-
-    const { error } = await supabase.from('debt_payments').insert(payload);
-    if (error) {
-      toast({ title: "Error", description: error.message || "Failed to save debt record", variant: "destructive" });
-      return;
-    }
-
-    toast({ title: "Success", description: "Debt record added successfully" });
-    // Ensure debtor exists in customers table for the shop (create if missing)
-    try {
-      await supabase.from('customers').upsert({ name: trimmedName, shop_id: debtShopId }, { onConflict: 'name,shop_id' }).select();
-    } catch (e) {
-      // Non-fatal: log and continue
-      console.error('Failed to upsert customer for debtor:', e);
-    }
-    setDebtCustomerName('');
-    setDebtAmount('');
-    setDebtShopId('');
-    setDebtDate(new Date().toISOString().slice(0, 10));
-    setDebtDueDate('');
-    setDebtNotes('');
-    fetchDebtPayments();
-  };
-
   // Find and replace
   const handleFind = async () => {
     if (!findText.trim()) return;
