@@ -365,8 +365,8 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
     <div className="space-y-4">
       <div className="flex justify-between items-center flex-wrap gap-2">
         <div>
-          <h2 className="text-xl font-bold flex items-center gap-2"><Truck className="h-5 w-5" /> Delivery Notes (legacy)</h2>
-          <p className="text-sm text-muted-foreground">New delivery notes are now created inside a Trip. This list shows historical notes only.</p>
+          <h2 className="text-xl font-bold flex items-center gap-2"><Truck className="h-5 w-5" /> Delivery Notes</h2>
+          <p className="text-sm text-muted-foreground">Logistics dispatches a note, the shop accepts (stock enters inventory) or rejects with a reason for correction.</p>
         </div>
         {canCreate && (
           <Button onClick={() => setShowCreate(true)}>
@@ -560,6 +560,11 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
                     Seller: {openNote.seller_confirmed_at ? `${openNote.seller_confirmed_by} · ${new Date(openNote.seller_confirmed_at).toLocaleString()}` : 'pending'}
                   </div>
                   {openNote.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {openNote.notes}</div>}
+                  {openNote.rejection_reason && (
+                    <div className="col-span-2 p-2 rounded-md border border-destructive/40 bg-destructive/10 text-xs">
+                      <span className="font-semibold">Rejected by {openNote.rejected_by}:</span> {openNote.rejection_reason}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center justify-between flex-wrap gap-2 p-2 rounded-md bg-muted/50 text-sm">
                   <div><span className="font-semibold">Totals per unit:</span> {formatTotals(openNote) || '—'}</div>
@@ -595,3 +600,4 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
 };
 
 export default DeliveryNoteManager;
+
