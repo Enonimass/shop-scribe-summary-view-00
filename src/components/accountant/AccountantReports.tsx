@@ -12,7 +12,14 @@ import { cn } from '@/lib/utils';
 
 interface Props { shopFilter: string }
 
-const iso = (d: Date) => d.toISOString().split('T')[0];
+/** Local-time ISO date (YYYY-MM-DD) — avoids the UTC shift of toISOString(). */
+const iso = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+const pos = (n: number) => (n > 0 ? n : 0);
 const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
 const monthWeekStart = (d: Date) => {
   const x = startOfDay(d);
@@ -47,7 +54,11 @@ const clampWeekAnchor = (week: Date, month: Date) => {
   if (week > end) return end;
   return week;
 };
-const fmtKes = (n: number) => `KES ${Math.round(n).toLocaleString()}`;
+const fmtKes = (n: number) => {
+  const v = pos(n);
+  const r = Math.round(v * 100) / 100;
+  return `KES ${r.toLocaleString(undefined, { minimumFractionDigits: r % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`;
+};
 
 const fetchAllPages = async <T,>(build: () => any): Promise<T[]> => {
   const PAGE = 1000; let page = 0; let all: T[] = [];
@@ -171,8 +182,8 @@ const AccountantReports: React.FC<Props> = ({ shopFilter }) => {
       const prev = prevTotals.get(product) || { bags: 0, money: 0 };
       return {
         product,
-        bags: cur.bags, prevBags: prev.bags, bagsDelta: cur.bags - prev.bags,
-        money: cur.money, prevMoney: prev.money, moneyDelta: cur.money - prev.money,
+        bags: pos(cur.bags), prevBags: pos(prev.bags), bagsDelta: pos(cur.bags) - pos(prev.bags),
+        money: pos(cur.money), prevMoney: pos(prev.money), moneyDelta: pos(cur.money) - pos(prev.money),
       };
     }).sort((a, b) => b.money - a.money);
   }, [monthTotals, prevTotals]);
@@ -183,10 +194,13 @@ const AccountantReports: React.FC<Props> = ({ shopFilter }) => {
   const DeltaCell = ({ delta, mode }: { delta: number; mode: 'bags' | 'money' }) => {
     const up = delta > 0.01, down = delta < -0.01;
     const Icon = up ? TrendingUp : down ? TrendingDown : Minus;
-    const text = mode === 'bags' ? formatBags(Math.abs(delta)) : Math.round(Math.abs(delta)).toLocaleString();
+    const abs = Math.abs(delta);
+    const text = mode === 'bags'
+      ? formatBags(abs)
+      : (Math.round(abs * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
     return (
       <span className={cn('inline-flex items-center gap-1 tabular-nums', up ? 'text-green-600' : down ? 'text-destructive' : 'text-muted-foreground')}>
-        <Icon className="h-3.5 w-3.5" /> {up ? '+' : down ? '−' : ''}{text}
+        <Icon className="h-3.5 w-3.5" /> {text}
       </span>
     );
   };
