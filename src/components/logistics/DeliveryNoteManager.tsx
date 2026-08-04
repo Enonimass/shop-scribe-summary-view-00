@@ -413,15 +413,25 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
                           <Button size="sm" variant="outline" onClick={() => printNotePDF(n)}>
                             <Printer className="h-3 w-3 mr-1" /> PDF
                           </Button>
-                          {profile?.role === 'logistics' && !n.logistics_confirmed_at && (
-                            <Button size="sm" variant="default" onClick={() => confirmAsLogistics(n)}>
-                              <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm (Logistics)
-                            </Button>
+                          {(profile?.role === 'logistics' || profile?.role === 'admin') && (n.status === 'draft' || n.status === 'rejected') && (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => openEdit(n)}>
+                                <Pencil className="h-3 w-3 mr-1" /> Edit
+                              </Button>
+                              <Button size="sm" variant="default" disabled={busy} onClick={() => dispatchNote(n)}>
+                                <Send className="h-3 w-3 mr-1" /> {n.status === 'rejected' ? 'Re-dispatch' : 'Dispatch'}
+                              </Button>
+                            </>
                           )}
-                          {profile?.role === 'seller' && !n.seller_confirmed_at && (
-                            <Button size="sm" variant="default" onClick={() => confirmAsSeller(n)}>
-                              <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm Receipt
-                            </Button>
+                          {profile?.role === 'seller' && n.status === 'dispatched' && (
+                            <>
+                              <Button size="sm" variant="default" disabled={busy} onClick={() => approveNote(n)}>
+                                <CheckCircle2 className="h-3 w-3 mr-1" /> Accept
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => { setRejectNote(n); setRejectReason(''); }}>
+                                <XCircle className="h-3 w-3 mr-1" /> Reject
+                              </Button>
+                            </>
                           )}
                           {profile?.role === 'admin' && (
                             <Button size="sm" variant="ghost" onClick={() => deleteNote(n.id)}>
