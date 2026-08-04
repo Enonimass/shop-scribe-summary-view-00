@@ -595,6 +595,84 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Reject dialog (shop) */}
+      <Dialog open={!!rejectNote} onOpenChange={o => { if (!o) { setRejectNote(null); setRejectReason(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><XCircle className="h-5 w-5 text-destructive" /> Reject delivery {rejectNote?.delivery_note_no}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>What is wrong?</Label>
+            <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. only 8 bags received instead of 10, wrong product" />
+            <p className="text-xs text-muted-foreground">Nothing is added to your inventory. Logistics will correct the note and re-dispatch it.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectNote(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={busy} onClick={submitReject}>Reject delivery</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit dialog (logistics correcting a note) */}
+      <Dialog open={!!editNote} onOpenChange={o => { if (!o) setEditNote(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Pencil className="h-5 w-5" /> Edit delivery {editNote?.delivery_note_no}</DialogTitle>
+          </DialogHeader>
+          {editNote?.rejection_reason && (
+            <div className="p-2 rounded-md border border-destructive/40 bg-destructive/10 text-xs">
+              <span className="font-semibold">Shop rejected:</span> {editNote.rejection_reason}
+            </div>
+          )}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-base">Products</Label>
+              <Button type="button" size="sm" variant="outline" onClick={() => setEditItems([...editItems, { product: '', quantity: '', unit: 'bags' }])}>
+                <Plus className="h-3 w-3 mr-1" /> Add product
+              </Button>
+            </div>
+            {editItems.map((it, i) => (
+              <div key={i} className="grid grid-cols-12 gap-2 items-end">
+                <div className="col-span-5 space-y-1">
+                  <Label className="text-xs">Product</Label>
+                  <Select value={it.product} onValueChange={v => setEditItems(editItems.map((x, idx) => idx === i ? { ...x, product: v } : x))}>
+                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      {products.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-3 space-y-1">
+                  <Label className="text-xs">Quantity</Label>
+                  <Input type="number" min="0" step="0.01" value={it.quantity} onChange={e => setEditItems(editItems.map((x, idx) => idx === i ? { ...x, quantity: e.target.value } : x))} />
+                </div>
+                <div className="col-span-3 space-y-1">
+                  <Label className="text-xs">Unit</Label>
+                  <Select value={it.unit} onValueChange={v => setEditItems(editItems.map((x, idx) => idx === i ? { ...x, unit: v } : x))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CANONICAL_UNITS.map(u => <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-1">
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter((_, idx) => idx !== i))}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditNote(null)}>Cancel</Button>
+            <Button variant="secondary" disabled={busy} onClick={() => saveEdit(false)}>Save only</Button>
+            <Button disabled={busy} onClick={() => saveEdit(true)}>
+              <Send className="h-4 w-4 mr-1" /> Save &amp; dispatch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
