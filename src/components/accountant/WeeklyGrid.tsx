@@ -49,8 +49,11 @@ const WeeklyGrid: React.FC<WeeklyGridProps> = ({ days, rows, mode, title }) => {
   }, [rows, days, mode]);
 
   const fmt = (n: number) => {
-    if (!n) return '';
-    return mode === 'bags' ? formatBags(n) : Math.round(n).toLocaleString();
+    const v = n > 0 ? n : 0;
+    if (!v) return '';
+    if (mode === 'bags') return formatBags(v);
+    const r = Math.round(v * 100) / 100;
+    return r.toLocaleString(undefined, { minimumFractionDigits: r % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 });
   };
 
   const cellShade = (v: number, rowPeak: number) => {
