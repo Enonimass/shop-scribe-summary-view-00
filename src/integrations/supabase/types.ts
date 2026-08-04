@@ -244,15 +244,22 @@ export type Database = {
       delivery_notes: {
         Row: {
           added_to_inventory_at: string | null
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           created_by: string | null
           delivered_by: string
           delivery_date: string
           delivery_note_no: string
+          dispatched_at: string | null
+          dispatched_by: string | null
           id: string
           logistics_confirmed_at: string | null
           logistics_confirmed_by: string | null
           notes: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
           seller_confirmed_at: string | null
           seller_confirmed_by: string | null
           shop_id: string
@@ -263,15 +270,22 @@ export type Database = {
         }
         Insert: {
           added_to_inventory_at?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           created_by?: string | null
           delivered_by: string
           delivery_date?: string
           delivery_note_no: string
+          dispatched_at?: string | null
+          dispatched_by?: string | null
           id?: string
           logistics_confirmed_at?: string | null
           logistics_confirmed_by?: string | null
           notes?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           seller_confirmed_at?: string | null
           seller_confirmed_by?: string | null
           shop_id: string
@@ -282,15 +296,22 @@ export type Database = {
         }
         Update: {
           added_to_inventory_at?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           created_by?: string | null
           delivered_by?: string
           delivery_date?: string
           delivery_note_no?: string
+          dispatched_at?: string | null
+          dispatched_by?: string | null
           id?: string
           logistics_confirmed_at?: string | null
           logistics_confirmed_by?: string | null
           notes?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           seller_confirmed_at?: string | null
           seller_confirmed_by?: string | null
           shop_id?: string
@@ -685,6 +706,51 @@ export type Database = {
           sale_type?: string
           shop_id?: string
           total_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shop_returns: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          product: string
+          quantity: number
+          reason: string
+          recorded_by: string | null
+          return_date: string
+          shop_id: string
+          status: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product: string
+          quantity?: number
+          reason: string
+          recorded_by?: string | null
+          return_date?: string
+          shop_id: string
+          status?: string
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          product?: string
+          quantity?: number
+          reason?: string
+          recorded_by?: string | null
+          return_date?: string
+          shop_id?: string
+          status?: string
+          unit?: string
           updated_at?: string
         }
         Relationships: []
