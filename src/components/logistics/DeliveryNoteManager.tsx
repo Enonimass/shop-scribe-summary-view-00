@@ -7,14 +7,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Trash2, Truck, CheckCircle2, Clock, Package, Printer } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Plus, Trash2, Truck, CheckCircle2, Clock, Package, Printer, Send, XCircle, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/components/AuthProvider';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
-import { CANONICAL_UNITS } from '@/lib/units';
+import { CANONICAL_UNITS, canonicalUnitKey, normalizeUnit } from '@/lib/units';
+import { logAudit } from '@/lib/audit';
 
 interface Shop { shop_id: string; shop_name: string }
 interface LineItem { product: string; quantity: string; unit: string }
@@ -29,6 +31,9 @@ interface Props {
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-yellow-500 text-white' },
+  dispatched: { label: 'Dispatched — awaiting shop', className: 'bg-blue-500 text-white' },
+  approved: { label: 'Approved & in inventory', className: 'bg-green-600 text-white' },
+  rejected: { label: 'Rejected by shop', className: 'bg-destructive text-destructive-foreground' },
   logistics_confirmed: { label: 'Logistics Confirmed', className: 'bg-blue-500 text-white' },
   seller_confirmed: { label: 'Seller Confirmed', className: 'bg-purple-500 text-white' },
   added_to_inventory: { label: 'Added to Inventory', className: 'bg-green-600 text-white' },
