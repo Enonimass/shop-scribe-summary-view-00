@@ -7,14 +7,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Trash2, Truck, CheckCircle2, Clock, Package, Printer } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Plus, Trash2, Truck, CheckCircle2, Clock, Package, Printer, Send, XCircle, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/components/AuthProvider';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import kimpFeedsLogo from '@/assets/kimp-feeds-logo.jpeg';
-import { CANONICAL_UNITS } from '@/lib/units';
+import { CANONICAL_UNITS, canonicalUnitKey, normalizeUnit } from '@/lib/units';
+import { logAudit } from '@/lib/audit';
 
 interface Shop { shop_id: string; shop_name: string }
 interface LineItem { product: string; quantity: string; unit: string }
@@ -29,6 +31,9 @@ interface Props {
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-yellow-500 text-white' },
+  dispatched: { label: 'Dispatched — awaiting shop', className: 'bg-blue-500 text-white' },
+  approved: { label: 'Approved & in inventory', className: 'bg-green-600 text-white' },
+  rejected: { label: 'Rejected by shop', className: 'bg-destructive text-destructive-foreground' },
   logistics_confirmed: { label: 'Logistics Confirmed', className: 'bg-blue-500 text-white' },
   seller_confirmed: { label: 'Seller Confirmed', className: 'bg-purple-500 text-white' },
   added_to_inventory: { label: 'Added to Inventory', className: 'bg-green-600 text-white' },
@@ -51,6 +56,13 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
 
   // Detail dialog
   const [openNote, setOpenNote] = useState<any | null>(null);
+  // Edit dialog (logistics correcting a rejected note)
+  const [editNote, setEditNote] = useState<any | null>(null);
+  const [editItems, setEditItems] = useState<LineItem[]>([]);
+  // Reject dialog (shop rejecting a dispatched note)
+  const [rejectNote, setRejectNote] = useState<any | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => { fetchNotes(); fetchProducts(); }, [scopedShopId]);
 
@@ -113,12 +125,7 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
         delivered_by: formDeliveredBy,
         notes: formNotes || null,
         created_by: profile?.username || null,
-        status: 'added_to_inventory',
-        logistics_confirmed_at: new Date().toISOString(),
-        logistics_confirmed_by: profile?.username || 'auto',
-        seller_confirmed_at: new Date().toISOString(),
-        seller_confirmed_by: profile?.username || 'auto',
-        added_to_inventory_at: new Date().toISOString(),
+        status: 'draft',
       })
       .select()
       .single();
@@ -133,7 +140,7 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
         delivery_note_id: noteData.id,
         product: it.product,
         quantity: Number(it.quantity),
-        unit: it.unit,
+        unit: normalizeUnit(it.unit),
       }))
     );
 
@@ -142,71 +149,54 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
       return;
     }
 
-    // Auto-add to receiving shop's inventory in one shot
-    for (const it of validItems) {
-      const qty = Number(it.quantity);
-      const { data: existing } = await supabase
-        .from('inventory')
-        .select('*')
-        .eq('shop_id', formShopId)
-        .eq('product', it.product)
-        .eq('unit', it.unit)
-        .maybeSingle();
-      if (existing) {
-        await supabase.from('inventory').update({ quantity: Number(existing.quantity) + qty }).eq('id', existing.id);
-      } else {
-        await supabase.from('inventory').insert({ shop_id: formShopId, product: it.product, quantity: qty, unit: it.unit, threshold: 15, desired_quantity: 25 });
-      }
-    }
-
-    toast({ title: 'Delivered', description: `Note ${formNoteNo} recorded and stock updated` });
+    logAudit({ action: 'delivery_note.create', entity: 'delivery_notes', entity_id: noteData.id, shop_id: formShopId, after: { delivery_note_no: formNoteNo, items: validItems } });
+    toast({ title: 'Draft created', description: `Note ${formNoteNo} created. Dispatch it when the goods leave the factory.` });
     setShowCreate(false);
     resetForm();
     fetchNotes();
   };
 
-  const confirmAsLogistics = async (note: any) => {
-    await supabase.from('delivery_notes').update({
-      status: note.status === 'seller_confirmed' ? 'seller_confirmed' : 'logistics_confirmed',
-      logistics_confirmed_at: new Date().toISOString(),
-      logistics_confirmed_by: profile?.username || 'logistics',
-    }).eq('id', note.id);
-    // If both confirmed already (seller already did), proceed to push to inventory
-    await maybeAddToInventory(note.id);
-    toast({ title: 'Confirmed', description: 'Logistics confirmed delivery' });
-    fetchNotes();
-  };
-
-  const confirmAsSeller = async (note: any) => {
-    await supabase.from('delivery_notes').update({
-      status: note.status === 'logistics_confirmed' ? 'logistics_confirmed' : 'seller_confirmed',
-      seller_confirmed_at: new Date().toISOString(),
-      seller_confirmed_by: profile?.username || 'seller',
-    }).eq('id', note.id);
-    await maybeAddToInventory(note.id);
-    toast({ title: 'Confirmed', description: 'Seller confirmed receipt' });
-    fetchNotes();
-  };
-
-  /** When both logistics and seller have confirmed, add items to inventory and mark final. */
-  const maybeAddToInventory = async (noteId: string) => {
-    const { data: note } = await supabase
-      .from('delivery_notes')
-      .select('*, delivery_note_items(*)')
-      .eq('id', noteId)
-      .single();
-    if (!note) return;
-    if (!note.logistics_confirmed_at || !note.seller_confirmed_at) return;
-    if (note.added_to_inventory_at) return; // already done
-
+  /** Logistics dispatches: goods leave the factory, no shop inventory change yet. */
+  const dispatchNote = async (note: any) => {
+    setBusy(true);
+    // Deduct from factory stock so goods in transit are not double-counted
     for (const item of (note.delivery_note_items || [])) {
-      // Find existing inventory row for shop+product+unit
+      const key = canonicalUnitKey(item.unit);
+      const { data: fRows } = await supabase.from('factory_inventory').select('*').eq('product', item.product);
+      const fRow = (fRows || []).find((r: any) => (key ? canonicalUnitKey(r.unit) === key : r.unit === item.unit));
+      if (fRow) {
+        await supabase.from('factory_inventory')
+          .update({ quantity: Number(fRow.quantity) - Number(item.quantity) })
+          .eq('id', fRow.id);
+      }
+    }
+    const { error } = await supabase.from('delivery_notes').update({
+      status: 'dispatched',
+      dispatched_at: new Date().toISOString(),
+      dispatched_by: profile?.username || 'logistics',
+      rejected_at: null,
+      rejected_by: null,
+      rejection_reason: null,
+    }).eq('id', note.id);
+    setBusy(false);
+    if (error) return toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    logAudit({ action: 'delivery_note.dispatch', entity: 'delivery_notes', entity_id: note.id, shop_id: note.shop_id });
+    toast({ title: 'Dispatched', description: 'The shop can now accept or reject this delivery' });
+    fetchNotes();
+  };
+
+  /** Shop approves: items go straight into shop inventory. */
+  const approveNote = async (note: any) => {
+    if (note.approved_at) return;
+    setBusy(true);
+    for (const item of (note.delivery_note_items || [])) {
+      const unit = normalizeUnit(item.unit);
       const { data: existing } = await supabase
         .from('inventory')
         .select('*')
         .eq('shop_id', note.shop_id)
         .eq('product', item.product)
-        .eq('unit', item.unit)
+        .eq('unit', unit)
         .maybeSingle();
       if (existing) {
         await supabase.from('inventory').update({ quantity: Number(existing.quantity) + Number(item.quantity) }).eq('id', existing.id);
@@ -215,16 +205,91 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
           shop_id: note.shop_id,
           product: item.product,
           quantity: Number(item.quantity),
-          unit: item.unit,
+          unit,
           threshold: 15,
           desired_quantity: 25,
         });
       }
     }
-    await supabase.from('delivery_notes').update({
-      status: 'added_to_inventory',
+    const { error } = await supabase.from('delivery_notes').update({
+      status: 'approved',
+      approved_at: new Date().toISOString(),
+      approved_by: profile?.username || 'seller',
+      seller_confirmed_at: new Date().toISOString(),
+      seller_confirmed_by: profile?.username || 'seller',
       added_to_inventory_at: new Date().toISOString(),
-    }).eq('id', noteId);
+    }).eq('id', note.id);
+    setBusy(false);
+    if (error) return toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    logAudit({ action: 'delivery_note.approve', entity: 'delivery_notes', entity_id: note.id, shop_id: note.shop_id });
+    toast({ title: 'Accepted', description: 'Stock added to your inventory' });
+    fetchNotes();
+  };
+
+  /** Shop rejects with a reason; logistics must correct and re-dispatch. */
+  const submitReject = async () => {
+    if (!rejectNote) return;
+    if (!rejectReason.trim()) {
+      toast({ title: 'Reason required', description: 'Say what is wrong so logistics can correct it', variant: 'destructive' });
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.from('delivery_notes').update({
+      status: 'rejected',
+      rejected_at: new Date().toISOString(),
+      rejected_by: profile?.username || 'seller',
+      rejection_reason: rejectReason.trim(),
+    }).eq('id', rejectNote.id);
+    setBusy(false);
+    if (error) return toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    logAudit({ action: 'delivery_note.reject', entity: 'delivery_notes', entity_id: rejectNote.id, shop_id: rejectNote.shop_id, notes: rejectReason.trim() });
+    toast({ title: 'Rejected', description: 'Logistics has been asked to correct this delivery note' });
+    setRejectNote(null);
+    setRejectReason('');
+    fetchNotes();
+  };
+
+  /** Logistics corrects a rejected note's items, then re-dispatches. */
+  const openEdit = (note: any) => {
+    setEditNote(note);
+    setEditItems((note.delivery_note_items || []).map((it: any) => ({
+      product: it.product,
+      quantity: String(it.quantity),
+      unit: normalizeUnit(it.unit),
+    })));
+  };
+
+  const saveEdit = async (redispatch: boolean) => {
+    if (!editNote) return;
+    const valid = editItems.filter(i => i.product && Number(i.quantity) > 0);
+    if (valid.length === 0) {
+      toast({ title: 'No items', description: 'Add at least one product', variant: 'destructive' });
+      return;
+    }
+    setBusy(true);
+    await supabase.from('delivery_note_items').delete().eq('delivery_note_id', editNote.id);
+    const { error } = await supabase.from('delivery_note_items').insert(
+      valid.map(it => ({
+        delivery_note_id: editNote.id,
+        product: it.product,
+        quantity: Number(it.quantity),
+        unit: normalizeUnit(it.unit),
+      }))
+    );
+    setBusy(false);
+    if (error) return toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    logAudit({
+      action: 'delivery_note.edit',
+      entity: 'delivery_notes',
+      entity_id: editNote.id,
+      shop_id: editNote.shop_id,
+      before: { items: editNote.delivery_note_items },
+      after: { items: valid },
+    });
+    const updated = { ...editNote, delivery_note_items: valid.map(v => ({ ...v, quantity: Number(v.quantity) })) };
+    setEditNote(null);
+    if (redispatch) await dispatchNote(updated);
+    else { toast({ title: 'Saved' }); fetchNotes(); }
   };
 
   const deleteNote = async (id: string) => {
@@ -300,8 +365,8 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
     <div className="space-y-4">
       <div className="flex justify-between items-center flex-wrap gap-2">
         <div>
-          <h2 className="text-xl font-bold flex items-center gap-2"><Truck className="h-5 w-5" /> Delivery Notes (legacy)</h2>
-          <p className="text-sm text-muted-foreground">New delivery notes are now created inside a Trip. This list shows historical notes only.</p>
+          <h2 className="text-xl font-bold flex items-center gap-2"><Truck className="h-5 w-5" /> Delivery Notes</h2>
+          <p className="text-sm text-muted-foreground">Logistics dispatches a note, the shop accepts (stock enters inventory) or rejects with a reason for correction.</p>
         </div>
         {canCreate && (
           <Button onClick={() => setShowCreate(true)}>
@@ -348,15 +413,25 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
                           <Button size="sm" variant="outline" onClick={() => printNotePDF(n)}>
                             <Printer className="h-3 w-3 mr-1" /> PDF
                           </Button>
-                          {profile?.role === 'logistics' && !n.logistics_confirmed_at && (
-                            <Button size="sm" variant="default" onClick={() => confirmAsLogistics(n)}>
-                              <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm (Logistics)
-                            </Button>
+                          {(profile?.role === 'logistics' || profile?.role === 'admin') && (n.status === 'draft' || n.status === 'rejected') && (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => openEdit(n)}>
+                                <Pencil className="h-3 w-3 mr-1" /> Edit
+                              </Button>
+                              <Button size="sm" variant="default" disabled={busy} onClick={() => dispatchNote(n)}>
+                                <Send className="h-3 w-3 mr-1" /> {n.status === 'rejected' ? 'Re-dispatch' : 'Dispatch'}
+                              </Button>
+                            </>
                           )}
-                          {profile?.role === 'seller' && !n.seller_confirmed_at && (
-                            <Button size="sm" variant="default" onClick={() => confirmAsSeller(n)}>
-                              <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm Receipt
-                            </Button>
+                          {profile?.role === 'seller' && n.status === 'dispatched' && (
+                            <>
+                              <Button size="sm" variant="default" disabled={busy} onClick={() => approveNote(n)}>
+                                <CheckCircle2 className="h-3 w-3 mr-1" /> Accept
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => { setRejectNote(n); setRejectReason(''); }}>
+                                <XCircle className="h-3 w-3 mr-1" /> Reject
+                              </Button>
+                            </>
                           )}
                           {profile?.role === 'admin' && (
                             <Button size="sm" variant="ghost" onClick={() => deleteNote(n.id)}>
@@ -485,6 +560,11 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
                     Seller: {openNote.seller_confirmed_at ? `${openNote.seller_confirmed_by} · ${new Date(openNote.seller_confirmed_at).toLocaleString()}` : 'pending'}
                   </div>
                   {openNote.notes && <div className="col-span-2"><span className="text-muted-foreground">Notes:</span> {openNote.notes}</div>}
+                  {openNote.rejection_reason && (
+                    <div className="col-span-2 p-2 rounded-md border border-destructive/40 bg-destructive/10 text-xs">
+                      <span className="font-semibold">Rejected by {openNote.rejected_by}:</span> {openNote.rejection_reason}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center justify-between flex-wrap gap-2 p-2 rounded-md bg-muted/50 text-sm">
                   <div><span className="font-semibold">Totals per unit:</span> {formatTotals(openNote) || '—'}</div>
@@ -515,8 +595,87 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Reject dialog (shop) */}
+      <Dialog open={!!rejectNote} onOpenChange={o => { if (!o) { setRejectNote(null); setRejectReason(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><XCircle className="h-5 w-5 text-destructive" /> Reject delivery {rejectNote?.delivery_note_no}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>What is wrong?</Label>
+            <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. only 8 bags received instead of 10, wrong product" />
+            <p className="text-xs text-muted-foreground">Nothing is added to your inventory. Logistics will correct the note and re-dispatch it.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectNote(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={busy} onClick={submitReject}>Reject delivery</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit dialog (logistics correcting a note) */}
+      <Dialog open={!!editNote} onOpenChange={o => { if (!o) setEditNote(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Pencil className="h-5 w-5" /> Edit delivery {editNote?.delivery_note_no}</DialogTitle>
+          </DialogHeader>
+          {editNote?.rejection_reason && (
+            <div className="p-2 rounded-md border border-destructive/40 bg-destructive/10 text-xs">
+              <span className="font-semibold">Shop rejected:</span> {editNote.rejection_reason}
+            </div>
+          )}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-base">Products</Label>
+              <Button type="button" size="sm" variant="outline" onClick={() => setEditItems([...editItems, { product: '', quantity: '', unit: 'bags' }])}>
+                <Plus className="h-3 w-3 mr-1" /> Add product
+              </Button>
+            </div>
+            {editItems.map((it, i) => (
+              <div key={i} className="grid grid-cols-12 gap-2 items-end">
+                <div className="col-span-5 space-y-1">
+                  <Label className="text-xs">Product</Label>
+                  <Select value={it.product} onValueChange={v => setEditItems(editItems.map((x, idx) => idx === i ? { ...x, product: v } : x))}>
+                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      {products.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-3 space-y-1">
+                  <Label className="text-xs">Quantity</Label>
+                  <Input type="number" min="0" step="0.01" value={it.quantity} onChange={e => setEditItems(editItems.map((x, idx) => idx === i ? { ...x, quantity: e.target.value } : x))} />
+                </div>
+                <div className="col-span-3 space-y-1">
+                  <Label className="text-xs">Unit</Label>
+                  <Select value={it.unit} onValueChange={v => setEditItems(editItems.map((x, idx) => idx === i ? { ...x, unit: v } : x))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CANONICAL_UNITS.map(u => <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-1">
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter((_, idx) => idx !== i))}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditNote(null)}>Cancel</Button>
+            <Button variant="secondary" disabled={busy} onClick={() => saveEdit(false)}>Save only</Button>
+            <Button disabled={busy} onClick={() => saveEdit(true)}>
+              <Send className="h-4 w-4 mr-1" /> Save &amp; dispatch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
 export default DeliveryNoteManager;
+
