@@ -3,9 +3,10 @@ import { useAuth } from './AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { LogOut, Truck, Shield, BarChart3, Factory, MessageSquarePlus } from 'lucide-react';
+import { LogOut, Truck, Shield, BarChart3, Factory, MessageSquarePlus, Undo2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import DeliveryNoteManager from './logistics/DeliveryNoteManager';
+import ShopReturns from './logistics/ShopReturns';
 import MovementReport from './logistics/MovementReport';
 import TripManager from './logistics/TripManager';
 import FactoryInventory from './factory/FactoryInventory';
@@ -84,6 +85,7 @@ const LogisticsDashboard = () => {
               { value: 'trips', label: 'Trips', icon: <Truck className="h-4 w-4" /> },
               { value: 'factory', label: 'Factory Stock', icon: <Factory className="h-4 w-4" /> },
               { value: 'deliveries', label: 'Delivery Notes', icon: <Truck className="h-4 w-4" /> },
+              { value: 'returns', label: 'Returns', icon: <Undo2 className="h-4 w-4" /> },
               { value: 'movement', label: 'Movement Report', icon: <BarChart3 className="h-4 w-4" /> },
               { value: 'requests', label: 'Change Requests', icon: <MessageSquarePlus className="h-4 w-4" /> },
             ]}
@@ -97,6 +99,9 @@ const LogisticsDashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="deliveries" className="flex items-center gap-1">
               <Truck className="h-4 w-4" /> Delivery Notes
+            </TabsTrigger>
+            <TabsTrigger value="returns" className="flex items-center gap-1">
+              <Undo2 className="h-4 w-4" /> Returns
             </TabsTrigger>
             <TabsTrigger value="movement" className="flex items-center gap-1">
               <BarChart3 className="h-4 w-4" /> Movement Report
@@ -115,7 +120,11 @@ const LogisticsDashboard = () => {
           </TabsContent>
 
           <TabsContent value="deliveries">
-            <DeliveryNoteManager shops={shops} canCreate={false} />
+            <DeliveryNoteManager shops={shops} canCreate={true} />
+          </TabsContent>
+
+          <TabsContent value="returns">
+            <ShopReturns shops={shops} />
           </TabsContent>
 
           <TabsContent value="movement">
