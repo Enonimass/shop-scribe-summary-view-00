@@ -56,6 +56,13 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
 
   // Detail dialog
   const [openNote, setOpenNote] = useState<any | null>(null);
+  // Edit dialog (logistics correcting a rejected note)
+  const [editNote, setEditNote] = useState<any | null>(null);
+  const [editItems, setEditItems] = useState<LineItem[]>([]);
+  // Reject dialog (shop rejecting a dispatched note)
+  const [rejectNote, setRejectNote] = useState<any | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => { fetchNotes(); fetchProducts(); }, [scopedShopId]);
 
@@ -118,12 +125,7 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
         delivered_by: formDeliveredBy,
         notes: formNotes || null,
         created_by: profile?.username || null,
-        status: 'added_to_inventory',
-        logistics_confirmed_at: new Date().toISOString(),
-        logistics_confirmed_by: profile?.username || 'auto',
-        seller_confirmed_at: new Date().toISOString(),
-        seller_confirmed_by: profile?.username || 'auto',
-        added_to_inventory_at: new Date().toISOString(),
+        status: 'draft',
       })
       .select()
       .single();
@@ -138,7 +140,7 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
         delivery_note_id: noteData.id,
         product: it.product,
         quantity: Number(it.quantity),
-        unit: it.unit,
+        unit: normalizeUnit(it.unit),
       }))
     );
 
@@ -147,71 +149,54 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
       return;
     }
 
-    // Auto-add to receiving shop's inventory in one shot
-    for (const it of validItems) {
-      const qty = Number(it.quantity);
-      const { data: existing } = await supabase
-        .from('inventory')
-        .select('*')
-        .eq('shop_id', formShopId)
-        .eq('product', it.product)
-        .eq('unit', it.unit)
-        .maybeSingle();
-      if (existing) {
-        await supabase.from('inventory').update({ quantity: Number(existing.quantity) + qty }).eq('id', existing.id);
-      } else {
-        await supabase.from('inventory').insert({ shop_id: formShopId, product: it.product, quantity: qty, unit: it.unit, threshold: 15, desired_quantity: 25 });
-      }
-    }
-
-    toast({ title: 'Delivered', description: `Note ${formNoteNo} recorded and stock updated` });
+    logAudit({ action: 'delivery_note.create', entity: 'delivery_notes', entity_id: noteData.id, shop_id: formShopId, after: { delivery_note_no: formNoteNo, items: validItems } });
+    toast({ title: 'Draft created', description: `Note ${formNoteNo} created. Dispatch it when the goods leave the factory.` });
     setShowCreate(false);
     resetForm();
     fetchNotes();
   };
 
-  const confirmAsLogistics = async (note: any) => {
-    await supabase.from('delivery_notes').update({
-      status: note.status === 'seller_confirmed' ? 'seller_confirmed' : 'logistics_confirmed',
-      logistics_confirmed_at: new Date().toISOString(),
-      logistics_confirmed_by: profile?.username || 'logistics',
-    }).eq('id', note.id);
-    // If both confirmed already (seller already did), proceed to push to inventory
-    await maybeAddToInventory(note.id);
-    toast({ title: 'Confirmed', description: 'Logistics confirmed delivery' });
-    fetchNotes();
-  };
-
-  const confirmAsSeller = async (note: any) => {
-    await supabase.from('delivery_notes').update({
-      status: note.status === 'logistics_confirmed' ? 'logistics_confirmed' : 'seller_confirmed',
-      seller_confirmed_at: new Date().toISOString(),
-      seller_confirmed_by: profile?.username || 'seller',
-    }).eq('id', note.id);
-    await maybeAddToInventory(note.id);
-    toast({ title: 'Confirmed', description: 'Seller confirmed receipt' });
-    fetchNotes();
-  };
-
-  /** When both logistics and seller have confirmed, add items to inventory and mark final. */
-  const maybeAddToInventory = async (noteId: string) => {
-    const { data: note } = await supabase
-      .from('delivery_notes')
-      .select('*, delivery_note_items(*)')
-      .eq('id', noteId)
-      .single();
-    if (!note) return;
-    if (!note.logistics_confirmed_at || !note.seller_confirmed_at) return;
-    if (note.added_to_inventory_at) return; // already done
-
+  /** Logistics dispatches: goods leave the factory, no shop inventory change yet. */
+  const dispatchNote = async (note: any) => {
+    setBusy(true);
+    // Deduct from factory stock so goods in transit are not double-counted
     for (const item of (note.delivery_note_items || [])) {
-      // Find existing inventory row for shop+product+unit
+      const key = canonicalUnitKey(item.unit);
+      const { data: fRows } = await supabase.from('factory_inventory').select('*').eq('product', item.product);
+      const fRow = (fRows || []).find((r: any) => (key ? canonicalUnitKey(r.unit) === key : r.unit === item.unit));
+      if (fRow) {
+        await supabase.from('factory_inventory')
+          .update({ quantity: Number(fRow.quantity) - Number(item.quantity) })
+          .eq('id', fRow.id);
+      }
+    }
+    const { error } = await supabase.from('delivery_notes').update({
+      status: 'dispatched',
+      dispatched_at: new Date().toISOString(),
+      dispatched_by: profile?.username || 'logistics',
+      rejected_at: null,
+      rejected_by: null,
+      rejection_reason: null,
+    }).eq('id', note.id);
+    setBusy(false);
+    if (error) return toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    logAudit({ action: 'delivery_note.dispatch', entity: 'delivery_notes', entity_id: note.id, shop_id: note.shop_id });
+    toast({ title: 'Dispatched', description: 'The shop can now accept or reject this delivery' });
+    fetchNotes();
+  };
+
+  /** Shop approves: items go straight into shop inventory. */
+  const approveNote = async (note: any) => {
+    if (note.approved_at) return;
+    setBusy(true);
+    for (const item of (note.delivery_note_items || [])) {
+      const unit = normalizeUnit(item.unit);
       const { data: existing } = await supabase
         .from('inventory')
         .select('*')
         .eq('shop_id', note.shop_id)
         .eq('product', item.product)
-        .eq('unit', item.unit)
+        .eq('unit', unit)
         .maybeSingle();
       if (existing) {
         await supabase.from('inventory').update({ quantity: Number(existing.quantity) + Number(item.quantity) }).eq('id', existing.id);
@@ -220,16 +205,91 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
           shop_id: note.shop_id,
           product: item.product,
           quantity: Number(item.quantity),
-          unit: item.unit,
+          unit,
           threshold: 15,
           desired_quantity: 25,
         });
       }
     }
-    await supabase.from('delivery_notes').update({
-      status: 'added_to_inventory',
+    const { error } = await supabase.from('delivery_notes').update({
+      status: 'approved',
+      approved_at: new Date().toISOString(),
+      approved_by: profile?.username || 'seller',
+      seller_confirmed_at: new Date().toISOString(),
+      seller_confirmed_by: profile?.username || 'seller',
       added_to_inventory_at: new Date().toISOString(),
-    }).eq('id', noteId);
+    }).eq('id', note.id);
+    setBusy(false);
+    if (error) return toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    logAudit({ action: 'delivery_note.approve', entity: 'delivery_notes', entity_id: note.id, shop_id: note.shop_id });
+    toast({ title: 'Accepted', description: 'Stock added to your inventory' });
+    fetchNotes();
+  };
+
+  /** Shop rejects with a reason; logistics must correct and re-dispatch. */
+  const submitReject = async () => {
+    if (!rejectNote) return;
+    if (!rejectReason.trim()) {
+      toast({ title: 'Reason required', description: 'Say what is wrong so logistics can correct it', variant: 'destructive' });
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.from('delivery_notes').update({
+      status: 'rejected',
+      rejected_at: new Date().toISOString(),
+      rejected_by: profile?.username || 'seller',
+      rejection_reason: rejectReason.trim(),
+    }).eq('id', rejectNote.id);
+    setBusy(false);
+    if (error) return toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    logAudit({ action: 'delivery_note.reject', entity: 'delivery_notes', entity_id: rejectNote.id, shop_id: rejectNote.shop_id, notes: rejectReason.trim() });
+    toast({ title: 'Rejected', description: 'Logistics has been asked to correct this delivery note' });
+    setRejectNote(null);
+    setRejectReason('');
+    fetchNotes();
+  };
+
+  /** Logistics corrects a rejected note's items, then re-dispatches. */
+  const openEdit = (note: any) => {
+    setEditNote(note);
+    setEditItems((note.delivery_note_items || []).map((it: any) => ({
+      product: it.product,
+      quantity: String(it.quantity),
+      unit: normalizeUnit(it.unit),
+    })));
+  };
+
+  const saveEdit = async (redispatch: boolean) => {
+    if (!editNote) return;
+    const valid = editItems.filter(i => i.product && Number(i.quantity) > 0);
+    if (valid.length === 0) {
+      toast({ title: 'No items', description: 'Add at least one product', variant: 'destructive' });
+      return;
+    }
+    setBusy(true);
+    await supabase.from('delivery_note_items').delete().eq('delivery_note_id', editNote.id);
+    const { error } = await supabase.from('delivery_note_items').insert(
+      valid.map(it => ({
+        delivery_note_id: editNote.id,
+        product: it.product,
+        quantity: Number(it.quantity),
+        unit: normalizeUnit(it.unit),
+      }))
+    );
+    setBusy(false);
+    if (error) return toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    logAudit({
+      action: 'delivery_note.edit',
+      entity: 'delivery_notes',
+      entity_id: editNote.id,
+      shop_id: editNote.shop_id,
+      before: { items: editNote.delivery_note_items },
+      after: { items: valid },
+    });
+    const updated = { ...editNote, delivery_note_items: valid.map(v => ({ ...v, quantity: Number(v.quantity) })) };
+    setEditNote(null);
+    if (redispatch) await dispatchNote(updated);
+    else { toast({ title: 'Saved' }); fetchNotes(); }
   };
 
   const deleteNote = async (id: string) => {
