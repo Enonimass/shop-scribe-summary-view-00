@@ -9,11 +9,12 @@ import ProductAnalytics from './ProductAnalytics';
 import CustomerAnalytics from './CustomerAnalytics';
 import CustomerManagement from './CustomerManagement';
 import DeliveryNoteManager from './logistics/DeliveryNoteManager';
+import ShopReturns from './logistics/ShopReturns';
 import DebtPaymentForm from './money/DebtPaymentForm';
 import DailyReport from './money/DailyReport';
 import SellerSummary from './seller/SellerSummary';
 import ChangeRequests from './ChangeRequests';
-import { LogOut, Store, User, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart, LayoutDashboard, MessageSquarePlus } from 'lucide-react';
+import { LogOut, Store, User, UserCheck, BrainCircuit, Truck, Wallet, FileBarChart, LayoutDashboard, MessageSquarePlus, Undo2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import MobileTabsNav, { MobileTabItem } from './MobileTabsNav';
 
@@ -117,6 +118,7 @@ const SellerDashboard = () => {
               { value: 'summary', label: 'Summary', icon: <LayoutDashboard className="h-4 w-4" /> },
               { value: 'inventory', label: 'Inventory' },
               { value: 'deliveries', label: 'Deliveries', icon: <Truck className="h-4 w-4" /> },
+              { value: 'returns', label: 'Returns to Factory', icon: <Undo2 className="h-4 w-4" /> },
               { value: 'sales', label: 'Sales' },
               { value: 'customers', label: 'Customers' },
               { value: 'product-analytics', label: 'Product Analytics' },
@@ -131,6 +133,9 @@ const SellerDashboard = () => {
             <TabsTrigger value="inventory" className="text-xs sm:text-sm">Inventory</TabsTrigger>
             <TabsTrigger value="deliveries" className="text-xs sm:text-sm flex items-center gap-1">
               <Truck className="h-3 w-3" /> Deliveries
+            </TabsTrigger>
+            <TabsTrigger value="returns" className="text-xs sm:text-sm flex items-center gap-1">
+              <Undo2 className="h-3 w-3" /> Returns
             </TabsTrigger>
             <TabsTrigger value="sales" className="text-xs sm:text-sm">Sales</TabsTrigger>
             <TabsTrigger value="customers" className="text-xs sm:text-sm">Customers</TabsTrigger>
@@ -154,6 +159,14 @@ const SellerDashboard = () => {
               shops={[{ shop_id: shopId, shop_name: profile?.shop_name || '' }]}
               scopedShopId={shopId}
               canCreate={false}
+            />
+          </TabsContent>
+
+          <TabsContent value="returns">
+            <ShopReturns
+              shops={[{ shop_id: shopId, shop_name: profile?.shop_name || '' }]}
+              scopedShopId={shopId}
+              canCreate={true}
             />
           </TabsContent>
 
