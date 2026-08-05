@@ -431,7 +431,7 @@ const BulkSalesUpload: React.FC<BulkSalesUploadProps> = ({ shopId, onUploadCompl
                     <TableCell>{row.unit}</TableCell>
                     <TableCell>
                       <Input
-                        type="number"
+                        type="number" min="0" inputMode="decimal"
                         step="0.01"
                         className="h-8 w-24"
                         placeholder="—"

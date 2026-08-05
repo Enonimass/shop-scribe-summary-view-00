@@ -382,7 +382,7 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
                 <Label htmlFor="quantity">Quantity</Label>
                 <Input
                   id="quantity"
-                  type="number"
+                  type="number" min="0" inputMode="decimal"
                   value={newQuantity}
                   onChange={(e) => setNewQuantity(e.target.value)}
                   placeholder="Enter quantity"

@@ -172,7 +172,7 @@ const DebtPaymentForm = ({ shopId }: { shopId: string }) => {
             </div>
             <div className="space-y-1">
               <Label>Amount</Label>
-              <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Input type="number" min="0" inputMode="decimal" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Payment Method</Label>

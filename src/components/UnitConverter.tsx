@@ -237,7 +237,7 @@ const UnitConverter = ({ inventory, onConvert, shopId }: UnitConverterProps) => 
                 <Label htmlFor="quantity">Quantity to Convert</Label>
                 <Input
                   id="quantity"
-                  type="number"
+                  type="number" min="0" inputMode="decimal"
                   value={quantityToConvert}
                   onChange={(e) => setQuantityToConvert(e.target.value)}
                   placeholder="Enter quantity"
