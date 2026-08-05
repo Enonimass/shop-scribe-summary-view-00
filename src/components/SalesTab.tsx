@@ -1078,18 +1078,19 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                     <div className="space-y-2">
                       <Label>Quantity</Label>
                       <Input
-        type="number"
+                        type="number"
+                        min="0"
+                        inputMode="decimal"
                         value={item.quantity || ''}
                         onChange={(e) => updateSaleItem(index, 'quantity', parseFloat(e.target.value) || 0)}
                         placeholder="Quantity"
-                        min="0.1"
                         step="0.1"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label>Unit Price</Label>
                       <Input
-                        type="number"
+                        type="number" min="0" inputMode="decimal"
                         step="0.01"
                         value={item.unit_price ?? ''}
                         onChange={(e) => {
@@ -1138,7 +1139,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 </div>
                 <div className="space-y-2">
                   <Label>Amount Paid {(() => { const m = paymentMethods.find(x => x.id === paymentMethodId); return m?.kind === 'credit' ? '(optional, for partial)' : '(blank = full)'; })()}</Label>
-                  <Input type="number" step="0.01" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} placeholder="Amount received" />
+                  <Input type="number" min="0" inputMode="decimal" step="0.01" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} placeholder="Amount received" />
                 </div>
                 <div className="space-y-2">
                   <Label>Total</Label>

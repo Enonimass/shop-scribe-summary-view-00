@@ -493,7 +493,7 @@ const TripManager: React.FC<Props> = ({ shops }) => {
                         <SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
-                    <div className="w-24"><Label>Qty</Label><Input type="number" value={it.dispatched_qty} onChange={e => updateStopItem(i, j, { dispatched_qty: e.target.value })} /></div>
+                    <div className="w-24"><Label>Qty</Label><Input type="number" min="0" inputMode="decimal" value={it.dispatched_qty} onChange={e => updateStopItem(i, j, { dispatched_qty: e.target.value })} /></div>
                     <Button variant="ghost" size="icon" onClick={() => removeStopItem(i, j)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                   </div>
                 ))}
@@ -576,7 +576,7 @@ const TripManager: React.FC<Props> = ({ shops }) => {
                               <li key={d.id} className="flex justify-between items-center bg-muted/30 rounded px-2 py-1">
                                 <span className="font-mono">{d.delivery_note_no}</span>
                                 <span className="text-xs text-muted-foreground">{d.delivery_date} · {(d.delivery_note_items || []).length} lines · by {d.delivered_by}</span>
-                                {openTrip.status === 'draft' && (
+                                {openTrip.status === 'draft' && profile?.role === 'admin' && (
                                   <Button variant="ghost" size="icon" onClick={() => removeDn(d.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                                 )}
                               </li>
@@ -614,7 +614,7 @@ const TripManager: React.FC<Props> = ({ shops }) => {
                           <SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      <div><Label>Qty</Label><Input type="number" value={retForm.quantity} onChange={e => setRetForm({ ...retForm, quantity: e.target.value })} /></div>
+                      <div><Label>Qty</Label><Input type="number" min="0" inputMode="decimal" value={retForm.quantity} onChange={e => setRetForm({ ...retForm, quantity: e.target.value })} /></div>
                       <div><Label>Reason</Label><Input value={retForm.reason} onChange={e => setRetForm({ ...retForm, reason: e.target.value })} /></div>
                       <Button onClick={() => addReturn(openTrip.id)}><Plus className="h-4 w-4 mr-1" /> Add</Button>
                     </div>
@@ -636,7 +636,7 @@ const TripManager: React.FC<Props> = ({ shops }) => {
                 <div key={it.id} className="grid grid-cols-3 gap-2 items-center">
                   <div className="text-sm"><div className="font-medium">{it.product}</div><div className="text-xs text-muted-foreground">{it.unit}</div></div>
                   <div className="text-sm text-muted-foreground">Dispatched: {it.dispatched_qty}</div>
-                  <Input type="number" value={receiveValues[it.id] ?? ''} onChange={e => setReceiveValues({ ...receiveValues, [it.id]: e.target.value })} />
+                  <Input type="number" min="0" inputMode="decimal" value={receiveValues[it.id] ?? ''} onChange={e => setReceiveValues({ ...receiveValues, [it.id]: e.target.value })} />
                 </div>
               ))}
             </div>
@@ -678,7 +678,7 @@ const TripManager: React.FC<Props> = ({ shops }) => {
                       <SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-                  <div className="col-span-2"><Input type="number" placeholder="Qty" value={it.quantity} onChange={e => setDnItems(dnItems.map((x, i) => i === idx ? { ...x, quantity: e.target.value } : x))} /></div>
+                  <div className="col-span-2"><Input type="number" min="0" inputMode="decimal" placeholder="Qty" value={it.quantity} onChange={e => setDnItems(dnItems.map((x, i) => i === idx ? { ...x, quantity: e.target.value } : x))} /></div>
                   <Button variant="ghost" size="icon" onClick={() => setDnItems(dnItems.filter((_, i) => i !== idx))}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
               ))}

@@ -14,6 +14,7 @@ import { logAudit } from '@/lib/audit';
 import { PIVOT_UNITS, canonicalUnitKey, toBagEquivalent, formatBags } from '@/lib/units';
 import { useAuth } from '@/components/AuthProvider';
 import ProductionIntakeWeekly from './ProductionIntakeWeekly';
+import FactoryMovements from './FactoryMovements';
 
 interface Row {
   id: string;
@@ -27,6 +28,7 @@ const UNITS = ['bags', '50kg Bags','20 kg Bags', 'kg'];
 
 const FactoryInventory: React.FC = () => {
   const { profile } = useAuth();
+  const canEdit = profile?.role !== 'logistics';
   const [rows, setRows] = useState<Row[]>([]);
   const [products, setProducts] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -34,6 +36,10 @@ const FactoryInventory: React.FC = () => {
   const [form, setForm] = useState({ product: '', unit: 'bags', quantity: '0', threshold: '0' });
   const [showIntake, setShowIntake] = useState(false);
   const [intake, setIntake] = useState({ product: '', unit: 'bags', quantity: '', intake_date: new Date().toISOString().split('T')[0], note: '' });
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [productToCategory, setProductToCategory] = useState<Record<string, string>>({});
+  const [category, setCategory] = useState('all');
+  const [search, setSearch] = useState('');
 
   const fetchAll = async () => {
     const { data } = await supabase.from('factory_inventory').select('*').order('product');
@@ -43,7 +49,15 @@ const FactoryInventory: React.FC = () => {
     const { data } = await supabase.from('product_category_items').select('product_name').order('product_name');
     if (data) setProducts([...new Set(data.map((d: any) => d.product_name))]);
   };
-  useEffect(() => { fetchAll(); fetchProducts(); }, []);
+  const fetchCategories = async () => {
+    const { data: cats } = await supabase.from('product_categories').select('id, name').order('name');
+    const { data: items } = await supabase.from('product_category_items').select('product_name, category_id');
+    setCategories((cats || []).map((c: any) => ({ id: c.id, name: c.name })));
+    const map: Record<string, string> = {};
+    (items || []).forEach((it: any) => { map[it.product_name] = it.category_id; });
+    setProductToCategory(map);
+  };
+  useEffect(() => { fetchAll(); fetchProducts(); fetchCategories(); }, []);
 
   const openCreate = () => {
     setEditing(null);
@@ -57,11 +71,12 @@ const FactoryInventory: React.FC = () => {
   };
 
   const save = async () => {
+    if (!canEdit) return;
     const payload = {
       product: form.product.trim(),
       unit: form.unit,
-      quantity: Number(form.quantity) || 0,
-      threshold: Number(form.threshold) || 0,
+      quantity: Math.max(0, Number(form.quantity) || 0),
+      threshold: Math.max(0, Number(form.threshold) || 0),
     };
     if (!payload.product) { toast({ title: 'Product required', variant: 'destructive' }); return; }
     if (editing) {
@@ -79,6 +94,7 @@ const FactoryInventory: React.FC = () => {
   };
 
   const remove = async (r: Row) => {
+    if (!canEdit) return;
     if (!confirm(`Delete ${r.product} (${r.unit}) from factory inventory?`)) return;
     const { error } = await supabase.from('factory_inventory').delete().eq('id', r.id);
     if (error) return toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -88,7 +104,7 @@ const FactoryInventory: React.FC = () => {
 
   const receiveFromProduction = async () => {
     const qty = Number(intake.quantity);
-    if (!intake.product || !intake.unit || !qty || qty <= 0) {
+    if (!intake.product || !intake.unit || !Number.isFinite(qty) || qty <= 0) {
       toast({ title: 'Missing info', description: 'Product, unit and positive quantity are required', variant: 'destructive' });
       return;
     }
@@ -131,6 +147,18 @@ const FactoryInventory: React.FC = () => {
       .sort((a, b) => a.product.localeCompare(b.product));
   }, [rows]);
 
+  const matchesFilters = React.useCallback((product: string) => {
+    if (category !== 'all' && productToCategory[product] !== category) return false;
+    if (search && !product.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  }, [category, search, productToCategory]);
+
+  const visiblePivot = React.useMemo(
+    () => pivotProducts.filter(p => matchesFilters(p.product)),
+    [pivotProducts, matchesFilters]
+  );
+  const visibleRows = React.useMemo(() => rows.filter(r => matchesFilters(r.product)), [rows, matchesFilters]);
+
   const productBagEq = (units: Record<string, number>) => {
     let total = 0;
     PIVOT_UNITS.forEach(u => {
@@ -151,6 +179,22 @@ const FactoryInventory: React.FC = () => {
           <CardTitle className="flex items-center gap-2"><Factory className="h-5 w-5" /> Factory Stock by Product</CardTitle>
           <Button size="sm" onClick={() => setShowIntake(true)}><Plus className="h-4 w-4 mr-1" /> Receive from production</Button>
         </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Category</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Product</Label>
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search product" />
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
@@ -162,7 +206,7 @@ const FactoryInventory: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pivotProducts.map(({ product, units }) => (
+            {visiblePivot.map(({ product, units }) => (
               <TableRow key={product}>
                 <TableCell className="font-medium">{product}</TableCell>
                 {PIVOT_UNITS.map(u => (
@@ -173,13 +217,15 @@ const FactoryInventory: React.FC = () => {
                 <TableCell className="text-right font-semibold">{formatBags(productBagEq(units))}</TableCell>
               </TableRow>
             ))}
-            {pivotProducts.length === 0 && (
+            {visiblePivot.length === 0 && (
               <TableRow><TableCell colSpan={PIVOT_UNITS.length + 2} className="text-center text-muted-foreground">No factory stock yet.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
       </CardContent>
     </Card>
+
+    <FactoryMovements categories={categories} productToCategory={productToCategory} />
 
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -190,10 +236,15 @@ const FactoryInventory: React.FC = () => {
               <AlertTriangle className="h-3 w-3" /> {lowCount} low
             </Badge>
           )}
-          <Button onClick={openCreate} size="sm"><Plus className="h-4 w-4 mr-1" /> Add</Button>
+          {canEdit && <Button onClick={openCreate} size="sm"><Plus className="h-4 w-4 mr-1" /> Add</Button>}
         </div>
       </CardHeader>
       <CardContent>
+        {!canEdit && (
+          <p className="mb-3 text-xs text-muted-foreground">
+            Logistics can record stock received from production but cannot edit or delete stock records. Raise a Change Request for corrections.
+          </p>
+        )}
         <Table>
           <TableHeader>
             <TableRow>
@@ -202,11 +253,11 @@ const FactoryInventory: React.FC = () => {
               <TableHead className="text-right">Quantity</TableHead>
               <TableHead className="text-right">Threshold</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead></TableHead>
+              {canEdit && <TableHead></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map(r => {
+            {visibleRows.map(r => {
               const low = r.quantity <= r.threshold;
               return (
                 <TableRow key={r.id}>
@@ -215,14 +266,16 @@ const FactoryInventory: React.FC = () => {
                   <TableCell className="text-right">{r.quantity}</TableCell>
                   <TableCell className="text-right">{r.threshold}</TableCell>
                   <TableCell>{low ? <Badge variant="destructive">Low</Badge> : <Badge variant="secondary">OK</Badge>}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => remove(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                  </TableCell>
+                  {canEdit && (
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => remove(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}
-            {rows.length === 0 && (
+            {visibleRows.length === 0 && (
               <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No factory stock yet.</TableCell></TableRow>
             )}
           </TableBody>
@@ -252,11 +305,11 @@ const FactoryInventory: React.FC = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Quantity</Label>
-                <Input type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
+                <Input type="number" min="0" step="0.01" inputMode="decimal" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
               </div>
               <div>
                 <Label>Threshold</Label>
-                <Input type="number" value={form.threshold} onChange={(e) => setForm({ ...form, threshold: e.target.value })} />
+                <Input type="number" min="0" step="0.01" inputMode="decimal" value={form.threshold} onChange={(e) => setForm({ ...form, threshold: e.target.value })} />
               </div>
             </div>
           </div>
@@ -292,7 +345,7 @@ const FactoryInventory: React.FC = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Quantity received</Label>
-                <Input type="number" value={intake.quantity} onChange={(e) => setIntake({ ...intake, quantity: e.target.value })} />
+                <Input type="number" min="0" step="0.01" inputMode="decimal" value={intake.quantity} onChange={(e) => setIntake({ ...intake, quantity: e.target.value })} />
               </div>
               <div>
                 <Label>Date</Label>

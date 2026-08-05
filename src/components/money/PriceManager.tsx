@@ -103,7 +103,7 @@ const PriceManager = ({ shops }: { shops: Shop[] }) => {
                     <TableCell key={u.key} className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Input
-                          type="number"
+                          type="number" min="0" inputMode="decimal"
                           step="0.01"
                           value={value}
                           placeholder={derived ? `≈ ${derived.value.toFixed(2)}` : '—'}

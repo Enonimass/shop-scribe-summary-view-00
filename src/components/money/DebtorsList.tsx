@@ -206,9 +206,9 @@ const DebtorsList: React.FC<Props> = ({ shopId, shops = [] }) => {
         <CardContent className="p-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 items-end">
           <div><Label className="text-xs">Customer</Label><Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search" /></div>
           <div><Label className="text-xs">Min balance</Label><Input type="number" value={minAmt} onChange={e => setMinAmt(e.target.value)} /></div>
-          <div><Label className="text-xs">Max balance</Label><Input type="number" value={maxAmt} onChange={e => setMaxAmt(e.target.value)} /></div>
+          <div><Label className="text-xs">Max balance</Label><Input type="number" min="0" inputMode="decimal" value={maxAmt} onChange={e => setMaxAmt(e.target.value)} /></div>
           <div><Label className="text-xs">Min age (days)</Label><Input type="number" value={minAge} onChange={e => setMinAge(e.target.value)} /></div>
-          <div><Label className="text-xs">Max age (days)</Label><Input type="number" value={maxAge} onChange={e => setMaxAge(e.target.value)} /></div>
+          <div><Label className="text-xs">Max age (days)</Label><Input type="number" min="0" inputMode="decimal" value={maxAge} onChange={e => setMaxAge(e.target.value)} /></div>
           <div>
             <Label className="text-xs">Bucket</Label>
             <Select value={bucket} onValueChange={(v: any) => setBucket(v)}>
