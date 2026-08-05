@@ -576,7 +576,7 @@ const TripManager: React.FC<Props> = ({ shops }) => {
                               <li key={d.id} className="flex justify-between items-center bg-muted/30 rounded px-2 py-1">
                                 <span className="font-mono">{d.delivery_note_no}</span>
                                 <span className="text-xs text-muted-foreground">{d.delivery_date} · {(d.delivery_note_items || []).length} lines · by {d.delivered_by}</span>
-                                {openTrip.status === 'draft' && (
+                                {openTrip.status === 'draft' && profile?.role === 'admin' && (
                                   <Button variant="ghost" size="icon" onClick={() => removeDn(d.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                                 )}
                               </li>
