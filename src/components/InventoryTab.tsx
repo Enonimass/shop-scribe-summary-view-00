@@ -287,7 +287,11 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Inventory Management</h2>
-          <p className="text-gray-600">Track your products and stock levels</p>
+          <p className="text-gray-600">
+            {sharedPool
+              ? 'HQ shares one stock pool with the factory: stock comes in from production only, and leaves through sales here or deliveries out.'
+              : 'Track your products and stock levels'}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
             <div className="w-48">
@@ -324,11 +328,13 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
               },
             })}
           />
-          <UnitConverter 
-            inventory={inventory} 
-            onConvert={fetchInventory}
-            shopId={shopId}
-          />
+          {!sharedPool && (
+            <UnitConverter
+              inventory={inventory}
+              onConvert={fetchInventory}
+              shopId={shopId}
+            />
+          )}
           {/* Manual stock add disabled for sellers — use Delivery Notes instead */}
         </div>
       </div>
