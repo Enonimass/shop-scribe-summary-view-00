@@ -413,7 +413,7 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
                           <Button size="sm" variant="outline" onClick={() => printNotePDF(n)}>
                             <Printer className="h-3 w-3 mr-1" /> PDF
                           </Button>
-                          {(profile?.role === 'logistics' || profile?.role === 'admin') && (n.status === 'draft' || n.status === 'rejected') && (
+                          {profile?.role === 'admin' && (n.status === 'draft' || n.status === 'rejected') && (
                             <>
                               <Button size="sm" variant="outline" onClick={() => openEdit(n)}>
                                 <Pencil className="h-3 w-3 mr-1" /> Edit
@@ -422,6 +422,11 @@ const DeliveryNoteManager: React.FC<Props> = ({ shops, scopedShopId, canCreate =
                                 <Send className="h-3 w-3 mr-1" /> {n.status === 'rejected' ? 'Re-dispatch' : 'Dispatch'}
                               </Button>
                             </>
+                          )}
+                          {profile?.role === 'logistics' && (n.status === 'draft' || n.status === 'rejected') && (
+                            <Button size="sm" variant="default" disabled={busy} onClick={() => dispatchNote(n)}>
+                              <Send className="h-3 w-3 mr-1" /> {n.status === 'rejected' ? 'Re-dispatch' : 'Dispatch'}
+                            </Button>
                           )}
                           {profile?.role === 'seller' && n.status === 'dispatched' && (
                             <>

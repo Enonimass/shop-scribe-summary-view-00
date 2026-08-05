@@ -14,6 +14,7 @@ import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/components/AuthProvider';
 import { logAudit } from '@/lib/audit';
 import { CANONICAL_UNITS, canonicalUnitKey, normalizeUnit, formatBags } from '@/lib/units';
+import { isHqShop } from '@/lib/hq';
 
 interface Shop { shop_id: string; shop_name: string }
 
@@ -39,6 +40,8 @@ interface ReturnRow {
 
 const ShopReturns: React.FC<Props> = ({ shops, scopedShopId, canCreate = false }) => {
   const { profile } = useAuth();
+  // HQ shares the factory pool, so a "return to factory" there is a no-op.
+  const allowCreate = canCreate && !isHqShop(scopedShopId);
   const [rows, setRows] = useState<ReturnRow[]>([]);
   const [products, setProducts] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -91,8 +94,12 @@ const ShopReturns: React.FC<Props> = ({ shops, scopedShopId, canCreate = false }
 
   const submit = async () => {
     const qty = Number(form.quantity);
-    if (!form.shop_id || !form.product || !form.unit || !qty || qty <= 0 || !form.reason.trim()) {
+    if (!form.shop_id || !form.product || !form.unit || !Number.isFinite(qty) || qty <= 0 || !form.reason.trim()) {
       toast({ title: 'Missing information', description: 'Shop, product, unit, a positive quantity and a reason are all required', variant: 'destructive' });
+      return;
+    }
+    if (isHqShop(form.shop_id)) {
+      toast({ title: 'Not applicable', description: 'HQ already shares the factory stock pool, so nothing needs returning.', variant: 'destructive' });
       return;
     }
     setSaving(true);
@@ -160,6 +167,7 @@ const ShopReturns: React.FC<Props> = ({ shops, scopedShopId, canCreate = false }
   };
 
   const remove = async (r: ReturnRow) => {
+    if (profile?.role !== 'admin') return;
     if (!confirm(`Delete this return record (${r.product} ${r.quantity} ${r.unit})? Stock is not reversed automatically.`)) return;
     const { error } = await supabase.from('shop_returns').delete().eq('id', r.id);
     if (error) return toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -181,7 +189,7 @@ const ShopReturns: React.FC<Props> = ({ shops, scopedShopId, canCreate = false }
             <CardTitle className="flex items-center gap-2">
               <Undo2 className="h-5 w-5" /> Returns to Factory
             </CardTitle>
-            {canCreate && (
+            {allowCreate && (
               <Button onClick={() => setShowForm(true)}>
                 <Plus className="h-4 w-4 mr-1" /> Return to factory
               </Button>
@@ -248,7 +256,7 @@ const ShopReturns: React.FC<Props> = ({ shops, scopedShopId, canCreate = false }
                       <TableCell className="max-w-[240px] truncate" title={r.reason}>{r.reason}</TableCell>
                       <TableCell className="text-muted-foreground text-xs">{r.recorded_by || '—'}</TableCell>
                       <TableCell className="text-right">
-                        {(profile?.role === 'admin' || profile?.role === 'logistics') && (
+                        {profile?.role === 'admin' && (
                           <Button variant="ghost" size="icon" onClick={() => remove(r)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -275,7 +283,7 @@ const ShopReturns: React.FC<Props> = ({ shops, scopedShopId, canCreate = false }
                 <Select value={form.shop_id} onValueChange={v => setForm({ ...form, shop_id: v })}>
                   <SelectTrigger><SelectValue placeholder="Select shop" /></SelectTrigger>
                   <SelectContent>
-                    {shops.map(s => <SelectItem key={s.shop_id} value={s.shop_id}>{s.shop_name}</SelectItem>)}
+                    {shops.filter(s => !isHqShop(s.shop_id)).map(s => <SelectItem key={s.shop_id} value={s.shop_id}>{s.shop_name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -292,7 +300,7 @@ const ShopReturns: React.FC<Props> = ({ shops, scopedShopId, canCreate = false }
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Quantity</Label>
-                <Input type="number" min="0" step="0.01" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} />
+                <Input type="number" min="0" step="0.01" inputMode="decimal" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} />
               </div>
               <div className="space-y-1">
                 <Label>Unit</Label>
