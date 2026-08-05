@@ -241,7 +241,6 @@ const UnitConverter = ({ inventory, onConvert, shopId }: UnitConverterProps) => 
                   value={quantityToConvert}
                   onChange={(e) => setQuantityToConvert(e.target.value)}
                   placeholder="Enter quantity"
-                  min="1"
                   max={selectedItem?.quantity || 0}
                 />
               </div>

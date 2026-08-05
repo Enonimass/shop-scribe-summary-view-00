@@ -386,7 +386,6 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
                   value={newQuantity}
                   onChange={(e) => setNewQuantity(e.target.value)}
                   placeholder="Enter quantity"
-                  min="1"
                 />
               </div>
               <div className="space-y-2">
