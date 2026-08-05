@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import UnitConverter from './UnitConverter';
 import { PIVOT_UNITS, canonicalUnitKey, toBagEquivalent, formatBags, CANONICAL_UNITS } from '@/lib/units';
+import { isHqShop } from '@/lib/hq';
 
 interface InventoryItem {
   id: string;
@@ -30,6 +31,7 @@ interface InventoryItem {
     } catch (e) { return undefined; }
   };
 const InventoryTab = ({ shopId }: { shopId: string }) => {
+  const sharedPool = isHqShop(shopId);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [availableProducts, setAvailableProducts] = useState<string[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -83,12 +85,14 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
       .channel('inventory-changes')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'inventory',
-          filter: `shop_id=eq.${shopId}`,
-        },
+        sharedPool
+          ? { event: '*', schema: 'public', table: 'factory_inventory' }
+          : {
+              event: '*',
+              schema: 'public',
+              table: 'inventory',
+              filter: `shop_id=eq.${shopId}`,
+            },
         () => {
           fetchInventory();
         }
@@ -98,11 +102,36 @@ const InventoryTab = ({ shopId }: { shopId: string }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [shopId]);
+  }, [shopId, sharedPool]);
 
   const fetchInventory = async () => {
     if (!shopId) return;
-    
+
+    if (sharedPool) {
+      // HQ/Kiambu shares the factory stock pool — read it directly.
+      const { data, error } = await supabase
+        .from('factory_inventory')
+        .select('*')
+        .order('product');
+      if (error) {
+        console.error('Error fetching factory inventory:', error);
+        toast({ title: 'Error', description: 'Failed to load inventory', variant: 'destructive' });
+        return;
+      }
+      setInventory(
+        (data || []).map((r: any) => ({
+          id: r.id,
+          product: r.product,
+          quantity: Number(r.quantity || 0),
+          unit: r.unit,
+          threshold: Number(r.threshold || 0),
+          desired_quantity: 0,
+          shop_id: shopId,
+        }))
+      );
+      return;
+    }
+
     const { data, error } = await supabase
       .from('inventory')
       .select('*')
