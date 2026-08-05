@@ -1078,11 +1078,12 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                     <div className="space-y-2">
                       <Label>Quantity</Label>
                       <Input
-        type="number" min="0" inputMode="decimal"
+                        type="number"
+                        min="0"
+                        inputMode="decimal"
                         value={item.quantity || ''}
                         onChange={(e) => updateSaleItem(index, 'quantity', parseFloat(e.target.value) || 0)}
                         placeholder="Quantity"
-                        min="0.1"
                         step="0.1"
                       />
                     </div>
