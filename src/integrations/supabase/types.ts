@@ -110,6 +110,48 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_prepayments: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_name: string
+          id: string
+          notes: string | null
+          payment_date: string
+          payment_method_id: string | null
+          payment_method_name: string | null
+          recorded_by: string | null
+          shop_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          customer_name: string
+          id?: string
+          notes?: string | null
+          payment_date?: string
+          payment_method_id?: string | null
+          payment_method_name?: string | null
+          recorded_by?: string | null
+          shop_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_name?: string
+          id?: string
+          notes?: string | null
+          payment_date?: string
+          payment_method_id?: string | null
+          payment_method_name?: string | null
+          recorded_by?: string | null
+          shop_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           created_at: string
@@ -447,6 +489,48 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      prepayment_applications: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          prepayment_id: string
+          transaction_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          prepayment_id: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          prepayment_id?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prepayment_applications_prepayment_id_fkey"
+            columns: ["prepayment_id"]
+            isOneToOne: false
+            referencedRelation: "customer_prepayments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prepayment_applications_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "sales_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_categories: {
         Row: {

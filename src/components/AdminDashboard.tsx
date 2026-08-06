@@ -17,6 +17,7 @@ import CustomerManagement from './CustomerManagement';
 import CategoryManagement from './CategoryManagement';
 import ExportButtons from './ExportButtons';
 import PaymentMethodManager from './money/PaymentMethodManager';
+import PrepaymentForm from './money/PrepaymentForm';
 import PriceManager from './money/PriceManager';
 import DailyReport from './money/DailyReport';
 import DebtorsList from './money/DebtorsList';
@@ -880,7 +881,13 @@ const AdminDashboard = () => {
           </TabsContent>
 
           <TabsContent value="payments">
-            <PaymentMethodManager />
+            <div className="space-y-4">
+              <PaymentMethodManager />
+              <PrepaymentForm
+                shopId={selectedShop && selectedShop !== 'all' ? selectedShop : undefined}
+                shops={shops}
+              />
+            </div>
           </TabsContent>
 
           <TabsContent value="daily-report">

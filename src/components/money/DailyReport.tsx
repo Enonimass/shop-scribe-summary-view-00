@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 interface Shop { shop_id: string; shop_name: string; }
 
 import { toBagEquivalent, formatBags, canonicalUnitKey, dbUnitForKey, PIVOT_UNITS } from '@/lib/units';
+import { getPrepaymentFlows } from '@/lib/prepayments';
 
 // Group any legacy / mixed-case unit string into a single canonical bucket
 // (`bags`, `50kg`, `20kg`, `10kg`, `5kg`, `kg`) so the pivot never shows
@@ -24,6 +25,7 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
   const [tx, setTx] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
   const [debts, setDebts] = useState<any[]>([]);
+  const [prepaid, setPrepaid] = useState<{ received: number; applied: number }>({ received: 0, applied: 0 });
 
   useEffect(() => {
     if (!shopId) return;
@@ -33,6 +35,8 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
       if (shopId !== 'all') { txQ = txQ.eq('shop_id', shopId); dbQ = dbQ.eq('shop_id', shopId); }
       const [{ data: t }, { data: d }] = await Promise.all([txQ, dbQ]);
       setTx(t || []); setDebts(d || []);
+      const flows = await getPrepaymentFlows(shopId === 'all' ? null : shopId, date, date);
+      setPrepaid({ received: flows.received, applied: flows.applied });
       const ids = (t || []).map(x => x.id);
       let allItems: any[] = [];
       const chunk = 200;
@@ -50,6 +54,8 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_transactions' }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_items' }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'debt_payments' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_prepayments' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prepayment_applications' }, load)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [shopId, date]);
@@ -104,7 +110,10 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
 
   const creditIssued = tx.filter(t => t.is_credit).reduce((s, t) => s + (Number(t.total_amount || 0) - Number(t.amount_paid || 0)), 0);
   const totalDebtPayments = debts.reduce((s, d) => s + Number(d.amount || 0), 0);
-  const totalCash = tx.reduce((s, t) => s + Number(t.amount_paid || 0), 0) + totalDebtPayments;
+  // Prepayments are income on the day received; the part applied to a sale is
+  // netted out of that sale's collected amount so nothing is counted twice.
+  const totalCash = tx.reduce((s, t) => s + Number(t.amount_paid || 0), 0)
+    + totalDebtPayments + prepaid.received - prepaid.applied;
   const totalSalesValue = tx.reduce((s, t) => s + Number(t.total_amount || 0), 0);
 
   // Customers who bought today (grouped, with product+unit list)
@@ -181,7 +190,7 @@ const DailyReport = ({ shops, defaultShop, allowAll = false }: { shops: Shop[]; 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Total Bags Sold (70kg eq)</p><p className="text-2xl font-bold">{formatBags(totalBags)}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Total Sales Value</p><p className="text-2xl font-bold">{totalSalesValue.toLocaleString()}</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Money Collected</p><p className="text-2xl font-bold">{totalCash.toLocaleString()}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Money Collected</p><p className="text-2xl font-bold">{(Math.round(totalCash * 100) / 100).toLocaleString()}</p>{prepaid.received > 0 && <p className="text-xs text-muted-foreground">incl. prepayments {Math.round(prepaid.received).toLocaleString()}</p>}</CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Credit Issued</p><p className="text-2xl font-bold text-orange-600">{creditIssued.toLocaleString()}</p></CardContent></Card>
       </div>
 

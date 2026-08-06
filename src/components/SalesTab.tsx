@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getEffectiveUnitPrice, canonicalUnitKey, toBagEquivalent, formatBags } from '@/lib/units';
 import { printCreditInvoice, getPreferredFormat, setPreferredFormat, type ReceiptFormat } from '@/lib/receipts';
+import { getPrepaidBalance, applyPrepaidToSale } from '@/lib/prepayments';
 import { useAuth } from './AuthProvider';
 
 // Use canonical unit helpers from `src/lib/units` for accurate conversions
@@ -81,6 +82,18 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
   const [dateTo, setDateTo] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
   const [filterSaleType, setFilterSaleType] = useState('all-types');
+  const [prepaidBalance, setPrepaidBalance] = useState(0);
+
+  // Prepaid balance for the customer being served (auto-applied on save).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!shopId || !customerName.trim()) { setPrepaidBalance(0); return; }
+      const { balance } = await getPrepaidBalance(shopId, customerName.trim());
+      if (!cancelled) setPrepaidBalance(balance);
+    })();
+    return () => { cancelled = true; };
+  }, [shopId, customerName]);
 
   // Sales limited to the currently-selected date range. Product / customer
   // filter dropdowns derive from this slice so they only offer options that
@@ -403,6 +416,22 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
         return;
       }
 
+      // Auto-apply any prepaid balance to the unpaid part of this sale.
+      let prepaidApplied = 0;
+      if (transaction && totalAmount - paid > 0.01) {
+        prepaidApplied = await applyPrepaidToSale(shopId, customerName, transaction.id, totalAmount - paid);
+        if (prepaidApplied > 0) {
+          await supabase
+            .from('sales_transactions')
+            .update({ amount_paid: paid + prepaidApplied })
+            .eq('id', transaction.id);
+          toast({
+            title: 'Prepaid balance used',
+            description: `KES ${prepaidApplied.toLocaleString()} settled from ${customerName}'s prepayment`,
+          });
+        }
+      }
+
       // Deduct inventory from the FULFILLING shop
       for (const item of validItems) {
         const inventoryItem = stockSource.find(inv => inv.product.toLowerCase() === item.product.toLowerCase() && inv.unit === item.unit);
@@ -433,8 +462,8 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
               return { product: it.product, quantity: Number(it.quantity), unit: it.unit, unit_price: up, line_total: up * Number(it.quantity) };
             }),
             total: totalAmount,
-            paid,
-            balance: totalAmount - paid,
+            paid: paid + prepaidApplied,
+            balance: totalAmount - paid - prepaidApplied,
             servedBy: profile?.display_name || profile?.username,
           }, receiptFormat);
         } catch (err) {
@@ -446,6 +475,7 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
       setSaleItems([{ product: '', quantity: 0, unit: 'bags' }]);
       setSaleDate(new Date().toISOString().split('T')[0]);
       setAmountPaid('');
+      setPrepaidBalance(0);
       setShowAddForm(false);
       setFulfillShopId(shopId);
       fetchSales();
@@ -1148,6 +1178,13 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                   </div>
                 </div>
               </div>
+
+              {prepaidBalance > 0.01 && (
+                <div className="p-3 border rounded-lg border-primary/40 bg-primary/5 text-sm">
+                  <span className="font-semibold text-primary">Prepaid balance available: KES {prepaidBalance.toLocaleString()}</span>
+                  <span className="text-muted-foreground"> — it will be applied automatically to whatever is left unpaid on this sale.</span>
+                </div>
+              )}
 
               {(() => { const m = paymentMethods.find(x => x.id === paymentMethodId); return m?.kind === 'credit'; })() && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-orange-50/40">

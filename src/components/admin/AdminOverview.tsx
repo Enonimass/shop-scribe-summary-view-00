@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { toBagEquivalent, toKg, formatBags, formatTonnes } from '@/lib/units';
+import { getPrepaymentFlows } from '@/lib/prepayments';
 import { Package, DollarSign, Wallet, TrendingUp, Users, AlertTriangle, Truck } from 'lucide-react';
 import PurchasingPower from '@/components/analytics/PurchasingPower';
 import WeeklyPurchasing from '@/components/analytics/WeeklyPurchasing';
@@ -53,6 +54,11 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
     if (selectedShop !== 'all') dpQ = dpQ.eq('shop_id', selectedShop);
     const { data: dp } = await dpQ;
     const debtPaid = (dp || []).reduce((s, d: any) => s + Number(d.amount || 0), 0);
+
+    // Prepayments: income when received, netted out when applied to a sale.
+    const flows = await getPrepaymentFlows(selectedShop === 'all' ? null : selectedShop, startStr, endStr);
+    const prepaidReceived = flows.received;
+    const prepaidApplied = flows.applied;
 
     // Bags per product (period)
     const bagsByProductMap = new Map<string, number>();
@@ -116,6 +122,7 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
 
     setData({
       loading: false, totalBags, totalKg, revenue, collected, credit, debtPaid,
+      prepaidReceived, prepaidApplied,
       newCust, activeCust, lowStock, stopsPending, returnsPending,
       txCount: (tx || []).length, bagsByProduct,
       outstandingTotal, debtorCount: debtorSet.size,
@@ -149,6 +156,7 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
         <Kpi title="Cash collected" value={`KES ${Math.round(data.collected).toLocaleString()}`} icon={Wallet} />
         <Kpi title="Credit issued" value={`KES ${Math.round(data.credit).toLocaleString()}`} icon={TrendingUp} tone="text-orange-600" />
         <Kpi title="Debt paid" value={`KES ${Math.round(data.debtPaid).toLocaleString()}`} icon={Wallet} tone="text-green-600" />
+        <Kpi title="Prepayments received" value={`KES ${Math.round(data.prepaidReceived || 0).toLocaleString()}`} icon={Wallet} sub={`Used on sales: ${Math.round(data.prepaidApplied || 0).toLocaleString()}`} />
         <Kpi title="New customers (30d)" value={String(data.newCust)} icon={Users} />
         <Kpi title="Active customers (90d)" value={String(data.activeCust)} icon={Users} />
       </div>
@@ -183,9 +191,11 @@ const AdminOverview: React.FC<PropsExt> = ({ selectedShop, shops = [] }) => {
             <div className="flex justify-between py-1"><span>+ Credit issued (unpaid part)</span><span className="tabular-nums text-orange-600">KES {Math.round(data.credit).toLocaleString()}</span></div>
           </div>
           <div className="space-y-1">
-            <div className="font-semibold">Money in (collected) — KES {Math.round(data.collected + data.debtPaid).toLocaleString()}</div>
+            <div className="font-semibold">Money in (collected) — KES {Math.round(data.collected + data.debtPaid + (data.prepaidReceived || 0) - (data.prepaidApplied || 0)).toLocaleString()}</div>
             <div className="flex justify-between border-b py-1"><span>Cash sales (paid part)</span><span className="tabular-nums">KES {Math.round(data.collected).toLocaleString()}</span></div>
-            <div className="flex justify-between py-1"><span>+ Debt payments received</span><span className="tabular-nums text-green-600">KES {Math.round(data.debtPaid).toLocaleString()}</span></div>
+            <div className="flex justify-between border-b py-1"><span>+ Debt payments received</span><span className="tabular-nums text-green-600">KES {Math.round(data.debtPaid).toLocaleString()}</span></div>
+            <div className="flex justify-between border-b py-1"><span>+ Prepayments received</span><span className="tabular-nums text-green-600">KES {Math.round(data.prepaidReceived || 0).toLocaleString()}</span></div>
+            <div className="flex justify-between py-1"><span>− Prepaid balance used on sales</span><span className="tabular-nums text-muted-foreground">KES {Math.round(data.prepaidApplied || 0).toLocaleString()}</span></div>
           </div>
           <div className="md:col-span-2 text-xs text-muted-foreground border-t pt-2">
             Gap = Credit issued this period − Debt payments received. Credit becomes Money-In only when the customer pays.
