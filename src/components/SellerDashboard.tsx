@@ -11,6 +11,7 @@ import CustomerManagement from './CustomerManagement';
 import DeliveryNoteManager from './logistics/DeliveryNoteManager';
 import ShopReturns from './logistics/ShopReturns';
 import DebtPaymentForm from './money/DebtPaymentForm';
+import PrepaymentForm from './money/PrepaymentForm';
 import DailyReport from './money/DailyReport';
 import SellerSummary from './seller/SellerSummary';
 import ChangeRequests from './ChangeRequests';
@@ -195,7 +196,10 @@ const SellerDashboard = () => {
           </TabsContent>
 
           <TabsContent value="debts">
-            <DebtPaymentForm shopId={shopId} />
+            <div className="space-y-4">
+              <DebtPaymentForm shopId={shopId} />
+              <PrepaymentForm shopId={shopId} />
+            </div>
           </TabsContent>
 
           <TabsContent value="daily-report">
