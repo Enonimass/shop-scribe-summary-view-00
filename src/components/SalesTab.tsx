@@ -1180,6 +1180,17 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
               </div>
 
               {(() => { const m = paymentMethods.find(x => x.id === paymentMethodId); return m?.kind === 'credit'; })() && (
+                <></>
+              )}
+
+              {prepaidBalance > 0.01 && (
+                <div className="p-3 border rounded-lg border-primary/40 bg-primary/5 text-sm">
+                  <span className="font-semibold text-primary">Prepaid balance available: KES {prepaidBalance.toLocaleString()}</span>
+                  <span className="text-muted-foreground"> — it will be applied automatically to whatever is left unpaid on this sale.</span>
+                </div>
+              )}
+
+              {(() => { const m = paymentMethods.find(x => x.id === paymentMethodId); return m?.kind === 'credit'; })() && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-orange-50/40">
                   <div className="space-y-2">
                     <Label>Payment due date</Label>
