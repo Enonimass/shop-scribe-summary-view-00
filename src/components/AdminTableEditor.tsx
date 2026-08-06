@@ -17,6 +17,7 @@ import { logAudit } from '@/lib/audit';
 import ProductCombobox from './ProductCombobox';
 import { CANONICAL_UNITS, normalizeUnit } from '@/lib/units';
 import DebtorsManager from './admin/DebtorsManager';
+import PaymentsManager from './admin/PaymentsManager';
 
 interface InventoryItem {
   id: string;
@@ -606,7 +607,8 @@ const AdminTableEditor = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="debts">
+          <TabsContent value="debts" className="space-y-4">
+            <PaymentsManager shops={uniqueShops} />
             <Card className="bg-white/80 backdrop-blur-sm border-green-200">
               <CardHeader>
                 <CardTitle>Debt Records</CardTitle>

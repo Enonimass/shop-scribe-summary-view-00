@@ -11,8 +11,6 @@ import { Edit, Save, Trash2, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { logAudit } from '@/lib/audit';
 
-interface Shop { shop_id: string; shop_name: string }
-
 const money = (n: any) => (Math.round(Number(n || 0) * 100) / 100).toLocaleString();
 
 /**
@@ -20,7 +18,7 @@ const money = (n: any) => (Math.round(Number(n || 0) * 100) / 100).toLocaleStrin
  * (plus how much of each prepayment has been used on sales). Every change is
  * written to the audit log.
  */
-const PaymentsManager: React.FC<{ shops?: Shop[] }> = ({ shops = [] }) => {
+const PaymentsManager: React.FC<{ shops?: string[] }> = ({ shops = [] }) => {
   const [debtPayments, setDebtPayments] = useState<any[]>([]);
   const [prepayments, setPrepayments] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
@@ -130,7 +128,7 @@ const PaymentsManager: React.FC<{ shops?: Shop[] }> = ({ shops = [] }) => {
           {isEditing ? (
             <Select value={values.shop_id} onValueChange={v => setValues({ ...values, shop_id: v })}>
               <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-              <SelectContent>{shops.map(s => <SelectItem key={s.shop_id} value={s.shop_id}>{s.shop_name}</SelectItem>)}</SelectContent>
+              <SelectContent>{shops.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
             </Select>
           ) : row.shop_id}
         </TableCell>
@@ -194,7 +192,7 @@ const PaymentsManager: React.FC<{ shops?: Shop[] }> = ({ shops = [] }) => {
               <SelectTrigger className="h-8 w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All shops</SelectItem>
-                {shops.map(s => <SelectItem key={s.shop_id} value={s.shop_id}>{s.shop_name}</SelectItem>)}
+                {shops.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
