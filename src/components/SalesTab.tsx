@@ -1179,10 +1179,6 @@ const SalesTab = ({ shopId }: { shopId: string }) => {
                 </div>
               </div>
 
-              {(() => { const m = paymentMethods.find(x => x.id === paymentMethodId); return m?.kind === 'credit'; })() && (
-                <></>
-              )}
-
               {prepaidBalance > 0.01 && (
                 <div className="p-3 border rounded-lg border-primary/40 bg-primary/5 text-sm">
                   <span className="font-semibold text-primary">Prepaid balance available: KES {prepaidBalance.toLocaleString()}</span>
