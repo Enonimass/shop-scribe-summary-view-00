@@ -22,6 +22,8 @@ const CustomerDetailDialog: React.FC<{ customer: Customer | null; onClose: () =>
   const [tx, setTx] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  const [prepayments, setPrepayments] = useState<any[]>([]);
+  const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -43,6 +45,18 @@ const CustomerDetailDialog: React.FC<{ customer: Customer | null; onClose: () =>
         ]);
         its = its.concat(it || []); pays = pays.concat(p || []);
       }
+      // Prepayments (paid now, goods later) plus the parts already used on sales
+      const { data: pre } = await supabase
+        .from('customer_prepayments').select('*')
+        .eq('shop_id', customer.shop_id)
+        .ilike('customer_name', customer.name);
+      const preIds = (pre || []).map((p: any) => p.id);
+      let appRows: any[] = [];
+      for (let i = 0; i < preIds.length; i += 200) {
+        const { data } = await supabase.from('prepayment_applications').select('*').in('prepayment_id', preIds.slice(i, i + 200));
+        appRows = appRows.concat(data || []);
+      }
+      setPrepayments(pre || []); setApplications(appRows);
       setTx(allTx || []); setItems(its); setPayments(pays); setLoading(false);
     })();
   }, [customer?.id]);
