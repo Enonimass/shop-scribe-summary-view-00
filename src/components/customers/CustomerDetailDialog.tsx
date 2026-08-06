@@ -114,6 +114,46 @@ const CustomerDetailDialog: React.FC<{ customer: Customer | null; onClose: () =>
     return { hasCredit: creditTx.length > 0, billed, paid, balance: billed - paid, openCount, oldestDays, open };
   }, [tx, payments]);
 
+  const prepaid = useMemo(() => {
+    const received = prepayments.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const used = applications.reduce((s, a) => s + Number(a.amount || 0), 0);
+    return { received, used, balance: Math.max(0, received - used) };
+  }, [prepayments, applications]);
+
+  // Running account statement: charges (sales, prepaid applied) vs payments
+  // (cash/part paid on sales, debt payments, prepayments received).
+  const ledger = useMemo(() => {
+    const dateById = new Map(tx.map((t: any) => [t.id, t.sale_date]));
+    type Row = { date: string; type: string; ref: string; charge: number; payment: number };
+    const rows: Row[] = [];
+    tx.forEach((t: any) => {
+      rows.push({
+        date: t.sale_date,
+        type: t.is_credit ? 'Sale (credit)' : 'Sale',
+        ref: String(t.id).slice(0, 8),
+        charge: Number(t.total_amount || 0),
+        payment: Number(t.amount_paid || 0),
+      });
+    });
+    payments.forEach((p: any) => rows.push({
+      date: p.payment_date, type: 'Debt payment', ref: p.payment_method_name || '—',
+      charge: 0, payment: Number(p.amount || 0),
+    }));
+    prepayments.forEach((p: any) => rows.push({
+      date: p.payment_date, type: 'Prepayment', ref: p.payment_method_name || '—',
+      charge: 0, payment: Number(p.amount || 0),
+    }));
+    applications.forEach((a: any) => rows.push({
+      date: (a.transaction_id ? dateById.get(a.transaction_id) : null) || String(a.created_at).slice(0, 10),
+      type: 'Prepaid used on sale',
+      ref: a.transaction_id ? String(a.transaction_id).slice(0, 8) : '—',
+      charge: Number(a.amount || 0), payment: 0,
+    }));
+    rows.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    let running = 0;
+    return rows.map(r => { running += r.charge - r.payment; return { ...r, balance: running }; });
+  }, [tx, payments, prepayments, applications]);
+
   if (!customer) return null;
 
   return (
@@ -134,6 +174,7 @@ const CustomerDetailDialog: React.FC<{ customer: Customer | null; onClose: () =>
             <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Lifetime transactions</div><div className="text-xl font-bold">{lifetime.txCount}</div></CardContent></Card>
             <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Lifetime bags (70kg eq)</div><div className="text-xl font-bold">{formatBags(lifetime.totalBags)}</div></CardContent></Card>
             <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Lifetime spend</div><div className="text-xl font-bold">{fmtKes(lifetime.totalSpend)}</div></CardContent></Card>
+            <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Prepaid balance</div><div className={`text-xl font-bold ${prepaid.balance > 0 ? 'text-primary' : ''}`}>{fmtKes(prepaid.balance)}</div></CardContent></Card>
             <Card><CardContent className="p-3">
               <div className="text-xs text-muted-foreground">Payment style</div>
               {credit.hasCredit
@@ -169,6 +210,39 @@ const CustomerDetailDialog: React.FC<{ customer: Customer | null; onClose: () =>
               )}
             </CardContent></Card>
           )}
+
+          <Card><CardContent className="p-4 space-y-3">
+            <div className="font-semibold">Account statement</div>
+            {ledger.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No account activity yet.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table className="text-xs [&_th]:px-2 [&_th]:py-2 [&_td]:px-2 [&_td]:py-1.5">
+                  <TableHeader><TableRow>
+                    <TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Ref</TableHead>
+                    <TableHead className="text-right">Charge</TableHead>
+                    <TableHead className="text-right">Payment</TableHead>
+                    <TableHead className="text-right">Balance</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    {ledger.map((r, i) => (
+                      <TableRow key={i} className={i % 2 ? 'bg-muted/30' : ''}>
+                        <TableCell className="whitespace-nowrap">{r.date}</TableCell>
+                        <TableCell>{r.type}</TableCell>
+                        <TableCell className="text-muted-foreground">{r.ref}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.charge ? fmtKes(r.charge) : ''}</TableCell>
+                        <TableCell className="text-right tabular-nums text-green-600">{r.payment ? fmtKes(r.payment) : ''}</TableCell>
+                        <TableCell className={`text-right tabular-nums font-semibold ${r.balance > 0.01 ? 'text-destructive' : r.balance < -0.01 ? 'text-primary' : ''}`}>
+                          {fmtKes(Math.abs(r.balance))}{r.balance < -0.01 ? ' prepaid' : ''}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <p className="text-xs text-muted-foreground mt-2">Positive balance = customer owes. "Prepaid" = we hold their money and owe goods.</p>
+              </div>
+            )}
+          </CardContent></Card>
 
           <Card><CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between gap-2 flex-wrap">
