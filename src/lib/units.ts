@@ -3,6 +3,7 @@ export const BAG_KG = 70;
 export const toBagEquivalent = (quantity: number, unit: string): number => {
   const u = (unit || '').toLowerCase();
   if (u === '50kg' || u === '50kg bags') return quantity * (50 / 70);
+  if (u === '40kg' || u === '40kg bags') return quantity * (40 / 70);
   if (u === '5kg' || u === '5kg bags') return quantity * (5 / 70);
   if (u === '20kg' || u === '20kg bags') return quantity * (20 / 70);
   if (u === '10kg' || u === '10kg bags') return quantity * (10 / 70);
@@ -13,6 +14,7 @@ export const toBagEquivalent = (quantity: number, unit: string): number => {
 export const toKg = (quantity: number, unit: string): number => {
   const u = (unit || '').toLowerCase();
   if (u === '50kg' || u === '50kg bags') return quantity * 50;
+  if (u === '40kg' || u === '40kg bags') return quantity * 40;
   if (u === '5kg' || u === '5kg bags') return quantity * 5;
   if (u === '20kg' || u === '20kg bags') return quantity * 20;
   if (u === '10kg' || u === '10kg bags') return quantity * 10;
@@ -34,6 +36,7 @@ export const formatTonnes = (kg: number) => {
 export const PIVOT_UNITS: { key: string; label: string; matches: (u: string) => boolean }[] = [
   { key: '70kg', label: '70kg', matches: (u) => /^(bags?|70kg|70kg bags?)$/i.test(u || '') },
   { key: '50kg', label: '50kg', matches: (u) => /^(50kg|50kg bags?)$/i.test(u || '') },
+  { key: '40kg', label: '40kg', matches: (u) => /^(40kg|40kg bags?)$/i.test(u || '') },
   { key: '20kg', label: '20kg', matches: (u) => /^(20kg|20kg bags?)$/i.test(u || '') },
   { key: '10kg', label: '10kg', matches: (u) => /^(10kg|10kg bags?)$/i.test(u || '') },
   { key: '5kg', label: '5kg', matches: (u) => /^(5kg|5kg bags?)$/i.test(u || '') },
@@ -42,7 +45,7 @@ export const PIVOT_UNITS: { key: string; label: string; matches: (u: string) => 
 
 /** kg-weight per one unit of each pivot key. */
 export const KG_PER_UNIT_KEY: Record<string, number> = {
-  '70kg': 70, '50kg': 50, '20kg': 20, '10kg': 10, 'kg': 1,
+  '70kg': 70, '50kg': 50, '40kg': 40, '20kg': 20, '10kg': 10, 'kg': 1,
   '5kg': 5,
 };
 
@@ -66,6 +69,7 @@ export const dbUnitForKey = (key: string): string => {
 export const CANONICAL_UNITS: { value: string; label: string }[] = [
   { value: 'bags', label: 'Bags (70kg)' },
   { value: '50kg', label: '50 kg' },
+  { value: '40kg', label: '40 kg' },
   { value: '20kg', label: '20 kg' },
   { value: '10kg', label: '10 kg' },
   { value: '5kg',  label: '5 kg' },
@@ -105,12 +109,12 @@ export const getEffectiveUnitPrice = (
   }
   // Derive per-kg from smallest available pack
   if (unitKey === 'kg') {
-    const candidates = ['10kg', '20kg', '50kg', '70kg']
+    const candidates = ['10kg', '20kg', '40kg', '50kg', '70kg']
       .map(k => ({ k, row: findByKey(k), size: KG_PER_UNIT_KEY[k] }))
       .filter(c => c.row && Number(c.row!.price) > 0);
     // prefer the smallest pack available (5kg first if present)
     if (KG_PER_UNIT_KEY['5kg']) {
-      const with5 = ['5kg', '10kg', '20kg', '50kg', '70kg']
+      const with5 = ['5kg', '10kg', '20kg', '40kg', '50kg', '70kg']
         .map(k => ({ k, row: findByKey(k), size: KG_PER_UNIT_KEY[k] }))
         .filter(c => c.row && Number(c.row!.price) > 0);
       if (with5.length) return { value: Number(with5[0].row!.price) / with5[0].size, derived: true };
